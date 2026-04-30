@@ -25,6 +25,7 @@ export default function Home() {
   const cleanPart = clean(part);
   const cleanPartNumber = clean(partNumber);
 
+  // 🔥 SMART QUERY
   const carQuery = [
     cleanMake,
     cleanPrice ? `under ${cleanPrice}` : "",
@@ -41,6 +42,7 @@ export default function Home() {
     .filter(Boolean)
     .join(" ");
 
+  // 🔗 LINKS
   const autoTraderLink = `https://www.autotrader.co.uk/car-search?make=${cleanMake}&postcode=${cleanPostcode}&price-to=${cleanPrice}`;
   const ebayCarLink = `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(carQuery + " car")}`;
   const gumtreeLink = `https://www.gumtree.com/search?search_category=cars&q=${encodeURIComponent(carQuery)}`;
@@ -75,19 +77,39 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-950 text-white px-4 py-10">
 
+      {/* HEADER */}
       <div className="text-center mb-10">
         <h1 className="text-4xl font-semibold">CarScout</h1>
         <p className="text-gray-500 text-sm mt-2">
-          Search smarter across platforms
+          Smarter search across platforms
         </p>
       </div>
 
       {/* MODE */}
       <div className="max-w-md mx-auto mb-6 flex bg-gray-800 rounded-xl p-1">
-        <button onClick={() => setMode("cars")} className={`flex-1 py-2 rounded-lg ${mode === "cars" ? "bg-blue-600" : "text-gray-400"}`}>
+        <button
+          onClick={() => {
+            setMode("cars");
+            setShowResults(false);
+            setError("");
+          }}
+          className={`flex-1 py-2 rounded-lg ${
+            mode === "cars" ? "bg-blue-600" : "text-gray-400"
+          }`}
+        >
           Cars
         </button>
-        <button onClick={() => setMode("parts")} className={`flex-1 py-2 rounded-lg ${mode === "parts" ? "bg-blue-600" : "text-gray-400"}`}>
+
+        <button
+          onClick={() => {
+            setMode("parts");
+            setShowResults(false);
+            setError("");
+          }}
+          className={`flex-1 py-2 rounded-lg ${
+            mode === "parts" ? "bg-blue-600" : "text-gray-400"
+          }`}
+        >
           Parts
         </button>
       </div>
@@ -115,16 +137,46 @@ export default function Home() {
 
         {mode === "cars" ? (
           <>
-            <input placeholder="Make" className="w-full p-3 rounded-lg bg-gray-800" value={make} onChange={(e) => setMake(e.target.value)} />
-            <input placeholder="Max Price" className="w-full p-3 rounded-lg bg-gray-800" value={price} onChange={(e) => setPrice(e.target.value)} />
-            <input placeholder="Postcode" className="w-full p-3 rounded-lg bg-gray-800" value={postcode} onChange={(e) => setPostcode(e.target.value)} />
+            <input
+              placeholder="Make"
+              className="w-full p-3 rounded-lg bg-gray-800"
+              value={make}
+              onChange={(e) => setMake(e.target.value)}
+            />
+            <input
+              placeholder="Max Price"
+              className="w-full p-3 rounded-lg bg-gray-800"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+            <input
+              placeholder="Postcode"
+              className="w-full p-3 rounded-lg bg-gray-800"
+              value={postcode}
+              onChange={(e) => setPostcode(e.target.value)}
+            />
             <p className="text-xs text-gray-500">Searching: {carQuery || "..."}</p>
           </>
         ) : (
           <>
-            <input placeholder="Part" className="w-full p-3 rounded-lg bg-gray-800" value={part} onChange={(e) => setPart(e.target.value)} />
-            <input placeholder="Part Number" className="w-full p-3 rounded-lg bg-gray-800" value={partNumber} onChange={(e) => setPartNumber(e.target.value)} />
-            <input placeholder="Car Make" className="w-full p-3 rounded-lg bg-gray-800" value={make} onChange={(e) => setMake(e.target.value)} />
+            <input
+              placeholder="Part"
+              className="w-full p-3 rounded-lg bg-gray-800"
+              value={part}
+              onChange={(e) => setPart(e.target.value)}
+            />
+            <input
+              placeholder="Part Number"
+              className="w-full p-3 rounded-lg bg-gray-800"
+              value={partNumber}
+              onChange={(e) => setPartNumber(e.target.value)}
+            />
+            <input
+              placeholder="Car Make"
+              className="w-full p-3 rounded-lg bg-gray-800"
+              value={make}
+              onChange={(e) => setMake(e.target.value)}
+            />
             <p className="text-xs text-gray-500">Searching: {partsQuery || "..."}</p>
           </>
         )}
@@ -139,23 +191,55 @@ export default function Home() {
 
       {/* RESULTS */}
       {showResults && (
-        <div className="max-w-md mx-auto mt-8 space-y-3">
+        <div className="max-w-md mx-auto mt-8 space-y-4">
 
-          <p className="text-sm text-gray-400 text-center">
-            Choose a platform
-          </p>
+          {/* BEST OPTION */}
+          <div className="bg-blue-600/20 border border-blue-600 p-4 rounded-xl text-center">
+            <p className="text-sm text-blue-300">Best place to start</p>
 
-          <a href={autoTraderLink} target="_blank" className="block bg-gray-900 p-3 rounded-lg text-center border border-gray-800">
-            AutoTrader
-          </a>
+            {mode === "cars" ? (
+              <>
+                <p className="text-lg font-semibold mt-1">AutoTrader</p>
+                <p className="text-xs text-gray-400 mb-2">
+                  Most reliable listings
+                </p>
+                <a href={autoTraderLink} target="_blank" className="block bg-blue-600 p-2 rounded-lg">
+                  View Cars
+                </a>
+              </>
+            ) : (
+              <>
+                <p className="text-lg font-semibold mt-1">eBay</p>
+                <p className="text-xs text-gray-400 mb-2">
+                  Best for parts and deals
+                </p>
+                <a href={partsLink} target="_blank" className="block bg-blue-600 p-2 rounded-lg">
+                  View Parts
+                </a>
+              </>
+            )}
+          </div>
 
-          <a href={ebayCarLink} target="_blank" className="block bg-gray-900 p-3 rounded-lg text-center border border-gray-800">
-            eBay
-          </a>
+          {/* OTHER OPTIONS */}
+          {mode === "cars" && (
+            <>
+              <p className="text-sm text-gray-400 text-center">
+                Or try other platforms
+              </p>
 
-          <a href={gumtreeLink} target="_blank" className="block bg-gray-900 p-3 rounded-lg text-center border border-gray-800">
-            Gumtree
-          </a>
+              <a href={autoTraderLink} target="_blank" className="block bg-gray-900 p-3 rounded-lg text-center border border-gray-800">
+                AutoTrader
+              </a>
+
+              <a href={ebayCarLink} target="_blank" className="block bg-gray-900 p-3 rounded-lg text-center border border-gray-800">
+                eBay
+              </a>
+
+              <a href={gumtreeLink} target="_blank" className="block bg-gray-900 p-3 rounded-lg text-center border border-gray-800">
+                Gumtree
+              </a>
+            </>
+          )}
 
         </div>
       )}
