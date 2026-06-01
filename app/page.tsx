@@ -7,6 +7,9 @@ export default function Home() {
   const [platform, setPlatform] = useState("all");
 
   const [make, setMake] = useState("");
+  const [model, setModel] = useState("");
+  const [year, setYear] = useState("");
+
   const [price, setPrice] = useState("");
   const [postcode, setPostcode] = useState("");
 
@@ -16,6 +19,17 @@ export default function Home() {
 
   const [error, setError] = useState("");
   const [showResults, setShowResults] = useState(false);
+
+  const makes = {
+    Audi: ["A1", "A3", "A4", "A5", "Q3", "Q5"],
+    BMW: ["1 Series", "3 Series", "5 Series", "X1", "X3"],
+    Mercedes: ["A Class", "C Class", "E Class", "GLA", "GLC"],
+    Ford: ["Fiesta", "Focus", "Kuga", "Puma"],
+    Volkswagen: ["Polo", "Golf", "Passat", "Tiguan"],
+    Toyota: ["Yaris", "Corolla", "CHR", "RAV4"],
+  };
+
+  const years = Array.from({ length: 15 }, (_, i) => `${2024 - i}`);
 
   const categories = {
     Engine: [
@@ -62,33 +76,26 @@ export default function Home() {
     ],
   };
 
-  const clean = (val: string) => val.trim();
-
-  const cleanMake = clean(make);
-  const cleanPostcode = clean(postcode);
-  const cleanPrice = clean(price);
-
-  const cleanPart = clean(part);
-  const cleanPartNumber = clean(partNumber);
-
   const carQuery = [
-    cleanMake,
-    cleanPrice ? `under ${cleanPrice}` : "",
-    cleanPostcode ? `near ${cleanPostcode}` : "",
+    make,
+    price ? `under ${price}` : "",
+    postcode ? `near ${postcode}` : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   const partsQuery = [
+    make,
+    model,
+    year,
     partCategory,
-    cleanPart,
-    cleanPartNumber,
-    cleanMake,
+    part,
+    partNumber,
   ]
     .filter(Boolean)
     .join(" ");
 
-  const autoTraderLink = `https://www.autotrader.co.uk/car-search?make=${cleanMake}&postcode=${cleanPostcode}&price-to=${cleanPrice}`;
+  const autoTraderLink = `https://www.autotrader.co.uk/car-search?make=${make}&postcode=${postcode}&price-to=${price}`;
 
   const ebayCarLink = `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(
     carQuery + " car"
@@ -103,13 +110,13 @@ export default function Home() {
   )}`;
 
   const handleSearch = () => {
-    if (mode === "cars" && !cleanMake) {
+    if (mode === "cars" && !make) {
       setError("Enter a car make");
       return;
     }
 
-    if (mode === "parts" && !cleanMake) {
-      setError("Enter a car make");
+    if (mode === "parts" && !make) {
+      setError("Select or enter a vehicle make");
       return;
     }
 
@@ -132,7 +139,6 @@ export default function Home() {
         </p>
       </div>
 
-      {/* MODE */}
       <div className="max-w-md mx-auto mb-6 flex bg-gray-800 rounded-xl p-1">
         <button
           onClick={() => {
@@ -161,88 +167,69 @@ export default function Home() {
         </button>
       </div>
 
-      {/* CAR PLATFORMS */}
       {mode === "cars" && (
         <div className="max-w-md mx-auto mb-4 grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setPlatform("all")}
-            className={`p-2 rounded-lg ${
-              platform === "all" ? "bg-blue-600" : "bg-gray-800"
-            }`}
-          >
-            All
-          </button>
-
-          <button
-            onClick={() => setPlatform("autotrader")}
-            className={`p-2 rounded-lg ${
-              platform === "autotrader" ? "bg-blue-600" : "bg-gray-800"
-            }`}
-          >
-            AutoTrader
-          </button>
-
-          <button
-            onClick={() => setPlatform("ebay")}
-            className={`p-2 rounded-lg ${
-              platform === "ebay" ? "bg-blue-600" : "bg-gray-800"
-            }`}
-          >
-            eBay
-          </button>
-
-          <button
-            onClick={() => setPlatform("gumtree")}
-            className={`p-2 rounded-lg ${
-              platform === "gumtree" ? "bg-blue-600" : "bg-gray-800"
-            }`}
-          >
-            Gumtree
-          </button>
+          <button onClick={() => setPlatform("all")} className={`p-2 rounded-lg ${platform === "all" ? "bg-blue-600" : "bg-gray-800"}`}>All</button>
+          <button onClick={() => setPlatform("autotrader")} className={`p-2 rounded-lg ${platform === "autotrader" ? "bg-blue-600" : "bg-gray-800"}`}>AutoTrader</button>
+          <button onClick={() => setPlatform("ebay")} className={`p-2 rounded-lg ${platform === "ebay" ? "bg-blue-600" : "bg-gray-800"}`}>eBay</button>
+          <button onClick={() => setPlatform("gumtree")} className={`p-2 rounded-lg ${platform === "gumtree" ? "bg-blue-600" : "bg-gray-800"}`}>Gumtree</button>
         </div>
       )}
 
-      {/* SEARCH CARD */}
       <div className="max-w-md mx-auto bg-gray-900 p-5 rounded-xl space-y-3">
         {mode === "cars" ? (
           <>
-            <input
-              placeholder="Make"
-              className="w-full p-3 rounded-lg bg-gray-800"
-              value={make}
-              onChange={(e) => setMake(e.target.value)}
-            />
-
-            <input
-              placeholder="Max Price"
-              className="w-full p-3 rounded-lg bg-gray-800"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-            />
-
-            <input
-              placeholder="Postcode"
-              className="w-full p-3 rounded-lg bg-gray-800"
-              value={postcode}
-              onChange={(e) => setPostcode(e.target.value)}
-            />
-
-            <p className="text-xs text-gray-500">
-              Searching: {carQuery || "..."}
-            </p>
+            <input placeholder="Make" className="w-full p-3 rounded-lg bg-gray-800" value={make} onChange={(e) => setMake(e.target.value)} />
+            <input placeholder="Max Price" className="w-full p-3 rounded-lg bg-gray-800" value={price} onChange={(e) => setPrice(e.target.value)} />
+            <input placeholder="Postcode" className="w-full p-3 rounded-lg bg-gray-800" value={postcode} onChange={(e) => setPostcode(e.target.value)} />
           </>
         ) : (
           <>
-            <input
-              placeholder="Car Make (required)"
-              className="w-full p-3 rounded-lg bg-gray-800"
-              value={make}
-              onChange={(e) => setMake(e.target.value)}
-            />
+            <input placeholder="Vehicle Make" className="w-full p-3 rounded-lg bg-gray-800" value={make} onChange={(e) => setMake(e.target.value)} />
 
-            <p className="text-sm text-gray-400">
-              Which area is the part from?
-            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.keys(makes).map((carMake) => (
+                <button
+                  key={carMake}
+                  onClick={() => {
+                    setMake(carMake);
+                    setModel("");
+                  }}
+                  className={`p-2 rounded-lg text-sm ${
+                    make === carMake ? "bg-blue-600" : "bg-gray-800"
+                  }`}
+                >
+                  {carMake}
+                </button>
+              ))}
+            </div>
+
+            {make && makes[make as keyof typeof makes] && (
+              <div className="grid grid-cols-2 gap-2">
+                {makes[make as keyof typeof makes].map((carModel) => (
+                  <button
+                    key={carModel}
+                    onClick={() => setModel(carModel)}
+                    className={`p-2 rounded-lg text-sm ${
+                      model === carModel ? "bg-blue-600" : "bg-gray-800"
+                    }`}
+                  >
+                    {carModel}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              className="w-full p-3 rounded-lg bg-gray-800"
+            >
+              <option value="">Select Year</option>
+              {years.map((y) => (
+                <option key={y}>{y}</option>
+              ))}
+            </select>
 
             <div className="grid grid-cols-2 gap-2">
               {Object.keys(categories).map((category) => (
@@ -263,36 +250,28 @@ export default function Home() {
               ))}
             </div>
 
-            {/* SUGGESTED PARTS */}
-            {partCategory &&
-              categories[partCategory as keyof typeof categories] && (
-                <div>
-                  <p className="text-sm text-gray-400 mt-3 mb-2">
-                    Suggested Parts
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {categories[
-                      partCategory as keyof typeof categories
-                    ].map((suggestedPart) => (
-                      <button
-                        key={suggestedPart}
-                        onClick={() => setPart(suggestedPart)}
-                        className={`p-2 rounded-lg text-sm ${
-                          part === suggestedPart
-                            ? "bg-blue-600"
-                            : "bg-gray-800"
-                        }`}
-                      >
-                        {suggestedPart}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+            {partCategory && (
+              <div className="grid grid-cols-2 gap-2">
+                {categories[
+                  partCategory as keyof typeof categories
+                ].map((suggestedPart) => (
+                  <button
+                    key={suggestedPart}
+                    onClick={() => setPart(suggestedPart)}
+                    className={`p-2 rounded-lg text-sm ${
+                      part === suggestedPart
+                        ? "bg-blue-600"
+                        : "bg-gray-800"
+                    }`}
+                  >
+                    {suggestedPart}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <input
-              placeholder="Part Name (optional)"
+              placeholder="Part Name"
               className="w-full p-3 rounded-lg bg-gray-800"
               value={part}
               onChange={(e) => setPart(e.target.value)}
@@ -304,10 +283,6 @@ export default function Home() {
               value={partNumber}
               onChange={(e) => setPartNumber(e.target.value)}
             />
-
-            <p className="text-xs text-gray-500">
-              Searching: {partsQuery || "..."}
-            </p>
           </>
         )}
 
@@ -323,40 +298,21 @@ export default function Home() {
         </button>
       </div>
 
-      {/* RESULTS */}
       {showResults && (
         <div className="max-w-md mx-auto mt-8">
           <div className="bg-blue-600/20 border border-blue-600 p-4 rounded-xl text-center">
-            <p className="text-sm text-blue-300">Best place to start</p>
+            <p className="text-sm text-blue-300">
+              Best place to start
+            </p>
 
             {mode === "cars" ? (
-              <>
-                <p className="text-lg font-semibold mt-1">
-                  AutoTrader
-                </p>
-
-                <a
-                  href={autoTraderLink}
-                  target="_blank"
-                  className="block bg-blue-600 p-2 rounded-lg mt-2"
-                >
-                  View Cars
-                </a>
-              </>
+              <a href={autoTraderLink} target="_blank" className="block bg-blue-600 p-2 rounded-lg mt-2">
+                View Cars
+              </a>
             ) : (
-              <>
-                <p className="text-lg font-semibold mt-1">
-                  eBay Parts
-                </p>
-
-                <a
-                  href={partsLink}
-                  target="_blank"
-                  className="block bg-blue-600 p-2 rounded-lg mt-2"
-                >
-                  View Parts
-                </a>
-              </>
+              <a href={partsLink} target="_blank" className="block bg-blue-600 p-2 rounded-lg mt-2">
+                View Parts
+              </a>
             )}
           </div>
         </div>
