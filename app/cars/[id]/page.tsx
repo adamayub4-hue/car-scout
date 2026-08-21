@@ -1,12 +1,15 @@
-export default async function CarPage({ params }: any) {
+import Image from "next/image";
+import { cars } from "@/app/lib/cars";
+
+type CarPageProps = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+export default async function CarPage({ params }: CarPageProps) {
   const { id } = await params;
-
-  const res = await fetch("http://localhost:3000/api/cars", {
-    cache: "no-store",
-  });
-
-  const cars = await res.json();
-  const car = cars.find((c: any) => String(c.id) === id);
+  const car = cars.find((candidate) => String(candidate.id) === id);
 
   if (!car) {
     return <div>Car not found</div>;
@@ -14,8 +17,11 @@ export default async function CarPage({ params }: any) {
 
   return (
     <main className="min-h-screen bg-black text-white p-10">
-      <img
+      <Image
         src={car.image}
+        alt={car.name}
+        width={1200}
+        height={800}
         className="w-full max-w-2xl rounded-lg mb-6"
       />
 
@@ -26,9 +32,10 @@ export default async function CarPage({ params }: any) {
       <a
         href={car.link}
         target="_blank"
+        rel="noreferrer"
         className="bg-blue-500 px-6 py-3 rounded-lg"
       >
-        View on AutoTrader →
+        View on AutoTrader
       </a>
     </main>
   );
