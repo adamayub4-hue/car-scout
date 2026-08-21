@@ -20,7 +20,9 @@ Open [http://localhost:3000](http://localhost:3000).
 - Responsive mobile and desktop interface
 - Clear marketplace hand-off and compatibility guidance
 
-Registration lookup currently structures the search but does not call a DVLA or licensed fitment API. The exploded views are intentionally illustrative rather than OEM technical drawings. A licensed vehicle-data and fitment integration should be added before claiming exact vehicle, factory-option or torque-specification compatibility.
+Registration lookup uses the DVLA Vehicle Enquiry Service when a key is configured, but that service does not provide licensed parts fitment data. The exploded views are intentionally illustrative rather than OEM technical drawings. A licensed fitment integration should be added before claiming exact factory-option or torque-specification compatibility.
+
+Set `DVLA_API_KEY` in the deployment environment to enable server-side registration lookup. Without it, the interface directs users to the manual make-and-model route and never sends a registration to a marketplace URL.
 
 ## Deployment
 

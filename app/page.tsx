@@ -15,6 +15,17 @@ type DiagramSystem = {
   parts: readonly string[];
 };
 
+type VehicleDetails = {
+  registrationNumber: string;
+  make?: string;
+  yearOfManufacture?: number;
+  engineCapacity?: number;
+  fuelType?: string;
+  colour?: string;
+  motStatus?: string;
+  taxStatus?: string;
+};
+
 const makes = {
   Audi: ["A1", "A3", "A4", "A5", "Q3", "Q5"],
   BMW: ["1 Series", "3 Series", "5 Series", "X1", "X3"],
@@ -203,6 +214,8 @@ export default function Home() {
   const [price, setPrice] = useState("");
   const [postcode, setPostcode] = useState("");
   const [registration, setRegistration] = useState("");
+  const [vehicleDetails, setVehicleDetails] = useState<VehicleDetails | null>(null);
+  const [vehicleLookupLoading, setVehicleLookupLoading] = useState(false);
   const [vehiclePath, setVehiclePath] = useState<VehiclePath>("registration");
   const [partMethod, setPartMethod] = useState<PartMethod | "">("");
   const [part, setPart] = useState("");
@@ -225,6 +238,7 @@ export default function Home() {
     setModel("");
     setYear("");
     setRegistration("");
+    setVehicleDetails(null);
     resetPartsBelowVehicle();
   };
 
@@ -236,11 +250,13 @@ export default function Home() {
 
   const vehicleReady =
     vehiclePath === "registration"
-      ? registration.length >= 5
+      ? Boolean(vehicleDetails)
       : Boolean(make && model && year);
   const vehicleLabel =
     vehiclePath === "registration"
-      ? registration
+      ? vehicleDetails
+        ? [vehicleDetails.yearOfManufacture, vehicleDetails.make, vehicleDetails.registrationNumber].filter(Boolean).join(" · ")
+        : registration
       : [year, make, model].filter(Boolean).join(" ");
 
   const carLinks = useMemo(() => {
@@ -261,13 +277,39 @@ export default function Home() {
   const partsLink = useMemo(() => {
     const vehicle =
       vehiclePath === "registration"
-        ? `${registration} vehicle`
+        ? [vehicleDetails?.yearOfManufacture, vehicleDetails?.make].filter(Boolean).join(" ")
         : `${year} ${make} ${model}`;
     const query = [vehicle, partCategory, part, partNumber]
       .filter(Boolean)
       .join(" ");
     return `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(query)}`;
-  }, [make, model, part, partCategory, partNumber, registration, vehiclePath, year]);
+  }, [make, model, part, partCategory, partNumber, vehicleDetails, vehiclePath, year]);
+
+  const lookupRegistration = async () => {
+    if (registration.length < 5) {
+      setError("Enter a valid UK registration.");
+      return;
+    }
+    setVehicleLookupLoading(true);
+    setVehicleDetails(null);
+    setError("");
+    try {
+      const response = await fetch("/api/vehicle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationNumber: registration }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "We could not identify that vehicle.");
+      }
+      setVehicleDetails(payload.vehicle);
+    } catch (lookupError) {
+      setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
+    } finally {
+      setVehicleLookupLoading(false);
+    }
+  };
 
   const handleCarSearch = () => {
     if (!make.trim()) {
@@ -475,6 +517,7 @@ export default function Home() {
                       value={registration}
                       onChange={(event) => {
                         setRegistration(cleanRegistration(event.target.value));
+                        setVehicleDetails(null);
                         resetPartsBelowVehicle();
                       }}
                       placeholder="AB12 CDE"
@@ -482,18 +525,23 @@ export default function Home() {
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        if (registration.length < 5) setError("Enter a valid UK registration.");
-                        else setError("");
-                      }}
-                      className="rounded-xl bg-white px-5 py-3 font-bold text-slate-950 hover:bg-slate-100"
+                      onClick={lookupRegistration}
+                      disabled={vehicleLookupLoading}
+                      className="rounded-xl bg-white px-5 py-3 font-bold text-slate-950 hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60"
                     >
-                      Use this vehicle
+                      {vehicleLookupLoading ? "Checking vehicle…" : "Find my vehicle"}
                     </button>
                   </div>
+                  {vehicleDetails && (
+                    <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4 text-sm sm:grid-cols-4">
+                      <div><span className="block text-xs text-slate-500">Vehicle</span><strong>{vehicleDetails.make || "Unknown"}</strong></div>
+                      <div><span className="block text-xs text-slate-500">Year</span><strong>{vehicleDetails.yearOfManufacture || "—"}</strong></div>
+                      <div><span className="block text-xs text-slate-500">Engine</span><strong>{vehicleDetails.engineCapacity ? `${vehicleDetails.engineCapacity} cc` : "—"}</strong></div>
+                      <div><span className="block text-xs text-slate-500">Fuel</span><strong>{vehicleDetails.fuelType || "—"}</strong></div>
+                    </div>
+                  )}
                   <p className="mt-3 text-xs leading-5 text-slate-400">
-                    Registration narrows the vehicle search. Always confirm engine,
-                    trim and fitment with the seller before ordering.
+                    Your registration is sent securely to the DVLA lookup service and is never placed in a marketplace URL. Always confirm trim and fitment before ordering.
                   </p>
                 </div>
               ) : (
@@ -712,7 +760,12 @@ export default function Home() {
         </section>
 
         <footer className="mt-16 border-t border-white/10 pt-6 text-center text-xs leading-5 text-slate-500">
-          CarScout does not sell vehicles or guarantee listing accuracy or part compatibility. Verify all information with the marketplace or seller.
+          <p>CarScout does not sell vehicles or guarantee listing accuracy or part compatibility. Verify all information with the marketplace or seller.</p>
+          <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
+            <a href="/privacy" className="hover:text-slate-300">Privacy</a>
+            <a href="/terms" className="hover:text-slate-300">Terms</a>
+            <a href="https://github.com/adamayub4-hue/car-scout/issues/new" target="_blank" rel="noreferrer" className="hover:text-slate-300">Send feedback</a>
+          </nav>
         </footer>
       </div>
     </main>

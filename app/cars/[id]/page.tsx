@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { notFound } from "next/navigation";
 import { cars } from "@/app/lib/cars";
 
 type CarPageProps = {
@@ -12,7 +13,7 @@ export default async function CarPage({ params }: CarPageProps) {
   const car = cars.find((candidate) => String(candidate.id) === id);
 
   if (!car) {
-    return <div>Car not found</div>;
+    notFound();
   }
 
   return (
