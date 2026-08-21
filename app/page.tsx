@@ -27,12 +27,32 @@ type VehicleDetails = {
 };
 
 const makes = {
+  "Alfa Romeo": ["Giulia", "Giulietta", "MiTo", "Stelvio"],
   Audi: ["A1", "A3", "A4", "A5", "Q3", "Q5"],
   BMW: ["1 Series", "3 Series", "5 Series", "X1", "X3"],
+  Citroen: ["Berlingo", "C1", "C3", "C4", "C5 Aircross"],
+  Dacia: ["Duster", "Jogger", "Sandero"],
   Mercedes: ["A Class", "C Class", "E Class", "GLA", "GLC"],
   Ford: ["Fiesta", "Focus", "Kuga", "Puma"],
+  Honda: ["Civic", "CR-V", "HR-V", "Jazz"],
+  Hyundai: ["i10", "i20", "i30", "Ioniq 5", "Tucson"],
+  Jaguar: ["E-Pace", "F-Pace", "I-Pace", "XE", "XF"],
+  Kia: ["Ceed", "Niro", "Picanto", "Sportage"],
+  "Land Rover": ["Defender", "Discovery", "Range Rover", "Range Rover Evoque"],
+  Lexus: ["CT", "ES", "NX", "RX", "UX"],
+  Mazda: ["Mazda2", "Mazda3", "CX-5", "MX-5"],
+  MINI: ["Clubman", "Convertible", "Countryman", "Hatch"],
+  Nissan: ["Juke", "Leaf", "Micra", "Qashqai", "X-Trail"],
+  Peugeot: ["108", "208", "308", "2008", "3008"],
+  Porsche: ["911", "Cayenne", "Macan", "Panamera", "Taycan"],
+  Renault: ["Captur", "Clio", "Kadjar", "Megane", "Zoe"],
+  SEAT: ["Arona", "Ateca", "Ibiza", "Leon"],
+  Skoda: ["Fabia", "Karoq", "Kodiaq", "Octavia", "Superb"],
+  Tesla: ["Model 3", "Model S", "Model X", "Model Y"],
   Volkswagen: ["Polo", "Golf", "Passat", "Tiguan"],
+  Volvo: ["S60", "V40", "V60", "XC40", "XC60", "XC90"],
   Toyota: ["Yaris", "Corolla", "C-HR", "RAV4"],
+  Vauxhall: ["Astra", "Corsa", "Crossland", "Grandland", "Mokka"],
 } as const;
 
 const categories = {
@@ -177,7 +197,7 @@ function DiagramExplorer({
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Components</p>
           <div className="mt-3 space-y-2">
             {selectedSystem.parts.map((item, index) => (
-              <button key={item} type="button" onClick={() => onPart(item)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${part === item ? "border-sky-400/60 bg-sky-400/10" : "border-white/10 bg-white/[0.025] hover:border-white/25"}`}>
+              <button key={item} type="button" aria-pressed={part === item} onClick={() => onPart(item)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${part === item ? "border-sky-400/60 bg-sky-400/10" : "border-white/10 bg-white/[0.025] hover:border-white/25"}`}>
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-black text-slate-950" style={{ backgroundColor: selectedSystem.accent }}>{index + 1}</span>
                 <span><strong className="block text-sm">{item}</strong><span className="text-xs text-slate-500">Search compatible listings</span></span>
               </button>
@@ -196,10 +216,17 @@ const platformCards = [
   { id: "gumtree", name: "Gumtree", label: "Local and private listings" },
 ] as const;
 
-const years = Array.from({ length: 26 }, (_, index) => String(new Date().getFullYear() - index));
+const years = Array.from(
+  { length: new Date().getFullYear() - 1959 },
+  (_, index) => String(new Date().getFullYear() - index),
+);
 
 function cleanRegistration(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+}
+
+function isValidPostcode(value: string) {
+  return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(value.trim());
 }
 
 const fieldClass =
@@ -262,17 +289,28 @@ export default function Home() {
   const carLinks = useMemo(() => {
     const query = [
       make,
+      model,
+      year,
       price ? `under £${price}` : "",
       postcode ? `near ${postcode}` : "",
     ]
       .filter(Boolean)
       .join(" ");
+    const autoTraderParams = new URLSearchParams();
+    if (make) autoTraderParams.set("make", make);
+    if (model) autoTraderParams.set("model", model);
+    if (year) {
+      autoTraderParams.set("year-from", year);
+      autoTraderParams.set("year-to", year);
+    }
+    if (postcode) autoTraderParams.set("postcode", postcode);
+    if (price) autoTraderParams.set("price-to", price);
     return {
-      autotrader: `https://www.autotrader.co.uk/car-search?make=${encodeURIComponent(make)}&postcode=${encodeURIComponent(postcode)}&price-to=${encodeURIComponent(price)}`,
+      autotrader: `https://www.autotrader.co.uk/car-search?${autoTraderParams.toString()}`,
       ebay: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${query} car`)}`,
       gumtree: `https://www.gumtree.com/search?search_category=cars&q=${encodeURIComponent(query)}`,
     };
-  }, [make, postcode, price]);
+  }, [make, model, postcode, price, year]);
 
   const partsLink = useMemo(() => {
     const vehicle =
@@ -316,6 +354,10 @@ export default function Home() {
       setError("Enter a make to start your search.");
       return;
     }
+    if (postcode.trim() && !isValidPostcode(postcode)) {
+      setError("Enter a valid UK postcode, for example B1 1AA.");
+      return;
+    }
     setError("");
     setShowResults(true);
     if (platform !== "all") {
@@ -332,7 +374,7 @@ export default function Home() {
       );
       return;
     }
-    if (!part.trim() && !partCategory) {
+    if (!part.trim() && !partCategory && !partNumber.trim()) {
       setError("Choose a category or enter the part you need.");
       return;
     }
@@ -383,6 +425,7 @@ export default function Home() {
             <button
               key={item}
               type="button"
+              aria-pressed={mode === item}
               onClick={() => setAppMode(item)}
               className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
                 mode === item
@@ -408,6 +451,7 @@ export default function Home() {
                       <button
                         key={item}
                         type="button"
+                        aria-pressed={platform === item}
                         onClick={() => {
                           setPlatform(item);
                           setShowResults(false);
@@ -430,10 +474,11 @@ export default function Home() {
                   )}
                 </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <label className="text-sm text-slate-300">
                   <span className="mb-2 block">Make</span>
                   <input
+                    list="car-make-options"
                     value={make}
                     onChange={(event) => {
                       setMake(event.target.value);
@@ -442,6 +487,18 @@ export default function Home() {
                     placeholder="e.g. BMW"
                     className={fieldClass}
                   />
+                  <datalist id="car-make-options">{Object.keys(makes).map((item) => <option key={item} value={item} />)}</datalist>
+                </label>
+                <label className="text-sm text-slate-300">
+                  <span className="mb-2 block">Model <span className="text-slate-500">(optional)</span></span>
+                  <input value={model} onChange={(event) => { setModel(event.target.value); setShowResults(false); }} placeholder="e.g. 3 Series" className={fieldClass} />
+                </label>
+                <label className="text-sm text-slate-300">
+                  <span className="mb-2 block">Year <span className="text-slate-500">(optional)</span></span>
+                  <select value={year} onChange={(event) => { setYear(event.target.value); setShowResults(false); }} className={fieldClass}>
+                    <option value="">Any year</option>
+                    {years.map((item) => <option key={item}>{item}</option>)}
+                  </select>
                 </label>
                 <label className="text-sm text-slate-300">
                   <span className="mb-2 block">Maximum price</span>
@@ -494,6 +551,7 @@ export default function Home() {
                     <button
                       key={path}
                       type="button"
+                      aria-pressed={vehiclePath === path}
                       onClick={() => {
                         setVehiclePath(path);
                         resetVehicle();
@@ -548,7 +606,8 @@ export default function Home() {
                 <div className="mt-6 grid gap-3 sm:grid-cols-3">
                   <label className="text-sm text-slate-300">
                     <span className="mb-2 block">Make</span>
-                    <select
+                    <input
+                      list="manual-make-options"
                       value={make}
                       onChange={(event) => {
                         setMake(event.target.value);
@@ -556,15 +615,15 @@ export default function Home() {
                         setYear("");
                         resetPartsBelowVehicle();
                       }}
+                      placeholder="Start typing a make"
                       className={fieldClass}
-                    >
-                      <option value="">Select make</option>
-                      {Object.keys(makes).map((item) => <option key={item}>{item}</option>)}
-                    </select>
+                    />
+                    <datalist id="manual-make-options">{Object.keys(makes).map((item) => <option key={item} value={item} />)}</datalist>
                   </label>
                   <label className="text-sm text-slate-300">
                     <span className="mb-2 block">Model</span>
-                    <select
+                    <input
+                      list="manual-model-options"
                       value={model}
                       disabled={!make}
                       onChange={(event) => {
@@ -572,11 +631,10 @@ export default function Home() {
                         setYear("");
                         resetPartsBelowVehicle();
                       }}
+                      placeholder="Start typing a model"
                       className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-40`}
-                    >
-                      <option value="">Select model</option>
-                      {make && makes[make as keyof typeof makes]?.map((item) => <option key={item}>{item}</option>)}
-                    </select>
+                    />
+                    <datalist id="manual-model-options">{make && makes[make as keyof typeof makes]?.map((item) => <option key={item} value={item} />)}</datalist>
                   </label>
                   <label className="text-sm text-slate-300">
                     <span className="mb-2 block">Year</span>
@@ -612,6 +670,7 @@ export default function Home() {
                       <button
                         key={id}
                         type="button"
+                        aria-pressed={partMethod === id}
                         onClick={() => {
                           setPartMethod(id);
                           setPartCategory("");
@@ -657,6 +716,7 @@ export default function Home() {
                           <button
                             key={category}
                             type="button"
+                            aria-pressed={partCategory === category}
                             onClick={() => {
                               setPartCategory(category);
                               setPart("");
@@ -678,6 +738,7 @@ export default function Home() {
                             <button
                               key={item}
                               type="button"
+                              aria-pressed={part === item}
                               onClick={() => {
                                 setPart(item);
                                 setShowResults(false);
@@ -738,7 +799,7 @@ export default function Home() {
           <section className="mx-auto mt-6 max-w-3xl rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 sm:flex sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Search ready</p>
-              <h3 className="mt-2 text-lg font-bold">{[vehicleLabel, part || partCategory].filter(Boolean).join(" · ")}</h3>
+              <h3 className="mt-2 text-lg font-bold">{[vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · ")}</h3>
               <p className="mt-1 text-sm text-slate-400">Check the listing&apos;s compatibility details before purchasing.</p>
             </div>
             <a href={partsLink} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View parts on eBay</a>

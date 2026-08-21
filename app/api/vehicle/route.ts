@@ -9,25 +9,29 @@ function cleanRegistration(value: unknown) {
     : "";
 }
 
+function json(body: object, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { "Cache-Control": "private, no-store, max-age=0" },
+  });
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const registrationNumber = cleanRegistration(body?.registrationNumber);
 
   if (registrationNumber.length < 5) {
-    return NextResponse.json(
-      { error: "Enter a valid UK registration." },
-      { status: 400 },
-    );
+    return json({ error: "Enter a valid UK registration." }, 400);
   }
 
   const apiKey = process.env.DVLA_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
+    return json(
       {
         error:
           "Live registration lookup is not connected yet. Please use Make & model for now.",
       },
-      { status: 503 },
+      503,
     );
   }
 
@@ -45,13 +49,15 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const detail = payload?.errors?.[0]?.detail;
-      return NextResponse.json(
+      return json(
         { error: detail || "We could not identify that vehicle." },
-        { status: response.status === 404 ? 404 : 502 },
+        response.status === 400 || response.status === 404
+          ? response.status
+          : 502,
       );
     }
 
-    return NextResponse.json({
+    return json({
       vehicle: {
         registrationNumber: payload.registrationNumber,
         make: payload.make,
@@ -64,9 +70,9 @@ export async function POST(request: Request) {
       },
     });
   } catch {
-    return NextResponse.json(
+    return json(
       { error: "The vehicle lookup service is temporarily unavailable." },
-      { status: 502 },
+      502,
     );
   }
 }
