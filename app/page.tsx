@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import SaveButton from "./components/save-button";
 
 type Mode = "cars" | "parts";
 type Platform = "all" | "autotrader" | "ebay" | "gumtree";
@@ -402,9 +404,10 @@ export default function Home() {
               </span>
             </span>
           </button>
-          <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
-            UK beta
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 sm:inline-flex">UK beta</span>
+            <Link href="/account" className="rounded-full border border-white/15 bg-white/[0.05] px-4 py-2 text-xs font-semibold text-white transition hover:border-sky-300/50 hover:bg-white/[0.1]">My account</Link>
+          </div>
         </header>
 
         <section className="mx-auto max-w-3xl pb-9 pt-14 text-center sm:pt-20">
@@ -781,26 +784,30 @@ export default function Home() {
         </section>
 
         {showResults && mode === "cars" && (
-          <section className="mx-auto mt-6 grid max-w-3xl gap-3 sm:grid-cols-3">
-            {platformCards
-              .filter((item) => platform === "all" || platform === item.id)
-              .map((item) => (
-                <a key={item.id} href={carLinks[item.id]} target="_blank" rel="noreferrer" className="group rounded-2xl border border-white/10 bg-white/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-white/[0.07]">
-                  <span className="text-xs font-bold uppercase tracking-wider text-sky-300">Search now</span>
-                  <h3 className="mt-3 text-lg font-bold">{item.name}</h3>
-                  <p className="mt-1 min-h-10 text-sm text-slate-400">{item.label}</p>
-                  <span className="mt-5 block text-sm font-semibold text-white">Open results →</span>
-                </a>
-              ))}
+          <section className="mx-auto mt-6 max-w-3xl">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {platformCards
+                .filter((item) => platform === "all" || platform === item.id)
+                .map((item) => (
+                  <a key={item.id} href={carLinks[item.id]} target="_blank" rel="noreferrer" className="group rounded-2xl border border-white/10 bg-white/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-white/[0.07]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-sky-300">Search now</span>
+                    <h3 className="mt-3 text-lg font-bold">{item.name}</h3>
+                    <p className="mt-1 min-h-10 text-sm text-slate-400">{item.label}</p>
+                    <span className="mt-5 block text-sm font-semibold text-white">Open results →</span>
+                  </a>
+                ))}
+            </div>
+            <SaveButton item={{ kind: "car_search", title: [year, make, model].filter(Boolean).join(" "), data: { make, model, year, price, postcode, platform, links: carLinks } }} />
           </section>
         )}
 
         {showResults && mode === "parts" && (
-          <section className="mx-auto mt-6 max-w-3xl rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 sm:flex sm:items-center sm:justify-between">
-            <div>
+          <section className="mx-auto mt-6 max-w-3xl rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 sm:flex sm:items-center sm:justify-between sm:gap-5">
+            <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Search ready</p>
               <h3 className="mt-2 text-lg font-bold">{[vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · ")}</h3>
               <p className="mt-1 text-sm text-slate-400">Check the listing&apos;s compatibility details before purchasing.</p>
+              <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, vehicleDetails, make, model, year, registration, part, partCategory, partNumber, link: partsLink } }} />
             </div>
             <a href={partsLink} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View parts on eBay</a>
           </section>
