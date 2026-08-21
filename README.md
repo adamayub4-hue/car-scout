@@ -15,11 +15,12 @@ Open [http://localhost:3000](http://localhost:3000).
 
 - Multi-marketplace car search
 - Registration-first or manual parts journey
+- Interactive vehicle-system and exploded-parts finder
 - Parts catalogue and direct search
 - Responsive mobile and desktop interface
 - Clear marketplace hand-off and compatibility guidance
 
-Registration lookup currently structures the search but does not call a DVLA or licensed fitment API. A production integration should be added before claiming exact vehicle or factory-option compatibility.
+Registration lookup currently structures the search but does not call a DVLA or licensed fitment API. The exploded views are intentionally illustrative rather than OEM technical drawings. A licensed vehicle-data and fitment integration should be added before claiming exact vehicle, factory-option or torque-specification compatibility.
 
 ## Deployment
 

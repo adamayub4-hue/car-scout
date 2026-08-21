@@ -2,12 +2,20 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://carscout.uk"),
   title: {
     default: "CarScout — Search UK cars and parts",
     template: "%s | CarScout",
   },
   description:
     "Search UK car marketplaces and find vehicle-specific parts from one simple starting point.",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   openGraph: {
     title: "CarScout — Search UK cars and parts",
     description:

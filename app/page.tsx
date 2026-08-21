@@ -7,6 +7,14 @@ type Platform = "all" | "autotrader" | "ebay" | "gumtree";
 type VehiclePath = "registration" | "manual";
 type PartMethod = "diagram" | "catalogue" | "search";
 
+type DiagramSystem = {
+  name: string;
+  shortName: string;
+  description: string;
+  accent: string;
+  parts: readonly string[];
+};
+
 const makes = {
   Audi: ["A1", "A3", "A4", "A5", "Q3", "Q5"],
   BMW: ["1 Series", "3 Series", "5 Series", "X1", "X3"],
@@ -24,6 +32,152 @@ const categories = {
   Interior: ["Steering Wheel", "Dashboard", "Seat", "Gear Knob", "Floor Mat"],
   Electrical: ["Battery", "Alternator", "Starter Motor", "Fuse Box", "ECU"],
 } as const;
+
+const diagramSystems: Record<string, DiagramSystem> = {
+  Engine: {
+    name: "Engine & cooling",
+    shortName: "Engine",
+    description: "Filters, belts, cooling and service components",
+    accent: "#38bdf8",
+    parts: ["Air Filter", "Oil Filter", "Timing Belt", "Water Pump"],
+  },
+  Brakes: {
+    name: "Braking system",
+    shortName: "Brakes",
+    description: "Pads, discs, calipers and sensors",
+    accent: "#fb7185",
+    parts: ["Brake Disc", "Brake Pads", "Brake Caliper", "ABS Sensor"],
+  },
+  Suspension: {
+    name: "Suspension & steering",
+    shortName: "Suspension",
+    description: "Dampers, springs, arms and steering parts",
+    accent: "#a78bfa",
+    parts: ["Shock Absorber", "Coil Spring", "Control Arm", "Drop Link"],
+  },
+  Body: {
+    name: "Body & lighting",
+    shortName: "Body",
+    description: "Panels, lamps, mirrors and exterior trim",
+    accent: "#34d399",
+    parts: ["Front Bumper", "Headlight", "Wing Mirror", "Tail Light"],
+  },
+  Electrical: {
+    name: "Electrical system",
+    shortName: "Electrical",
+    description: "Battery, charging, starting and control units",
+    accent: "#fbbf24",
+    parts: ["Battery", "Alternator", "Starter Motor", "Fuse Box"],
+  },
+};
+
+function SystemIcon({ system }: { system: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    Engine: <><rect x="7" y="9" width="18" height="14" rx="3" /><path d="M10 9V6h5v3M25 13h3v6h-3M7 13H4v6h3M12 16h8" /></>,
+    Brakes: <><circle cx="16" cy="16" r="10" /><circle cx="16" cy="16" r="4" /><path d="M23 9l4 2v10l-4 2" /></>,
+    Suspension: <><path d="M10 4h12M12 7h8l-7 4 7 4-7 4 7 4h-8M10 26h12" /></>,
+    Body: <><path d="M4 20h24l-2-7-5-4H11l-5 5-2 6Z" /><circle cx="10" cy="21" r="3" /><circle cx="23" cy="21" r="3" /></>,
+    Electrical: <><rect x="5" y="8" width="22" height="17" rx="3" /><path d="M11 8V5h10v3M10 16h5M12.5 13.5v5M20 14v5M17.5 16.5h5" /></>,
+  };
+  return <svg viewBox="0 0 32 32" aria-hidden="true" className="h-7 w-7 fill-none stroke-current stroke-[1.8]">{paths[system]}</svg>;
+}
+
+function DiagramExplorer({
+  category,
+  part,
+  onCategory,
+  onPart,
+}: {
+  category: string;
+  part: string;
+  onCategory: (value: string) => void;
+  onPart: (value: string) => void;
+}) {
+  const selectedSystem = category ? diagramSystems[category] : null;
+
+  if (!selectedSystem) {
+    return (
+      <div className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-[#091526]">
+        <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Vehicle overview</p>
+          <h3 className="mt-1 text-lg font-bold">Select an area to explore</h3>
+        </div>
+        <div className="grid gap-5 p-5 sm:grid-cols-[1.25fr_1fr] sm:p-6">
+          <div className="relative min-h-64 overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_48%,rgba(56,189,248,0.13),transparent_52%)] p-4">
+            <svg viewBox="0 0 620 300" role="img" aria-label="Interactive side view of a car" className="h-full w-full">
+              <defs><linearGradient id="carBody" x1="0" x2="1"><stop stopColor="#1e3a5f" /><stop offset="1" stopColor="#0f2744" /></linearGradient></defs>
+              <path d="M72 204 96 143c8-20 24-34 45-39l92-24c25-7 54-6 78 2l94 34c15 5 29 14 40 26l44 48 53 17c13 4 22 16 22 30v12H52v-20c0-12 8-22 20-25Z" fill="url(#carBody)" stroke="#60a5fa" strokeWidth="3" />
+              <path d="m168 104 70-19c20-5 41-5 60 1l68 25-198-7Z" fill="#07101e" stroke="#475569" strokeWidth="2" />
+              <path d="M302 87v103M126 191h354" fill="none" stroke="#334155" strokeWidth="2" />
+              <circle cx="152" cy="236" r="43" fill="#07101e" stroke="#64748b" strokeWidth="5" /><circle cx="152" cy="236" r="18" fill="#1e293b" stroke="#94a3b8" strokeWidth="3" />
+              <circle cx="444" cy="236" r="43" fill="#07101e" stroke="#64748b" strokeWidth="5" /><circle cx="444" cy="236" r="18" fill="#1e293b" stroke="#94a3b8" strokeWidth="3" />
+              <g fill="#38bdf8" opacity=".18"><ellipse cx="418" cy="154" rx="67" ry="45" /><ellipse cx="164" cy="194" rx="59" ry="34" /></g>
+            </svg>
+            <span className="absolute bottom-3 left-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Generic vehicle layout</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(diagramSystems).map(([id, system]) => (
+              <button key={id} type="button" onClick={() => onCategory(id)} className="group rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-sky-400/40 hover:bg-white/[0.07]">
+                <span style={{ color: system.accent }}><SystemIcon system={id} /></span>
+                <strong className="mt-3 block text-sm">{system.shortName}</strong>
+                <span className="mt-1 block text-xs leading-4 text-slate-500">{system.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-[#091526]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+        <div>
+          <button type="button" onClick={() => onCategory("")} className="text-xs font-semibold text-sky-300 hover:text-sky-200">← All vehicle systems</button>
+          <h3 className="mt-1 text-lg font-bold">{selectedSystem.name}</h3>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-400">Tap a numbered part</span>
+      </div>
+      <div className="grid gap-5 p-5 sm:grid-cols-[1.35fr_0.85fr] sm:p-6">
+        <div className="relative min-h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+          <svg viewBox="0 0 560 360" role="img" aria-label={`Exploded ${selectedSystem.name} parts diagram`} className="h-full w-full">
+            <g fill="none" stroke="#64748b" strokeWidth="2">
+              <path d="M110 180h75l35-62h106l40 62h88" /><path d="M185 180v74h181v-74" /><path d="M226 118v136M320 118v136" />
+              <circle cx="92" cy="180" r="39" /><circle cx="472" cy="180" r="39" />
+              <circle cx="92" cy="180" r="18" /><circle cx="472" cy="180" r="18" />
+              <path d="M147 91h52v42h-52zM365 91h52v42h-52zM248 56h68v40h-68zM248 270h68v40h-68z" />
+              <path d="M199 112l49-34M316 78l49 34M185 226l63 64M316 290l50-64" strokeDasharray="7 7" opacity=".55" />
+            </g>
+            {selectedSystem.parts.map((item, index) => {
+              const positions = [[173, 111], [391, 111], [282, 76], [282, 290]];
+              const [x, y] = positions[index];
+              const active = part === item;
+              return (
+                <g key={item} role="button" tabIndex={0} aria-label={item} onClick={() => onPart(item)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onPart(item); }} className="cursor-pointer outline-none">
+                  <circle cx={x} cy={y} r="18" fill={active ? selectedSystem.accent : "#0f172a"} stroke={active ? "#fff" : selectedSystem.accent} strokeWidth="3" />
+                  <text x={x} y={y + 5} textAnchor="middle" fill={active ? "#07101e" : "#fff"} fontSize="14" fontWeight="800">{index + 1}</text>
+                </g>
+              );
+            })}
+            <text x="280" y="340" textAnchor="middle" fill="#64748b" fontSize="12">Illustrative exploded view — not an OEM technical drawing</text>
+          </svg>
+        </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Components</p>
+          <div className="mt-3 space-y-2">
+            {selectedSystem.parts.map((item, index) => (
+              <button key={item} type="button" onClick={() => onPart(item)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${part === item ? "border-sky-400/60 bg-sky-400/10" : "border-white/10 bg-white/[0.025] hover:border-white/25"}`}>
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-black text-slate-950" style={{ backgroundColor: selectedSystem.accent }}>{index + 1}</span>
+                <span><strong className="block text-sm">{item}</strong><span className="text-xs text-slate-500">Search compatible listings</span></span>
+              </button>
+            ))}
+          </div>
+          {part && <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-xs leading-5 text-emerald-100"><strong>{part} selected.</strong> We&apos;ll include your vehicle details in the marketplace search.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const platformCards = [
   { id: "autotrader", name: "Auto Trader", label: "Largest UK marketplace" },
@@ -403,7 +557,7 @@ export default function Home() {
                   </div>
                   <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     {([
-                      ["diagram", "Car diagram", "Choose the area on the vehicle", "Visual finder coming soon"],
+                      ["diagram", "Car diagram", "Explore systems and select a component", "Interactive finder"],
                       ["catalogue", "Parts catalogue", "Browse common parts by system", "Ready to use"],
                       ["search", "Search directly", "Enter a name or part number", "Fastest route"],
                     ] as const).map(([id, title, description, badge]) => (
@@ -432,11 +586,19 @@ export default function Home() {
                   </div>
 
                   {partMethod === "diagram" && (
-                    <div className="mt-5 rounded-2xl border border-dashed border-white/15 bg-white/[0.025] p-8 text-center">
-                      <span className="text-4xl">🚗</span>
-                      <h3 className="mt-3 font-bold">Visual parts finder is coming next</h3>
-                      <p className="mt-2 text-sm text-slate-400">For now, use the catalogue or direct search to find the right listing.</p>
-                    </div>
+                    <DiagramExplorer
+                      category={partCategory}
+                      part={part}
+                      onCategory={(value) => {
+                        setPartCategory(value);
+                        setPart("");
+                        setShowResults(false);
+                      }}
+                      onPart={(value) => {
+                        setPart(value);
+                        setShowResults(false);
+                      }}
+                    />
                   )}
 
                   {partMethod === "catalogue" && (
@@ -499,7 +661,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  {(partMethod === "catalogue" || partMethod === "search") && (
+                  {(partMethod === "diagram" || partMethod === "catalogue" || partMethod === "search") && (
                     <button type="button" onClick={handlePartsSearch} className="mt-5 w-full rounded-2xl bg-sky-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition hover:bg-sky-300">Find compatible listings</button>
                   )}
                 </div>
