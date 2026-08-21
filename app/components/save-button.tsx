@@ -39,6 +39,7 @@ export default function SaveButton({ item }: { item: SavedItem }) {
       setMessage("Could not save this yet. Please try again.");
       return;
     }
+    void supabase.from("activity_events").insert({ user_id: auth.user.id, event_name: "save_item", metadata: { kind: item.kind } });
     setState("saved");
     setMessage("Saved to your account.");
   };

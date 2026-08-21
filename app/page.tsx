@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import SaveButton from "./components/save-button";
+import { getSupabaseBrowserClient } from "./lib/supabase";
 
 type Mode = "cars" | "parts";
 type Platform = "all" | "autotrader" | "ebay" | "gumtree";
@@ -253,6 +254,13 @@ export default function Home() {
   const [error, setError] = useState("");
   const [showResults, setShowResults] = useState(false);
 
+  const trackActivity = async (eventName: "car_search" | "part_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    const { data } = await client.auth.getUser();
+    if (data.user) void client.from("activity_events").insert({ user_id: data.user.id, event_name: eventName, metadata });
+  };
+
   const resetPartsBelowVehicle = () => {
     setPartMethod("");
     setPartCategory("");
@@ -344,6 +352,7 @@ export default function Home() {
         throw new Error(payload.error || "We could not identify that vehicle.");
       }
       setVehicleDetails(payload.vehicle);
+      void trackActivity("vehicle_lookup", { make: payload.vehicle?.make, year: payload.vehicle?.yearOfManufacture });
     } catch (lookupError) {
       setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
     } finally {
@@ -362,6 +371,7 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
+    void trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
     if (platform !== "all") {
       window.open(carLinks[platform], "_blank", "noopener,noreferrer");
     }
@@ -382,6 +392,7 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
+    void trackActivity("part_search", { vehicle: vehicleLabel, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
   };
 
   return (
@@ -832,7 +843,7 @@ export default function Home() {
           <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
             <a href="/privacy" className="hover:text-slate-300">Privacy</a>
             <a href="/terms" className="hover:text-slate-300">Terms</a>
-            <a href="https://github.com/adamayub4-hue/car-scout/issues/new" target="_blank" rel="noreferrer" className="hover:text-slate-300">Send feedback</a>
+            <a href="/support" className="hover:text-slate-300">Report a problem</a>
           </nav>
         </footer>
       </div>
