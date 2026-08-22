@@ -16,6 +16,7 @@ type DiagramSystem = {
   description: string;
   accent: string;
   parts: readonly string[];
+  hotspot: readonly [number, number];
 };
 
 type VehicleDetails = {
@@ -74,6 +75,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Filters, belts, cooling and service components",
     accent: "#38bdf8",
     parts: ["Air Filter", "Oil Filter", "Timing Belt", "Water Pump"],
+    hotspot: [455, 158],
   },
   Brakes: {
     name: "Braking system",
@@ -81,6 +83,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Pads, discs, calipers and sensors",
     accent: "#fb7185",
     parts: ["Brake Disc", "Brake Pads", "Brake Caliper", "ABS Sensor"],
+    hotspot: [478, 224],
   },
   Suspension: {
     name: "Suspension & steering",
@@ -88,6 +91,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Dampers, springs, arms and steering parts",
     accent: "#a78bfa",
     parts: ["Shock Absorber", "Coil Spring", "Control Arm", "Drop Link"],
+    hotspot: [153, 221],
   },
   Body: {
     name: "Body & lighting",
@@ -95,6 +99,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Panels, lamps, mirrors and exterior trim",
     accent: "#34d399",
     parts: ["Front Bumper", "Headlight", "Wing Mirror", "Tail Light"],
+    hotspot: [548, 188],
   },
   Electrical: {
     name: "Electrical system",
@@ -102,6 +107,15 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Battery, charging, starting and control units",
     accent: "#fbbf24",
     parts: ["Battery", "Alternator", "Starter Motor", "Fuse Box"],
+    hotspot: [405, 142],
+  },
+  Interior: {
+    name: "Interior & controls",
+    shortName: "Interior",
+    description: "Seats, dashboard, controls and cabin trim",
+    accent: "#f472b6",
+    parts: ["Steering Wheel", "Dashboard", "Front Seat", "Gear Knob"],
+    hotspot: [292, 137],
   },
 };
 
@@ -112,6 +126,7 @@ function SystemIcon({ system }: { system: string }) {
     Suspension: <><path d="M10 4h12M12 7h8l-7 4 7 4-7 4 7 4h-8M10 26h12" /></>,
     Body: <><path d="M4 20h24l-2-7-5-4H11l-5 5-2 6Z" /><circle cx="10" cy="21" r="3" /><circle cx="23" cy="21" r="3" /></>,
     Electrical: <><rect x="5" y="8" width="22" height="17" rx="3" /><path d="M11 8V5h10v3M10 16h5M12.5 13.5v5M20 14v5M17.5 16.5h5" /></>,
+    Interior: <><path d="M8 25V14c0-4 3-7 7-7h2c4 0 7 3 7 7v11M8 19h16M13 13h6M16 19v6" /></>,
   };
   return <svg viewBox="0 0 32 32" aria-hidden="true" className="h-7 w-7 fill-none stroke-current stroke-[1.8]">{paths[system]}</svg>;
 }
@@ -136,20 +151,38 @@ function DiagramExplorer({
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Vehicle overview</p>
           <h3 className="mt-1 text-lg font-bold">Select an area to explore</h3>
         </div>
-        <div className="grid gap-5 p-5 sm:grid-cols-[1.25fr_1fr] sm:p-6">
-          <div className="relative min-h-64 overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_48%,rgba(56,189,248,0.13),transparent_52%)] p-4">
+        <div className="grid gap-5 p-5 sm:p-6">
+          <div className="relative min-h-72 overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_48%,rgba(56,189,248,0.13),transparent_52%)] p-2 sm:min-h-96 sm:p-5">
             <svg viewBox="0 0 620 300" role="img" aria-label="Interactive side view of a car" className="h-full w-full">
-              <defs><linearGradient id="carBody" x1="0" x2="1"><stop stopColor="#1e3a5f" /><stop offset="1" stopColor="#0f2744" /></linearGradient></defs>
+              <defs>
+                <linearGradient id="carBody" x1="0" x2="1"><stop stopColor="#1e3a5f" /><stop offset="1" stopColor="#0f2744" /></linearGradient>
+                <filter id="markerGlow"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              </defs>
               <path d="M72 204 96 143c8-20 24-34 45-39l92-24c25-7 54-6 78 2l94 34c15 5 29 14 40 26l44 48 53 17c13 4 22 16 22 30v12H52v-20c0-12 8-22 20-25Z" fill="url(#carBody)" stroke="#60a5fa" strokeWidth="3" />
               <path d="m168 104 70-19c20-5 41-5 60 1l68 25-198-7Z" fill="#07101e" stroke="#475569" strokeWidth="2" />
               <path d="M302 87v103M126 191h354" fill="none" stroke="#334155" strokeWidth="2" />
               <circle cx="152" cy="236" r="43" fill="#07101e" stroke="#64748b" strokeWidth="5" /><circle cx="152" cy="236" r="18" fill="#1e293b" stroke="#94a3b8" strokeWidth="3" />
               <circle cx="444" cy="236" r="43" fill="#07101e" stroke="#64748b" strokeWidth="5" /><circle cx="444" cy="236" r="18" fill="#1e293b" stroke="#94a3b8" strokeWidth="3" />
               <g fill="#38bdf8" opacity=".18"><ellipse cx="418" cy="154" rx="67" ry="45" /><ellipse cx="164" cy="194" rx="59" ry="34" /></g>
+              {Object.entries(diagramSystems).map(([id, system]) => {
+                const [x, y] = system.hotspot;
+                const labelX = x > 420 ? x - 26 : x + 26;
+                const anchor = x > 420 ? "end" : "start";
+                return (
+                  <g key={id} role="button" tabIndex={0} aria-label={`Explore ${system.name}`} onClick={() => onCategory(id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onCategory(id); }} className="cursor-pointer outline-none">
+                    <circle cx={x} cy={y} r="19" fill={system.accent} opacity=".16" filter="url(#markerGlow)" />
+                    <circle cx={x} cy={y} r="11" fill="#07101e" stroke={system.accent} strokeWidth="3" />
+                    <circle cx={x} cy={y} r="4" fill={system.accent} />
+                    <path d={`M${x + (x > 420 ? -11 : 11)} ${y}H${labelX + (x > 420 ? 5 : -5)}`} stroke={system.accent} strokeWidth="1.5" />
+                    <text x={labelX} y={y - 7} textAnchor={anchor} fill="#fff" fontSize="12" fontWeight="800">{system.shortName}</text>
+                    <text x={labelX} y={y + 8} textAnchor={anchor} fill="#94a3b8" fontSize="9">Tap to explore</text>
+                  </g>
+                );
+              })}
             </svg>
-            <span className="absolute bottom-3 left-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Generic vehicle layout</span>
+            <span className="absolute bottom-3 left-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:text-[11px]">Select a highlighted area</span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {Object.entries(diagramSystems).map(([id, system]) => (
               <button key={id} type="button" onClick={() => onCategory(id)} className="group rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-sky-400/40 hover:bg-white/[0.07]">
                 <span style={{ color: system.accent }}><SystemIcon system={id} /></span>
