@@ -347,7 +347,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [showResults, setShowResults] = useState(false);
 
-  const trackActivity = async (eventName: "car_search" | "part_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
+  const trackActivity = async (eventName: "car_search" | "part_search" | "part_number_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
     const client = getSupabaseBrowserClient();
     if (!client) return;
     const { data } = await client.auth.getSession();
@@ -436,6 +436,21 @@ export default function Home() {
     setError("");
     setShowResults(true);
     await trackActivity("part_search", { vehicle: vehicleLabel, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
+  };
+
+  const handlePartNumberSearch = async () => {
+    const number = partNumber.trim();
+    if (number.length < 2) {
+      setError("Enter an OEM or manufacturer part number.");
+      return;
+    }
+    setPartNumber(number);
+    setPartMethod("search");
+    setPartCategory("");
+    setPart("");
+    setError("");
+    setShowResults(true);
+    await trackActivity("part_number_search", { hasPartNumber: true });
   };
 
   return (
@@ -598,6 +613,34 @@ export default function Home() {
             </>
           ) : (
             <>
+              <div className="mb-7 rounded-3xl border border-emerald-300/20 bg-emerald-300/[0.055] p-5 sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Fastest route</p>
+                <h2 className="mt-1 text-xl font-bold">Already know the part number?</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-400">Search an OEM or manufacturer number directly without selecting a vehicle.</p>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <label className="sr-only" htmlFor="quick-part-number">OEM or manufacturer part number</label>
+                  <input
+                    id="quick-part-number"
+                    value={partNumber}
+                    onChange={(event) => {
+                      setPartNumber(event.target.value.trimStart());
+                      setShowResults(false);
+                      setError("");
+                    }}
+                    onKeyDown={(event) => { if (event.key === "Enter") void handlePartNumberSearch(); }}
+                    placeholder="e.g. 1K0 698 151 F"
+                    className={fieldClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePartNumberSearch}
+                    className="shrink-0 rounded-2xl bg-emerald-300 px-5 py-3.5 font-bold text-emerald-950 transition hover:bg-emerald-200"
+                  >
+                    Search part number
+                  </button>
+                </div>
+              </div>
+
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Step 1</p>
