@@ -17,6 +17,7 @@ type DiagramSystem = {
   accent: string;
   parts: readonly string[];
   hotspot: readonly [number, number];
+  partPositions: readonly (readonly [number, number])[];
 };
 
 type VehicleDetails = {
@@ -76,6 +77,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     accent: "#38bdf8",
     parts: ["Air Filter", "Oil Filter", "Timing Belt", "Water Pump"],
     hotspot: [455, 158],
+    partPositions: [[145, 112], [183, 239], [367, 118], [411, 235]],
   },
   Brakes: {
     name: "Braking system",
@@ -84,6 +86,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     accent: "#fb7185",
     parts: ["Brake Disc", "Brake Pads", "Brake Caliper", "ABS Sensor"],
     hotspot: [478, 224],
+    partPositions: [[280, 180], [370, 145], [402, 224], [154, 102]],
   },
   Suspension: {
     name: "Suspension & steering",
@@ -92,6 +95,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     accent: "#a78bfa",
     parts: ["Shock Absorber", "Coil Spring", "Control Arm", "Drop Link"],
     hotspot: [153, 221],
+    partPositions: [[177, 185], [286, 177], [397, 222], [390, 104]],
   },
   Body: {
     name: "Body & lighting",
@@ -100,6 +104,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     accent: "#34d399",
     parts: ["Front Bumper", "Headlight", "Wing Mirror", "Tail Light"],
     hotspot: [548, 188],
+    partPositions: [[447, 241], [456, 141], [282, 99], [112, 160]],
   },
   Electrical: {
     name: "Electrical system",
@@ -108,6 +113,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     accent: "#fbbf24",
     parts: ["Battery", "Alternator", "Starter Motor", "Fuse Box"],
     hotspot: [405, 142],
+    partPositions: [[153, 183], [290, 177], [406, 205], [374, 94]],
   },
   Interior: {
     name: "Interior & controls",
@@ -116,6 +122,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     accent: "#f472b6",
     parts: ["Steering Wheel", "Dashboard", "Front Seat", "Gear Knob"],
     hotspot: [292, 137],
+    partPositions: [[180, 126], [284, 116], [383, 207], [284, 245]],
   },
 };
 
@@ -129,6 +136,19 @@ function SystemIcon({ system }: { system: string }) {
     Interior: <><path d="M8 25V14c0-4 3-7 7-7h2c4 0 7 3 7 7v11M8 19h16M13 13h6M16 19v6" /></>,
   };
   return <svg viewBox="0 0 32 32" aria-hidden="true" className="h-7 w-7 fill-none stroke-current stroke-[1.8]">{paths[system]}</svg>;
+}
+
+function SystemArtwork({ system, accent }: { system: string; accent: string }) {
+  const common = { fill: "none", stroke: accent, strokeWidth: 3, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const artwork: Record<string, React.ReactNode> = {
+    Engine: <g {...common}><path d="M105 130h75l32-43h151l31 43h58v112h-49l-24 35H194l-28-35h-61Z" /><path d="M218 111v143M354 111v143M242 145h87v70h-87zM119 158h57v49h-57zM395 151h42v66h-42z" /><circle cx="267" cy="180" r="16" /><circle cx="310" cy="180" r="16" /><path d="M235 78h101M267 68v20M302 68v20" /></g>,
+    Brakes: <g {...common}><circle cx="280" cy="180" r="112" /><circle cx="280" cy="180" r="55" /><circle cx="280" cy="180" r="13" /><path d="M355 99c50 28 72 75 61 124l-61 21-28-45 15-60Z" fill={`${accent}22`} /><path d="M122 86h68v43h-68zM113 236c37-8 63-28 79-59M139 274c43-14 77-38 99-74" /><circle cx="280" cy="103" r="7" /><circle cx="347" cy="219" r="7" /><circle cx="213" cy="219" r="7" /></g>,
+    Suspension: <g {...common}><path d="M173 59v242M147 77h52M147 286h52M155 103l36 25-36 25 36 25-36 25 36 25-36 25" /><path d="M286 64v220M261 87h50M261 266h50M269 112l34 25-34 25 34 25-34 25 34 25" /><path d="M333 241h126l-20 40H352zM349 239l34-107h43l25 108" /><path d="M369 112h75M382 77h49v35" /></g>,
+    Body: <g {...common}><path d="M67 226 91 150l87-35 55-46h129l68 53 63 27 22 77Z" /><path d="m240 85-35 72h168l-29-72M289 85v72M104 165h91M382 158h91" /><path d="M424 186h75v40h-75zM65 192h73v34H65z" fill={`${accent}1f`} /><path d="M253 54h66l18 31h-102z" /><circle cx="150" cy="235" r="42" /><circle cx="434" cy="235" r="42" /></g>,
+    Electrical: <g {...common}><rect x="91" y="116" width="123" height="132" rx="13" /><path d="M121 116V91h63v25M119 173h36M137 155v36M175 173h24" /><circle cx="291" cy="177" r="68" /><path d="M291 109v136M233 177h116M256 128l70 98M326 128l-70 98" /><path d="M359 157h97v97h-97zM379 184h57M379 207h57M379 230h31M351 83h86l19 40h-124z" /></g>,
+    Interior: <g {...common}><path d="M82 252V112l67-46h253l76 67v119Z" /><circle cx="180" cy="126" r="48" /><circle cx="180" cy="126" r="20" /><path d="M180 78v96M132 126h96M237 84h98l30 62H237z" /><path d="M352 159h83v104h-83c-16-28-16-74 0-104ZM245 203h68v67h-68zM279 203v67M263 232h33" /></g>,
+  };
+  return <>{artwork[system]}</>;
 }
 
 function DiagramExplorer({
@@ -208,16 +228,10 @@ function DiagramExplorer({
       <div className="grid gap-5 p-5 sm:grid-cols-[1.35fr_0.85fr] sm:p-6">
         <div className="relative min-h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-4">
           <svg viewBox="0 0 560 360" role="img" aria-label={`Exploded ${selectedSystem.name} parts diagram`} className="h-full w-full">
-            <g fill="none" stroke="#64748b" strokeWidth="2">
-              <path d="M110 180h75l35-62h106l40 62h88" /><path d="M185 180v74h181v-74" /><path d="M226 118v136M320 118v136" />
-              <circle cx="92" cy="180" r="39" /><circle cx="472" cy="180" r="39" />
-              <circle cx="92" cy="180" r="18" /><circle cx="472" cy="180" r="18" />
-              <path d="M147 91h52v42h-52zM365 91h52v42h-52zM248 56h68v40h-68zM248 270h68v40h-68z" />
-              <path d="M199 112l49-34M316 78l49 34M185 226l63 64M316 290l50-64" strokeDasharray="7 7" opacity=".55" />
-            </g>
+            <rect x="20" y="20" width="520" height="300" rx="24" fill="#07101e" stroke="#1e293b" strokeWidth="2" />
+            <SystemArtwork system={category} accent={selectedSystem.accent} />
             {selectedSystem.parts.map((item, index) => {
-              const positions = [[173, 111], [391, 111], [282, 76], [282, 290]];
-              const [x, y] = positions[index];
+              const [x, y] = selectedSystem.partPositions[index];
               const active = part === item;
               return (
                 <g key={item} role="button" tabIndex={0} aria-label={item} onClick={() => onPart(item)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onPart(item); }} className="cursor-pointer outline-none">
@@ -226,7 +240,7 @@ function DiagramExplorer({
                 </g>
               );
             })}
-            <text x="280" y="340" textAnchor="middle" fill="#64748b" fontSize="12">Illustrative exploded view — not an OEM technical drawing</text>
+            <text x="280" y="344" textAnchor="middle" fill="#64748b" fontSize="12">Built-in interactive schematic — select a numbered component</text>
           </svg>
         </div>
         <div>
