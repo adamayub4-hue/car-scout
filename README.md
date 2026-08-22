@@ -1,6 +1,6 @@
 # CarScout
 
-CarScout is a responsive UK car and parts discovery MVP. It provides a single starting point for searching Auto Trader, eBay Motors and Gumtree, plus a guided parts flow using a registration or manual vehicle selection.
+CarScout is a responsive UK car and parts discovery MVP. It provides a single starting point for searching Auto Trader, eBay Motors and Gumtree, plus a guided parts flow using manual vehicle selection.
 
 ## Run locally
 
@@ -20,9 +20,9 @@ Open [http://localhost:3000](http://localhost:3000).
 - Responsive mobile and desktop interface
 - Clear marketplace hand-off and compatibility guidance
 
-Registration lookup uses the DVLA Vehicle Enquiry Service when a key is configured, but that service does not provide licensed parts fitment data. The exploded views are intentionally illustrative rather than OEM technical drawings. A licensed fitment integration should be added before claiming exact factory-option or torque-specification compatibility.
+The public registration route is hidden until DVLA access is approved. Vehicle-specific diagrams are also hidden until a licensed automotive-data provider is connected. The ready-to-use parts catalogue remains a general discovery aid and does not claim exact factory-option or torque-specification compatibility.
 
-Set `DVLA_API_KEY` in the deployment environment to enable server-side registration lookup. Without it, the interface directs users to the manual make-and-model route and never sends a registration to a marketplace URL.
+When DVLA access is approved, set `DVLA_API_KEY` in the deployment environment and re-enable the server-side registration route only after production testing.
 
 ## Deployment
 

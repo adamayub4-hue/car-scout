@@ -8,7 +8,6 @@ import { getSupabaseBrowserClient } from "./lib/supabase";
 
 type Mode = "cars" | "parts";
 type Platform = "all" | "autotrader" | "ebay" | "gumtree";
-type VehiclePath = "registration" | "manual";
 type PartMethod = "diagram" | "catalogue" | "search";
 
 type DiagramSystem = {
@@ -19,17 +18,6 @@ type DiagramSystem = {
   parts: readonly string[];
   hotspot: readonly [number, number];
   partPositions: readonly (readonly [number, number])[];
-};
-
-type VehicleDetails = {
-  registrationNumber: string;
-  make?: string;
-  yearOfManufacture?: number;
-  engineCapacity?: number;
-  fuelType?: string;
-  colour?: string;
-  motStatus?: string;
-  taxStatus?: string;
 };
 
 const makes = {
@@ -126,6 +114,9 @@ const diagramSystems: Record<string, DiagramSystem> = {
     partPositions: [[180, 126], [284, 116], [383, 207], [284, 245]],
   },
 };
+
+// Enable only when a licensed provider can return diagrams for the selected vehicle.
+const vehicleSpecificDiagramsAvailable = false;
 
 function SystemIcon({ system }: { system: string }) {
   const paths: Record<string, React.ReactNode> = {
@@ -334,10 +325,6 @@ const years = Array.from(
   (_, index) => String(new Date().getFullYear() - index),
 );
 
-function cleanRegistration(value: string) {
-  return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-}
-
 function isValidPostcode(value: string) {
   return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(value.trim());
 }
@@ -353,10 +340,6 @@ export default function Home() {
   const [year, setYear] = useState("");
   const [price, setPrice] = useState("");
   const [postcode, setPostcode] = useState("");
-  const [registration, setRegistration] = useState("");
-  const [vehicleDetails, setVehicleDetails] = useState<VehicleDetails | null>(null);
-  const [vehicleLookupLoading, setVehicleLookupLoading] = useState(false);
-  const [vehiclePath, setVehiclePath] = useState<VehiclePath>("registration");
   const [partMethod, setPartMethod] = useState<PartMethod | "">("");
   const [part, setPart] = useState("");
   const [partNumber, setPartNumber] = useState("");
@@ -381,31 +364,14 @@ export default function Home() {
     setError("");
   };
 
-  const resetVehicle = () => {
-    setMake("");
-    setModel("");
-    setYear("");
-    setRegistration("");
-    setVehicleDetails(null);
-    resetPartsBelowVehicle();
-  };
-
   const setAppMode = (nextMode: Mode) => {
     setMode(nextMode);
     setShowResults(false);
     setError("");
   };
 
-  const vehicleReady =
-    vehiclePath === "registration"
-      ? Boolean(vehicleDetails)
-      : Boolean(make && model && year);
-  const vehicleLabel =
-    vehiclePath === "registration"
-      ? vehicleDetails
-        ? [vehicleDetails.yearOfManufacture, vehicleDetails.make, vehicleDetails.registrationNumber].filter(Boolean).join(" · ")
-        : registration
-      : [year, make, model].filter(Boolean).join(" ");
+  const vehicleReady = Boolean(make && model && year);
+  const vehicleLabel = [year, make, model].filter(Boolean).join(" ");
 
   const carLinks = useMemo(() => {
     const query = [
@@ -434,42 +400,12 @@ export default function Home() {
   }, [make, model, postcode, price, year]);
 
   const partsLink = useMemo(() => {
-    const vehicle =
-      vehiclePath === "registration"
-        ? [vehicleDetails?.yearOfManufacture, vehicleDetails?.make].filter(Boolean).join(" ")
-        : `${year} ${make} ${model}`;
+    const vehicle = `${year} ${make} ${model}`;
     const query = [vehicle, partCategory, part, partNumber]
       .filter(Boolean)
       .join(" ");
     return `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(query)}`;
-  }, [make, model, part, partCategory, partNumber, vehicleDetails, vehiclePath, year]);
-
-  const lookupRegistration = async () => {
-    if (registration.length < 5) {
-      setError("Enter a valid UK registration.");
-      return;
-    }
-    setVehicleLookupLoading(true);
-    setVehicleDetails(null);
-    setError("");
-    try {
-      const response = await fetch("/api/vehicle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registrationNumber: registration }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || "We could not identify that vehicle.");
-      }
-      setVehicleDetails(payload.vehicle);
-      await trackActivity("vehicle_lookup", { make: payload.vehicle?.make, year: payload.vehicle?.yearOfManufacture });
-    } catch (lookupError) {
-      setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
-    } finally {
-      setVehicleLookupLoading(false);
-    }
-  };
+  }, [make, model, part, partCategory, partNumber, year]);
 
   const handleCarSearch = async () => {
     if (!make.trim()) {
@@ -490,11 +426,7 @@ export default function Home() {
 
   const handlePartsSearch = async () => {
     if (!vehicleReady) {
-      setError(
-        vehiclePath === "registration"
-          ? "Enter a valid UK registration."
-          : "Select the make, model and year.",
-      );
+      setError("Select the make, model and year.");
       return;
     }
     if (!part.trim() && !partCategory && !partNumber.trim()) {
@@ -670,65 +602,11 @@ export default function Home() {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Step 1</p>
                   <h2 className="mt-1 text-2xl font-bold">Tell us which vehicle</h2>
-                </div>
-                <div className="flex rounded-xl bg-white/[0.05] p-1">
-                  {(["registration", "manual"] as VehiclePath[]).map((path) => (
-                    <button
-                      key={path}
-                      type="button"
-                      aria-pressed={vehiclePath === path}
-                      onClick={() => {
-                        setVehiclePath(path);
-                        resetVehicle();
-                      }}
-                      className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                        vehiclePath === path ? "bg-white text-slate-950" : "text-slate-400"
-                      }`}
-                    >
-                      {path === "registration" ? "Registration" : "Make & model"}
-                    </button>
-                  ))}
+                  <p className="mt-2 text-sm text-slate-400">Registration lookup will return after DVLA access is approved.</p>
                 </div>
               </div>
 
-              {vehiclePath === "registration" ? (
-                <div className="mt-6 rounded-3xl border border-amber-300/20 bg-amber-300/[0.05] p-5 sm:p-6">
-                  <label className="block text-sm font-medium text-slate-300" htmlFor="registration">UK registration</label>
-                  <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-                    <input
-                      id="registration"
-                      value={registration}
-                      onChange={(event) => {
-                        setRegistration(cleanRegistration(event.target.value));
-                        setVehicleDetails(null);
-                        resetPartsBelowVehicle();
-                      }}
-                      placeholder="AB12 CDE"
-                      className="w-full rounded-xl border-2 border-slate-900 bg-[#f5c518] px-4 py-3 text-center text-2xl font-black uppercase tracking-[0.16em] text-slate-950 outline-none focus:border-white sm:max-w-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={lookupRegistration}
-                      disabled={vehicleLookupLoading}
-                      className="rounded-xl bg-white px-5 py-3 font-bold text-slate-950 hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60"
-                    >
-                      {vehicleLookupLoading ? "Checking vehicle…" : "Find my vehicle"}
-                    </button>
-                  </div>
-                  {vehicleDetails && (
-                    <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4 text-sm sm:grid-cols-4">
-                      <div><span className="block text-xs text-slate-500">Vehicle</span><strong>{vehicleDetails.make || "Unknown"}</strong></div>
-                      <div><span className="block text-xs text-slate-500">Year</span><strong>{vehicleDetails.yearOfManufacture || "—"}</strong></div>
-                      <div><span className="block text-xs text-slate-500">Engine</span><strong>{vehicleDetails.engineCapacity ? `${vehicleDetails.engineCapacity} cc` : "—"}</strong></div>
-                      <div><span className="block text-xs text-slate-500">Fuel</span><strong>{vehicleDetails.fuelType || "—"}</strong></div>
-                    </div>
-                  )}
-                  <p className="mt-3 text-xs leading-5 text-slate-400">
-                    Your registration is sent securely to the DVLA lookup service and is never placed in a marketplace URL. Always confirm trim and fitment before ordering.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
                   <label className="text-sm text-slate-300">
                     <span className="mb-2 block">Make</span>
                     <input
@@ -776,8 +654,7 @@ export default function Home() {
                       {years.map((item) => <option key={item}>{item}</option>)}
                     </select>
                   </label>
-                </div>
-              )}
+              </div>
 
               {vehicleReady && (
                 <div className="mt-8 border-t border-white/10 pt-7">
@@ -787,13 +664,13 @@ export default function Home() {
                     <span className="rounded-full bg-white/[0.06] px-3 py-1.5 text-xs text-slate-300">{vehicleLabel}</span>
                   </div>
                   <VehicleReference
-                    make={vehiclePath === "registration" ? vehicleDetails?.make || "" : make}
-                    model={vehiclePath === "registration" ? "" : model}
-                    year={vehiclePath === "registration" ? String(vehicleDetails?.yearOfManufacture || "") : year}
+                    make={make}
+                    model={model}
+                    year={year}
                   />
-                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     {([
-                      ["diagram", "Car diagram", "Explore systems and select a component", "Interactive finder"],
+                      ...(vehicleSpecificDiagramsAvailable ? [["diagram", "Vehicle diagram", "Explore diagrams licensed for this exact vehicle", "Coming soon"] as const] : []),
                       ["catalogue", "Parts catalogue", "Browse common parts by system", "Ready to use"],
                       ["search", "Search directly", "Enter a name or part number", "Fastest route"],
                     ] as const).map(([id, title, description, badge]) => (
@@ -822,7 +699,7 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {partMethod === "diagram" && (
+                  {vehicleSpecificDiagramsAvailable && partMethod === "diagram" && (
                     <DiagramExplorer
                       category={partCategory}
                       part={part}
@@ -934,7 +811,7 @@ export default function Home() {
               <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Search ready</p>
               <h3 className="mt-2 text-lg font-bold">{[vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · ")}</h3>
               <p className="mt-1 text-sm text-slate-400">Check the listing&apos;s compatibility details before purchasing.</p>
-              <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, vehicleDetails, make, model, year, registration, part, partCategory, partNumber, link: partsLink } }} />
+              <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, make, model, year, part, partCategory, partNumber, link: partsLink } }} />
             </div>
             <a href={partsLink} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View parts on eBay</a>
           </section>
@@ -943,7 +820,7 @@ export default function Home() {
         <section className="mx-auto mt-16 grid max-w-4xl gap-4 sm:grid-cols-3">
           {[
             ["01", "Search wider", "Jump into the UK’s most useful car marketplaces from one clean search."],
-            ["02", "Match smarter", "Start parts searches with a registration or a specific make, model and year."],
+            ["02", "Match smarter", "Start parts searches with a specific make, model and year."],
             ["03", "Stay in control", "CarScout sends you to the original listing so you can verify every detail yourself."],
           ].map(([number, title, copy]) => (
             <div key={number} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
