@@ -24,6 +24,7 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(configured);
   const [message, setMessage] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const loadItems = async () => {
     const supabase = getSupabaseBrowserClient();
@@ -39,6 +40,7 @@ export default function AccountPage() {
       setUser(data.user);
       setLoading(false);
       if (data.user) void loadItems();
+      if (data.user) void supabase.from("admins").select("user_id").eq("user_id", data.user.id).maybeSingle().then(({ data: row }) => setIsAdmin(Boolean(row)));
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
@@ -80,6 +82,24 @@ export default function AccountPage() {
     setUser(null);
   };
 
+  const exportData = async () => {
+    const supabase = getSupabaseBrowserClient(); if (!supabase || !user) return;
+    const [profile, saved, complaints, activity] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", user.id),
+      supabase.from("saved_items").select("*").eq("user_id", user.id),
+      supabase.from("complaints").select("*").eq("user_id", user.id),
+      supabase.from("activity_events").select("*").eq("user_id", user.id),
+    ]);
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile: profile.data, savedItems: saved.data, complaints: complaints.data, activity: activity.data }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "carscout-data.json"; link.click(); URL.revokeObjectURL(url);
+  };
+
+  const deleteAccount = async () => {
+    if (isAdmin || !window.confirm("Permanently delete your CarScout account and all saved data? This cannot be undone.")) return;
+    const { error } = await getSupabaseBrowserClient()!.rpc("delete_my_account");
+    if (error) setMessage("We could not delete the account. Please contact support."); else { setUser(null); setItems([]); setMessage("Your account and stored data were deleted."); }
+  };
+
   return (
     <main className="min-h-screen bg-[#07101e] px-4 py-8 text-white">
       <div className="mx-auto max-w-3xl">
@@ -118,6 +138,7 @@ export default function AccountPage() {
               </div>
             )}
             <Link href="/" className="mt-8 inline-flex rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950">Start a new search</Link>
+            <section className="mt-10 border-t border-white/10 pt-7"><h2 className="text-lg font-bold">Your data</h2><p className="mt-2 text-sm text-slate-400">Download a copy of the information stored with your account.</p><button type="button" onClick={exportData} className="mt-4 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold hover:border-sky-300/50">Download my data</button>{isAdmin ? <p className="mt-5 text-xs text-amber-300">The master owner account cannot be deleted from the customer interface.</p> : <div className="mt-7 border-t border-white/10 pt-6"><h3 className="font-bold text-rose-200">Delete account</h3><p className="mt-2 text-sm text-slate-400">Permanently removes your account, saved searches, reports and activity.</p><button type="button" onClick={deleteAccount} className="mt-4 rounded-xl border border-rose-300/30 px-4 py-2.5 text-sm font-semibold text-rose-200 hover:bg-rose-300/10">Delete my account</button></div>}</section>
           </section>
         ) : (
           <section className="mx-auto mt-12 max-w-md rounded-3xl border border-white/10 bg-white/[0.035] p-6 sm:p-8">
@@ -130,6 +151,7 @@ export default function AccountPage() {
               <button disabled={loading} className="w-full rounded-xl bg-sky-400 px-5 py-3.5 font-bold text-slate-950 disabled:opacity-60">{loading ? "Please wait…" : isSignUp ? "Create account" : "Sign in"}</button>
             </form>
             <button type="button" onClick={() => { setIsSignUp(!isSignUp); setMessage(""); }} className="mt-5 text-sm text-slate-300 hover:text-white">{isSignUp ? "Already have an account? Sign in" : "New to CarScout? Create an account"}</button>
+            {!isSignUp && <Link href="/forgot-password" className="mt-4 block text-sm text-sky-300 hover:text-sky-200">Forgot your password?</Link>}
           </section>
         )}
       </div>

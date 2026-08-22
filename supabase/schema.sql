@@ -56,7 +56,26 @@ create policy "Users create own complaints" on public.complaints for insert with
 create policy "Users read own complaints" on public.complaints for select using (auth.uid() = user_id or public.is_admin());
 create policy "Admins update complaints" on public.complaints for update using (public.is_admin()) with check (public.is_admin());
 create policy "Users create own events" on public.activity_events for insert with check (auth.uid() = user_id);
-create policy "Admins read events" on public.activity_events for select using (public.is_admin());
+create policy "Users read own events and admins read all" on public.activity_events for select using (auth.uid() = user_id or public.is_admin());
+
+create or replace function public.limit_complaint_submissions() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (select count(*) from public.complaints where user_id = auth.uid() and created_at > now() - interval '1 hour') >= 3 then
+    raise exception 'Complaint submission limit reached. Please try again later.';
+  end if;
+  return new;
+end;
+$$;
+create trigger limit_complaints_before_insert before insert on public.complaints for each row execute procedure public.limit_complaint_submissions();
+
+create or replace function public.delete_my_account() returns void language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then raise exception 'The owner account cannot be self-deleted.'; end if;
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+revoke all on function public.delete_my_account() from public;
+grant execute on function public.delete_my_account() to authenticated;
 
 -- Run once after creating the owner's account, replacing the email:
 -- insert into public.admins (user_id) select id from auth.users where email = 'owner@example.com' on conflict do nothing;

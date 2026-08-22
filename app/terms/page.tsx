@@ -18,6 +18,8 @@ export default function TermsPage() {
           <section><h2 className="text-lg font-bold text-white">Accuracy and compatibility</h2><p className="mt-2">Listings, prices and availability can change. Vehicle diagrams are illustrative, not manufacturer workshop documentation. Confirm specifications, history, condition, part numbers and fitment with the seller before committing to a purchase.</p></section>
           <section><h2 className="text-lg font-bold text-white">No professional advice</h2><p className="mt-2">CarScout does not provide mechanical, safety, legal or financial advice. Repairs should be assessed and performed by a suitably qualified person.</p></section>
           <section><h2 className="text-lg font-bold text-white">Third-party services</h2><p className="mt-2">Your use of Auto Trader, eBay, Gumtree, DVLA services and other linked sites is governed by their respective terms.</p></section>
+          <section><h2 className="text-lg font-bold text-white">Accounts</h2><p className="mt-2">You are responsible for keeping your account credentials secure and for activity performed through your account. Do not use CarScout to submit unlawful, abusive or misleading content. CarScout may restrict accounts that threaten the security or availability of the service.</p></section>
+          <section><h2 className="text-lg font-bold text-white">Saved information</h2><p className="mt-2">Saved searches are provided for convenience and may become outdated as third-party listings change. You can export or delete account information using the controls on your account page.</p></section>
         </div>
       </article>
     </main>
