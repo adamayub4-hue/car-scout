@@ -338,6 +338,9 @@ export default function Home() {
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
+  const [engine, setEngine] = useState("");
+  const [fuel, setFuel] = useState("");
+  const [bodyStyle, setBodyStyle] = useState("");
   const [price, setPrice] = useState("");
   const [postcode, setPostcode] = useState("");
   const [partMethod, setPartMethod] = useState<PartMethod | "">("");
@@ -371,7 +374,7 @@ export default function Home() {
   };
 
   const vehicleReady = Boolean(make && model && year);
-  const vehicleLabel = [year, make, model].filter(Boolean).join(" ");
+  const vehicleLabel = [year, make, model, engine, fuel, bodyStyle].filter(Boolean).join(" ");
 
   const carLinks = useMemo(() => {
     const query = [
@@ -400,12 +403,12 @@ export default function Home() {
   }, [make, model, postcode, price, year]);
 
   const partsLink = useMemo(() => {
-    const vehicle = `${year} ${make} ${model}`;
+    const vehicle = [year, make, model, engine, fuel, bodyStyle].filter(Boolean).join(" ");
     const query = [vehicle, partCategory, part, partNumber]
       .filter(Boolean)
       .join(" ");
     return `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(query)}`;
-  }, [make, model, part, partCategory, partNumber, year]);
+  }, [bodyStyle, engine, fuel, make, model, part, partCategory, partNumber, year]);
 
   const handleCarSearch = async () => {
     if (!make.trim()) {
@@ -435,7 +438,7 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
-    await trackActivity("part_search", { vehicle: vehicleLabel, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
+    await trackActivity("part_search", { vehicle: vehicleLabel, engine: engine || undefined, fuel: fuel || undefined, bodyStyle: bodyStyle || undefined, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
   };
 
   const handlePartNumberSearch = async () => {
@@ -659,6 +662,9 @@ export default function Home() {
                         setMake(event.target.value);
                         setModel("");
                         setYear("");
+                        setEngine("");
+                        setFuel("");
+                        setBodyStyle("");
                         resetPartsBelowVehicle();
                       }}
                       placeholder="Start typing a make"
@@ -675,6 +681,9 @@ export default function Home() {
                       onChange={(event) => {
                         setModel(event.target.value);
                         setYear("");
+                        setEngine("");
+                        setFuel("");
+                        setBodyStyle("");
                         resetPartsBelowVehicle();
                       }}
                       placeholder="Start typing a model"
@@ -698,6 +707,43 @@ export default function Home() {
                     </select>
                   </label>
               </div>
+
+              {vehicleReady && (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+                  <p className="text-sm font-semibold text-slate-200">Add details for a more precise parts search <span className="font-normal text-slate-500">(optional)</span></p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <label className="text-sm text-slate-300">
+                      <span className="mb-2 block">Engine or variant</span>
+                      <input value={engine} onChange={(event) => { setEngine(event.target.value); resetPartsBelowVehicle(); }} placeholder="e.g. 2.0 TDI 150" className={fieldClass} />
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      <span className="mb-2 block">Fuel</span>
+                      <select value={fuel} onChange={(event) => { setFuel(event.target.value); resetPartsBelowVehicle(); }} className={fieldClass}>
+                        <option value="">Not sure</option>
+                        <option>Petrol</option>
+                        <option>Diesel</option>
+                        <option>Hybrid</option>
+                        <option>Electric</option>
+                        <option>LPG</option>
+                      </select>
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      <span className="mb-2 block">Body style</span>
+                      <select value={bodyStyle} onChange={(event) => { setBodyStyle(event.target.value); resetPartsBelowVehicle(); }} className={fieldClass}>
+                        <option value="">Not sure</option>
+                        <option>Hatchback</option>
+                        <option>Saloon</option>
+                        <option>Estate</option>
+                        <option>SUV</option>
+                        <option>Coupe</option>
+                        <option>Convertible</option>
+                        <option>Van</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">These details narrow the marketplace query. They do not replace seller fitment confirmation or a VIN check.</p>
+                </div>
+              )}
 
               {vehicleReady && (
                 <div className="mt-8 border-t border-white/10 pt-7">
@@ -854,7 +900,7 @@ export default function Home() {
               <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Search ready</p>
               <h3 className="mt-2 text-lg font-bold">{[vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · ")}</h3>
               <p className="mt-1 text-sm text-slate-400">Check the listing&apos;s compatibility details before purchasing.</p>
-              <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, make, model, year, part, partCategory, partNumber, link: partsLink } }} />
+              <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, make, model, year, engine, fuel, bodyStyle, part, partCategory, partNumber, link: partsLink } }} />
             </div>
             <a href={partsLink} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View parts on eBay</a>
           </section>
