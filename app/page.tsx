@@ -151,6 +151,56 @@ function SystemArtwork({ system, accent }: { system: string; accent: string }) {
   return <>{artwork[system]}</>;
 }
 
+const partHints: Record<string, string> = {
+  "Air Filter": "Usually a flat, pleated panel inside a plastic air box.",
+  "Oil Filter": "Usually a small metal can or cartridge housing.",
+  "Timing Belt": "A toothed rubber belt hidden behind an engine cover.",
+  "Water Pump": "A compact metal housing with a pulley or hose outlets.",
+  "Brake Disc": "A large, flat metal circle mounted behind the wheel.",
+  "Brake Pads": "Small curved blocks that sit on each side of the disc.",
+  "Brake Caliper": "A heavy clamp-shaped housing fitted over the disc.",
+  "ABS Sensor": "A small wired sensor mounted close to the wheel hub.",
+  "Shock Absorber": "A long metal cylinder fitted vertically near a wheel.",
+  "Coil Spring": "A thick metal coil positioned above or around the damper.",
+  "Control Arm": "A solid A-shaped or curved arm under the vehicle.",
+  "Drop Link": "A short thin rod with a joint at both ends.",
+  "Front Bumper": "The large moulded panel across the front of the car.",
+  Headlight: "The complete clear lamp unit at a front corner.",
+  "Wing Mirror": "The mirror assembly attached to a front door.",
+  "Tail Light": "The red lamp unit fitted at a rear corner.",
+  Battery: "A rectangular box with positive and negative terminals.",
+  Alternator: "A vented metal unit with a belt pulley on the front.",
+  "Starter Motor": "A compact cylindrical motor with a smaller cylinder attached.",
+  "Fuse Box": "A plastic box containing rows of coloured fuses and relays.",
+  "Steering Wheel": "The round driver control mounted in front of the dashboard.",
+  Dashboard: "The wide moulded panel containing instruments and air vents.",
+  "Front Seat": "The complete seat frame, cushion and backrest assembly.",
+  "Gear Knob": "The hand grip fitted to the top of the gear lever.",
+};
+
+function PartSketch({ part, accent }: { part: string; accent: string }) {
+  const props = { fill: "none", stroke: accent, strokeWidth: 2.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (/Filter/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><rect x="9" y="10" width="54" height="36" rx="7" /><path d="M17 16v24M25 16v24M33 16v24M41 16v24M49 16v24M57 16v24" /></g></svg>;
+  if (/Belt/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M15 16c8-8 34-8 42 0l-5 26c-8 7-24 7-32 0Z" /><path d="M22 15l2 5m7-8 1 6m8-6-1 6m9-3-2 5" /></g></svg>;
+  if (/Disc/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="34" cy="28" r="21" /><circle cx="34" cy="28" r="8" /><path d="M53 14l8 5v19l-8 5" /></g></svg>;
+  if (/Pads/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M9 38V20c11-7 22-7 29 0v18c-9 5-19 5-29 0Zm29 0V20c9-6 18-5 25 1v16c-7 6-16 7-25 1Z" /></g></svg>;
+  if (/Caliper/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M13 13h37l10 10v20H41V29H25v14H10V21Z" /><circle cx="35" cy="28" r="6" /></g></svg>;
+  if (/Sensor/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M12 12c19 0 15 31 35 31" /><rect x="45" y="35" width="16" height="14" rx="4" /><circle cx="12" cy="12" r="5" /></g></svg>;
+  if (/Spring/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M22 7h28M27 12h18l-17 7 17 7-17 7 17 7-18 6h23" /></g></svg>;
+  if (/Absorber|Drop Link/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M35 6v13m-9 0h18v25H26zM35 44v7" /><circle cx="35" cy="8" r="5" /><circle cx="35" cy="49" r="5" /></g></svg>;
+  if (/Control Arm/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M12 13l17 31h30L43 13Z" /><circle cx="12" cy="13" r="6" /><circle cx="43" cy="13" r="6" /><circle cx="59" cy="44" r="6" /></g></svg>;
+  if (/Bumper/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M7 25c13-13 45-13 58 0l-5 17H12Z" /><path d="M18 31h36" /></g></svg>;
+  if (/light|Headlight/i.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M9 34c14-22 35-26 54-12l-7 21H15Z" /><circle cx="42" cy="30" r="8" /></g></svg>;
+  if (/Mirror/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M10 27c8-17 31-19 47-5v19H19Z" /><path d="M57 31h7v17" /></g></svg>;
+  if (/Battery|Fuse Box/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><rect x="9" y="12" width="54" height="37" rx="5" /><path d="M19 12V7h12v5m10 0V7h12v5M20 29h12m-6-6v12m20-6h10" /></g></svg>;
+  if (/Alternator/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="35" cy="29" r="21" /><circle cx="35" cy="29" r="8" /><path d="M35 8v12M14 29h13m8 8v13m8-21h15" /></g></svg>;
+  if (/Starter/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><rect x="8" y="19" width="43" height="26" rx="12" /><rect x="41" y="10" width="20" height="19" rx="6" /><path d="M8 32H3m58-12h7" /></g></svg>;
+  if (/Wheel/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="28" r="22" /><circle cx="36" cy="28" r="7" /><path d="M36 6v15M14 28h15m7 7v15m7-22h15" /></g></svg>;
+  if (/Seat/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M23 7h22v27H23zM18 34h37v12H18zM23 46v6m27-6v6" /></g></svg>;
+  if (/Gear/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="14" r="10" /><path d="M36 24v25M27 49h18" /></g></svg>;
+  return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M8 38V20l12-9h32l12 11v16Z" /><path d="M22 38v9m28-9v9M19 27h34" /></g></svg>;
+}
+
 function DiagramExplorer({
   category,
   part,
@@ -239,16 +289,17 @@ function DiagramExplorer({
           </svg>
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Components</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">What does your part look like?</p>
+          <p className="mt-2 text-xs leading-5 text-slate-400">Compare its general shape, then select the closest match.</p>
           <div className="mt-3 space-y-2">
             {selectedSystem.parts.map((item, index) => (
               <button key={item} type="button" aria-pressed={part === item} onClick={() => onPart(item)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${part === item ? "border-sky-400/60 bg-sky-400/10" : "border-white/10 bg-white/[0.025] hover:border-white/25"}`}>
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-black text-slate-950" style={{ backgroundColor: selectedSystem.accent }}>{index + 1}</span>
-                <span><strong className="block text-sm">{item}</strong><span className="text-xs text-slate-500">Search compatible listings</span></span>
+                <span className="relative grid h-16 w-[4.5rem] shrink-0 place-items-center rounded-lg bg-black/20"><PartSketch part={item} accent={selectedSystem.accent} /><span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full text-[10px] font-black text-slate-950" style={{ backgroundColor: selectedSystem.accent }}>{index + 1}</span></span>
+                <span><strong className="block text-sm">{item}</strong><span className="mt-1 block text-xs leading-4 text-slate-500">{partHints[item]}</span></span>
               </button>
             ))}
           </div>
-          {part && <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-xs leading-5 text-emerald-100"><strong>{part} selected.</strong> We&apos;ll include your vehicle details in the marketplace search.</div>}
+          {part && <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-xs leading-5 text-emerald-100"><strong>{part} selected.</strong> We&apos;ll include the vehicle details in your search. A visual match is only a starting point—confirm the part number and fitment with the seller before buying.</div>}
         </div>
       </div>
     </div>
