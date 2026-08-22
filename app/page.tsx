@@ -76,7 +76,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Filters, belts, cooling and service components",
     accent: "#38bdf8",
     parts: ["Air Filter", "Oil Filter", "Timing Belt", "Water Pump"],
-    hotspot: [455, 158],
+    hotspot: [446, 166],
     partPositions: [[145, 112], [183, 239], [367, 118], [411, 235]],
   },
   Brakes: {
@@ -85,7 +85,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Pads, discs, calipers and sensors",
     accent: "#fb7185",
     parts: ["Brake Disc", "Brake Pads", "Brake Caliper", "ABS Sensor"],
-    hotspot: [478, 224],
+    hotspot: [444, 232],
     partPositions: [[280, 180], [370, 145], [402, 224], [154, 102]],
   },
   Suspension: {
@@ -94,7 +94,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Dampers, springs, arms and steering parts",
     accent: "#a78bfa",
     parts: ["Shock Absorber", "Coil Spring", "Control Arm", "Drop Link"],
-    hotspot: [153, 221],
+    hotspot: [153, 232],
     partPositions: [[177, 185], [286, 177], [397, 222], [390, 104]],
   },
   Body: {
@@ -103,7 +103,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Panels, lamps, mirrors and exterior trim",
     accent: "#34d399",
     parts: ["Front Bumper", "Headlight", "Wing Mirror", "Tail Light"],
-    hotspot: [548, 188],
+    hotspot: [530, 205],
     partPositions: [[447, 241], [456, 141], [282, 99], [112, 160]],
   },
   Electrical: {
@@ -112,7 +112,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Battery, charging, starting and control units",
     accent: "#fbbf24",
     parts: ["Battery", "Alternator", "Starter Motor", "Fuse Box"],
-    hotspot: [405, 142],
+    hotspot: [383, 156],
     partPositions: [[153, 183], [290, 177], [406, 205], [374, 94]],
   },
   Interior: {
@@ -121,7 +121,7 @@ const diagramSystems: Record<string, DiagramSystem> = {
     description: "Seats, dashboard, controls and cabin trim",
     accent: "#f472b6",
     parts: ["Steering Wheel", "Dashboard", "Front Seat", "Gear Knob"],
-    hotspot: [292, 137],
+    hotspot: [278, 139],
     partPositions: [[180, 126], [284, 116], [383, 207], [284, 245]],
   },
 };
@@ -172,7 +172,7 @@ function DiagramExplorer({
           <h3 className="mt-1 text-lg font-bold">Select an area to explore</h3>
         </div>
         <div className="grid gap-5 p-5 sm:p-6">
-          <div className="relative min-h-72 overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_48%,rgba(56,189,248,0.13),transparent_52%)] p-2 sm:min-h-96 sm:p-5">
+          <div className="relative min-h-60 overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_48%,rgba(56,189,248,0.13),transparent_52%)] p-2 sm:min-h-72 sm:p-4">
             <svg viewBox="0 0 620 300" role="img" aria-label="Interactive side view of a car" className="h-full w-full">
               <defs>
                 <linearGradient id="carBody" x1="0" x2="1"><stop stopColor="#1e3a5f" /><stop offset="1" stopColor="#0f2744" /></linearGradient>
@@ -184,28 +184,23 @@ function DiagramExplorer({
               <circle cx="152" cy="236" r="43" fill="#07101e" stroke="#64748b" strokeWidth="5" /><circle cx="152" cy="236" r="18" fill="#1e293b" stroke="#94a3b8" strokeWidth="3" />
               <circle cx="444" cy="236" r="43" fill="#07101e" stroke="#64748b" strokeWidth="5" /><circle cx="444" cy="236" r="18" fill="#1e293b" stroke="#94a3b8" strokeWidth="3" />
               <g fill="#38bdf8" opacity=".18"><ellipse cx="418" cy="154" rx="67" ry="45" /><ellipse cx="164" cy="194" rx="59" ry="34" /></g>
-              {Object.entries(diagramSystems).map(([id, system]) => {
+              {Object.entries(diagramSystems).map(([id, system], index) => {
                 const [x, y] = system.hotspot;
-                const labelX = x > 420 ? x - 26 : x + 26;
-                const anchor = x > 420 ? "end" : "start";
                 return (
                   <g key={id} role="button" tabIndex={0} aria-label={`Explore ${system.name}`} onClick={() => onCategory(id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onCategory(id); }} className="cursor-pointer outline-none">
-                    <circle cx={x} cy={y} r="19" fill={system.accent} opacity=".16" filter="url(#markerGlow)" />
-                    <circle cx={x} cy={y} r="11" fill="#07101e" stroke={system.accent} strokeWidth="3" />
-                    <circle cx={x} cy={y} r="4" fill={system.accent} />
-                    <path d={`M${x + (x > 420 ? -11 : 11)} ${y}H${labelX + (x > 420 ? 5 : -5)}`} stroke={system.accent} strokeWidth="1.5" />
-                    <text x={labelX} y={y - 7} textAnchor={anchor} fill="#fff" fontSize="12" fontWeight="800">{system.shortName}</text>
-                    <text x={labelX} y={y + 8} textAnchor={anchor} fill="#94a3b8" fontSize="9">Tap to explore</text>
+                    <circle cx={x} cy={y} r="23" fill={system.accent} opacity=".18" filter="url(#markerGlow)" />
+                    <circle cx={x} cy={y} r="15" fill="#07101e" stroke={system.accent} strokeWidth="3" />
+                    <text x={x} y={y + 5} textAnchor="middle" fill="#fff" fontSize="13" fontWeight="900">{index + 1}</text>
                   </g>
                 );
               })}
             </svg>
-            <span className="absolute bottom-3 left-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:text-[11px]">Select a highlighted area</span>
+            <span className="absolute bottom-3 left-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:text-[11px]">Tap a numbered marker or choose from the list</span>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {Object.entries(diagramSystems).map(([id, system]) => (
+            {Object.entries(diagramSystems).map(([id, system], index) => (
               <button key={id} type="button" onClick={() => onCategory(id)} className="group rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-sky-400/40 hover:bg-white/[0.07]">
-                <span style={{ color: system.accent }}><SystemIcon system={id} /></span>
+                <span className="flex items-center justify-between" style={{ color: system.accent }}><SystemIcon system={id} /><span className="grid h-7 w-7 place-items-center rounded-full border text-xs font-black" style={{ borderColor: `${system.accent}88` }}>{index + 1}</span></span>
                 <strong className="mt-3 block text-sm">{system.shortName}</strong>
                 <span className="mt-1 block text-xs leading-4 text-slate-500">{system.description}</span>
               </button>
