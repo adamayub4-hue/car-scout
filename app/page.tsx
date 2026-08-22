@@ -290,8 +290,9 @@ export default function Home() {
   const trackActivity = async (eventName: "car_search" | "part_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
     const client = getSupabaseBrowserClient();
     if (!client) return;
-    const { data } = await client.auth.getUser();
-    if (data.user) void client.from("activity_events").insert({ user_id: data.user.id, event_name: eventName, metadata });
+    const { data } = await client.auth.getSession();
+    const user = data.session?.user;
+    if (user) await client.from("activity_events").insert({ user_id: user.id, event_name: eventName, metadata });
   };
 
   const resetPartsBelowVehicle = () => {
@@ -385,7 +386,7 @@ export default function Home() {
         throw new Error(payload.error || "We could not identify that vehicle.");
       }
       setVehicleDetails(payload.vehicle);
-      void trackActivity("vehicle_lookup", { make: payload.vehicle?.make, year: payload.vehicle?.yearOfManufacture });
+      await trackActivity("vehicle_lookup", { make: payload.vehicle?.make, year: payload.vehicle?.yearOfManufacture });
     } catch (lookupError) {
       setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
     } finally {
@@ -393,7 +394,7 @@ export default function Home() {
     }
   };
 
-  const handleCarSearch = () => {
+  const handleCarSearch = async () => {
     if (!make.trim()) {
       setError("Enter a make to start your search.");
       return;
@@ -404,13 +405,13 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
-    void trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
+    await trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
     if (platform !== "all") {
       window.open(carLinks[platform], "_blank", "noopener,noreferrer");
     }
   };
 
-  const handlePartsSearch = () => {
+  const handlePartsSearch = async () => {
     if (!vehicleReady) {
       setError(
         vehiclePath === "registration"
@@ -425,7 +426,7 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
-    void trackActivity("part_search", { vehicle: vehicleLabel, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
+    await trackActivity("part_search", { vehicle: vehicleLabel, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
   };
 
   return (
