@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import SaveButton from "./components/save-button";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 
@@ -199,6 +200,46 @@ function PartSketch({ part, accent }: { part: string; accent: string }) {
   if (/Seat/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M23 7h22v27H23zM18 34h37v12H18zM23 46v6m27-6v6" /></g></svg>;
   if (/Gear/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="14" r="10" /><path d="M36 24v25M27 49h18" /></g></svg>;
   return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M8 38V20l12-9h32l12 11v16Z" /><path d="M22 38v9m28-9v9M19 27h34" /></g></svg>;
+}
+
+type VehicleImage = { url: string; pageUrl: string; title: string; creator: string; license: string; licenseUrl: string };
+
+function VehicleReference({ make, model, year }: { make: string; model: string; year: string }) {
+  const query = `${make}|${model}|${year}`;
+  const [result, setResult] = useState<{ query: string; image: VehicleImage | null }>({ query: "", image: null });
+
+  useEffect(() => {
+    if (!make) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ make, model, year });
+    fetch(`/api/vehicle-image?${params}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((payload) => setResult({ query, image: payload.image || null }))
+      .catch((error) => { if (error?.name !== "AbortError") setResult({ query, image: null }); });
+    return () => controller.abort();
+  }, [make, model, query, year]);
+
+  const loading = Boolean(make && result.query !== query);
+  const image = result.query === query ? result.image : null;
+  if (loading) return <div className="mt-5 h-52 animate-pulse rounded-2xl border border-white/10 bg-white/[0.035]" aria-label="Loading vehicle reference image" />;
+  if (!image) return null;
+
+  return (
+    <figure className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-[#091526]">
+      <div className="relative aspect-[16/7] min-h-48 bg-white/5">
+        <Image src={image.url} alt={`${year} ${make} ${model} visual reference`} fill sizes="(max-width: 768px) 100vw, 700px" className="object-cover" />
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#07101e] to-transparent px-4 pb-4 pt-12">
+          <strong className="text-sm">{[year, make, model].filter(Boolean).join(" ")} reference</strong>
+          <p className="mt-1 text-xs text-slate-300">Use this to recognise the vehicle only. Body style, trim and fitted parts may differ.</p>
+        </div>
+      </div>
+      <figcaption className="flex flex-wrap gap-x-2 px-4 py-2 text-[10px] text-slate-500">
+        <a href={image.pageUrl} target="_blank" rel="noreferrer" className="hover:text-slate-300">{image.title}</a>
+        <span>· {image.creator}</span>
+        <a href={image.licenseUrl} target="_blank" rel="noreferrer" className="hover:text-slate-300">· {image.license}</a>
+      </figcaption>
+    </figure>
+  );
 }
 
 function DiagramExplorer({
@@ -769,6 +810,11 @@ export default function Home() {
                     <h2 className="text-2xl font-bold">How do you want to find it?</h2>
                     <span className="rounded-full bg-white/[0.06] px-3 py-1.5 text-xs text-slate-300">{vehicleLabel}</span>
                   </div>
+                  <VehicleReference
+                    make={vehiclePath === "registration" ? vehicleDetails?.make || "" : make}
+                    model={vehiclePath === "registration" ? "" : model}
+                    year={vehiclePath === "registration" ? String(vehicleDetails?.yearOfManufacture || "") : year}
+                  />
                   <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     {([
                       ["diagram", "Car diagram", "Explore systems and select a component", "Interactive finder"],
