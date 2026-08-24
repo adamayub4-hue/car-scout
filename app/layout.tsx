@@ -4,10 +4,10 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://carscout.uk"),
+  metadataBase: new URL("https://mekivo.uk"),
   title: {
-    default: "CarScout — Search UK cars and parts",
-    template: "%s | CarScout",
+    default: "Mekivo — Search UK cars and parts",
+    template: "%s | Mekivo",
   },
   description:
     "Search UK car marketplaces and find vehicle-specific parts from one simple starting point.",
@@ -20,15 +20,15 @@ export const metadata: Metadata = {
     follow: true,
   },
   openGraph: {
-    title: "CarScout — Search UK cars and parts",
+    title: "Mekivo — Search UK cars and parts",
     description:
       "Search UK car marketplaces and find vehicle-specific parts from one simple starting point.",
     type: "website",
-    url: "https://carscout.uk",
-    siteName: "CarScout",
+    url: "https://mekivo.uk",
+    siteName: "Mekivo",
     locale: "en_GB",
   },
-  twitter: { card: "summary_large_image", title: "CarScout — Search UK cars and parts", description: "Search UK car marketplaces and find vehicle-specific parts from one simple starting point." },
+  twitter: { card: "summary_large_image", title: "Mekivo — Search UK cars and parts", description: "Search UK car marketplaces and find vehicle-specific parts from one simple starting point." },
   manifest: "/manifest.webmanifest",
 };
 

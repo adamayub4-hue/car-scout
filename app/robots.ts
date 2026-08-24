@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: { userAgent: "*", allow: "/", disallow: ["/account", "/admin", "/forgot-password", "/reset-password"] },
-    sitemap: "https://carscout.uk/sitemap.xml",
-    host: "https://carscout.uk",
+    sitemap: "https://mekivo.uk/sitemap.xml",
+    host: "https://mekivo.uk",
   };
 }

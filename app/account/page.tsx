@@ -91,11 +91,11 @@ export default function AccountPage() {
       supabase.from("activity_events").select("*").eq("user_id", user.id),
     ]);
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile: profile.data, savedItems: saved.data, complaints: complaints.data, activity: activity.data }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "carscout-data.json"; link.click(); URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "mekivo-data.json"; link.click(); URL.revokeObjectURL(url);
   };
 
   const deleteAccount = async () => {
-    if (isAdmin || !window.confirm("Permanently delete your CarScout account and all saved data? This cannot be undone.")) return;
+    if (isAdmin || !window.confirm("Permanently delete your Mekivo account and all saved data? This cannot be undone.")) return;
     const { error } = await getSupabaseBrowserClient()!.rpc("delete_my_account");
     if (error) setMessage("We could not delete the account. Please contact support."); else { setUser(null); setItems([]); setMessage("Your account and stored data were deleted."); }
   };
@@ -104,7 +104,7 @@ export default function AccountPage() {
     <main className="min-h-screen bg-[#07101e] px-4 py-8 text-white">
       <div className="mx-auto max-w-3xl">
         <header className="flex items-center justify-between border-b border-white/10 pb-6">
-          <Link href="/" className="text-xl font-bold">← CarScout</Link>
+          <Link href="/" className="text-xl font-bold">← Mekivo</Link>
           {user && <button type="button" onClick={signOut} className="text-sm text-slate-300 hover:text-white">Sign out</button>}
         </header>
 
@@ -143,14 +143,14 @@ export default function AccountPage() {
         ) : (
           <section className="mx-auto mt-12 max-w-md rounded-3xl border border-white/10 bg-white/[0.035] p-6 sm:p-8">
             <p className="text-xs font-bold uppercase tracking-wider text-sky-300">{isSignUp ? "Create account" : "Welcome back"}</p>
-            <h1 className="mt-2 text-3xl font-bold">{isSignUp ? "Save your CarScout data" : "Sign in to CarScout"}</h1>
+            <h1 className="mt-2 text-3xl font-bold">{isSignUp ? "Save your Mekivo data" : "Sign in to Mekivo"}</h1>
             <form onSubmit={submit} className="mt-7 space-y-4">
               <label className="block text-sm text-slate-300">Email<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className={`mt-2 ${inputClass}`} /></label>
               <label className="block text-sm text-slate-300">Password<input required minLength={8} type="password" autoComplete={isSignUp ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className={`mt-2 ${inputClass}`} /></label>
               {message && <p role="status" className="text-sm text-sky-200">{message}</p>}
               <button disabled={loading} className="w-full rounded-xl bg-sky-400 px-5 py-3.5 font-bold text-slate-950 disabled:opacity-60">{loading ? "Please wait…" : isSignUp ? "Create account" : "Sign in"}</button>
             </form>
-            <button type="button" onClick={() => { setIsSignUp(!isSignUp); setMessage(""); }} className="mt-5 text-sm text-slate-300 hover:text-white">{isSignUp ? "Already have an account? Sign in" : "New to CarScout? Create an account"}</button>
+            <button type="button" onClick={() => { setIsSignUp(!isSignUp); setMessage(""); }} className="mt-5 text-sm text-slate-300 hover:text-white">{isSignUp ? "Already have an account? Sign in" : "New to Mekivo? Create an account"}</button>
             {!isSignUp && <Link href="/forgot-password" className="mt-4 block text-sm text-sky-300 hover:text-sky-200">Forgot your password?</Link>}
           </section>
         )}

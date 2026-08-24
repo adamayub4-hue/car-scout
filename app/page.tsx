@@ -467,10 +467,10 @@ export default function Home() {
             className="flex items-center gap-3 text-left"
           >
             <span className="grid h-11 w-11 place-items-center rounded-2xl bg-sky-400 text-xl font-black text-slate-950 shadow-lg shadow-sky-500/20">
-              C
+              M
             </span>
             <span>
-              <strong className="block text-xl tracking-tight">CarScout</strong>
+              <strong className="block text-xl tracking-tight">Mekivo</strong>
               <span className="text-xs text-slate-400">
                 Search smarter. Buy with confidence.
               </span>
@@ -490,7 +490,7 @@ export default function Home() {
             Find your next car—or the right part.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-pretty text-base leading-7 text-slate-400 sm:text-lg">
-            CarScout turns a scattered search across UK marketplaces into one
+            Mekivo turns a scattered search across UK marketplaces into one
             clear starting point.
           </p>
         </section>
@@ -910,7 +910,7 @@ export default function Home() {
           {[
             ["01", "Search wider", "Jump into the UK’s most useful car marketplaces from one clean search."],
             ["02", "Match smarter", "Start parts searches with a specific make, model and year."],
-            ["03", "Stay in control", "CarScout sends you to the original listing so you can verify every detail yourself."],
+            ["03", "Stay in control", "Mekivo sends you to the original listing so you can verify every detail yourself."],
           ].map(([number, title, copy]) => (
             <div key={number} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
               <span className="text-xs font-bold text-sky-300">{number}</span>
@@ -921,7 +921,7 @@ export default function Home() {
         </section>
 
         <footer className="mt-16 border-t border-white/10 pt-6 text-center text-xs leading-5 text-slate-500">
-          <p>CarScout does not sell vehicles or guarantee listing accuracy or part compatibility. Verify all information with the marketplace or seller.</p>
+          <p>Mekivo does not sell vehicles or guarantee listing accuracy or part compatibility. Verify all information with the marketplace or seller.</p>
           <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
             <a href="/privacy" className="hover:text-slate-300">Privacy</a>
             <a href="/terms" className="hover:text-slate-300">Terms</a>

@@ -39,17 +39,17 @@ export default function SupportPage() {
     }
     setSubject("");
     setMessage("");
-    setStatus(kind === "suggestion" ? "Thanks—your suggestion has been sent to the CarScout owner." : "Your report has been sent to the CarScout owner.");
+    setStatus(kind === "suggestion" ? "Thanks—your suggestion has been sent to the Mekivo owner." : "Your report has been sent to the Mekivo owner.");
   };
 
   return (
     <main className="min-h-screen bg-[#07101e] px-4 py-8 text-white">
       <div className="mx-auto max-w-xl">
-        <Link href="/" className="text-sm font-semibold text-sky-300">← Back to CarScout</Link>
+        <Link href="/" className="text-sm font-semibold text-sky-300">← Back to Mekivo</Link>
         <section className="mt-8 rounded-3xl border border-white/10 bg-white/[0.035] p-6 sm:p-8">
           <p className="text-xs font-bold uppercase tracking-wider text-sky-300">Feedback and support</p>
-          <h1 className="mt-2 text-3xl font-bold">Help improve CarScout</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-400">Share an idea or report a problem. Every message goes to CarScout&apos;s private owner dashboard.</p>
+          <h1 className="mt-2 text-3xl font-bold">Help improve Mekivo</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-400">Share an idea or report a problem. Every message goes to Mekivo&apos;s private owner dashboard.</p>
 
           <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.04] p-1.5">
             {(["suggestion", "problem"] as FeedbackKind[]).map((value) => (
@@ -72,7 +72,7 @@ export default function SupportPage() {
                 <input required minLength={3} maxLength={120} value={subject} onChange={(event) => setSubject(event.target.value)} placeholder={kind === "suggestion" ? "A short title for your suggestion" : "A short description of the problem"} className={`mt-2 ${fieldClass}`} />
               </label>
               <label className="block text-sm text-slate-300">
-                {kind === "suggestion" ? "How would it improve CarScout?" : "Tell us what happened"}
+                {kind === "suggestion" ? "How would it improve Mekivo?" : "Tell us what happened"}
                 <textarea required minLength={10} maxLength={4000} rows={7} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add enough detail for us to understand and act on it." className={`mt-2 resize-y ${fieldClass}`} />
               </label>
               {status && <p role="status" className="text-sm text-sky-200">{status}</p>}

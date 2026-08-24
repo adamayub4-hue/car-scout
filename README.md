@@ -1,6 +1,6 @@
-# CarScout
+# Mekivo
 
-CarScout is a responsive UK car and parts discovery MVP. It provides a single starting point for searching Auto Trader, eBay Motors and Gumtree, plus a guided parts flow using manual vehicle selection.
+Mekivo is a responsive UK car and parts discovery service. It provides a single starting point for searching Auto Trader, eBay Motors and Gumtree, plus a guided parts flow using manual vehicle selection.
 
 ## Run locally
 

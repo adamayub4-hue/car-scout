@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
-      headers: { "User-Agent": "CarScout/1.0 (https://carscout.uk)" },
+      headers: { "User-Agent": "Mekivo/1.0 (https://mekivo.uk)" },
       next: { revalidate: 86400 },
     });
     if (!response.ok) throw new Error("Commons request failed");

@@ -8,7 +8,7 @@ export default function ForgotPasswordPage() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); const client = getSupabaseBrowserClient(); if (!client) return;
     setLoading(true); setMessage("");
-    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: "https://carscout.uk/reset-password" });
+    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: "https://mekivo.uk/reset-password" });
     setLoading(false);
     setMessage(error ? error.message : "If that address has an account, a recovery link is on its way.");
   };

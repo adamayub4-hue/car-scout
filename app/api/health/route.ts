@@ -1,4 +1,4 @@
 import { NextResponse } from "next/server";
 export function GET() {
-  return NextResponse.json({ status: "ok", service: "carscout", timestamp: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ status: "ok", service: "mekivo", timestamp: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
 }
