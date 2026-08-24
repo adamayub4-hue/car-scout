@@ -5,6 +5,12 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/:path*",
+        has: [{ type: "host", value: "www.mekivo.uk" }],
+        destination: "https://mekivo.uk/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
         has: [{ type: "host", value: "carscout.uk" }],
         destination: "https://mekivo.uk/:path*",
         permanent: true,
