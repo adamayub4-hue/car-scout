@@ -70,6 +70,7 @@ async function getApplicationToken() {
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const type = request.nextUrl.searchParams.get("type") === "cars" ? "cars" : "parts";
   if (query.length < 2 || query.length > 160) {
     return json({ error: "Enter a search between 2 and 160 characters." }, 400);
   }
@@ -79,6 +80,8 @@ export async function GET(request: NextRequest) {
     const url = new URL("https://api.ebay.com/buy/browse/v1/item_summary/search");
     url.searchParams.set("q", query);
     url.searchParams.set("limit", "12");
+    // eBay UK: Cars (9801) and Vehicle Parts & Accessories (6030).
+    url.searchParams.set("category_ids", type === "cars" ? "9801" : "6030");
 
     const response = await fetch(url, {
       headers: {

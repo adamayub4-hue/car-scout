@@ -459,12 +459,12 @@ export default function Home() {
     return `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(query)}`;
   }, [bodyStyle, engine, fuel, make, model, part, partCategory, partNumber, year]);
 
-  const searchEbay = async (query: string) => {
+  const searchEbay = async (query: string, type: "cars" | "parts") => {
     setEbayLoading(true);
     setEbayError("");
     setEbayItems([]);
     try {
-      const response = await fetch(`/api/ebay/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`/api/ebay/search?type=${type}&q=${encodeURIComponent(query)}`);
       const payload = (await response.json()) as { items?: EbayListing[]; error?: string };
       if (!response.ok) throw new Error(payload.error || "Live eBay results are unavailable.");
       setEbayItems(payload.items ?? []);
@@ -489,7 +489,7 @@ export default function Home() {
     await trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
     const query = [make, model, year, price ? `under £${price}` : "", postcode ? `near ${postcode}` : "", "car"].filter(Boolean).join(" ");
     if (platform === "all" || platform === "ebay") {
-      void searchEbay(query);
+      void searchEbay(query, "cars");
     }
     if (platform !== "all" && platform !== "ebay") {
       window.open(carLinks[platform], "_blank", "noopener,noreferrer");
@@ -508,7 +508,7 @@ export default function Home() {
     setError("");
     setShowResults(true);
     await trackActivity("part_search", { vehicle: vehicleLabel, engine: engine || undefined, fuel: fuel || undefined, bodyStyle: bodyStyle || undefined, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
-    void searchEbay([vehicleLabel, partCategory, part, partNumber].filter(Boolean).join(" "));
+    void searchEbay([vehicleLabel, partCategory, part, partNumber].filter(Boolean).join(" "), "parts");
   };
 
   const handlePartNumberSearch = async () => {
@@ -524,7 +524,7 @@ export default function Home() {
     setError("");
     setShowResults(true);
     await trackActivity("part_number_search", { hasPartNumber: true });
-    void searchEbay(number);
+    void searchEbay(number, "parts");
   };
 
   return (
