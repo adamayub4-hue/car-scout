@@ -10,6 +10,17 @@ type Mode = "cars" | "parts";
 type Platform = "all" | "autotrader" | "ebay" | "gumtree";
 type PartMethod = "diagram" | "catalogue" | "search";
 
+type EbayListing = {
+  id: string;
+  title: string;
+  url: string;
+  image: string | null;
+  price: string | null;
+  currency: string | null;
+  condition: string | null;
+  location: string | null;
+};
+
 type DiagramSystem = {
   name: string;
   shortName: string;
@@ -332,6 +343,39 @@ function isValidPostcode(value: string) {
 const fieldClass =
   "w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-[15px] text-white outline-none transition placeholder:text-slate-500 focus:border-sky-400/60 focus:bg-white/[0.09] focus:ring-4 focus:ring-sky-400/10";
 
+function EbayResults({ items, loading, error, fallbackUrl }: { items: EbayListing[]; loading: boolean; error: string; fallbackUrl: string }) {
+  if (loading) {
+    return <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm text-slate-300">Loading live eBay listings…</div>;
+  }
+
+  if (error || items.length === 0) {
+    return (
+      <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-5 text-sm text-amber-100">
+        <p>{error || "No live eBay listings matched this search."}</p>
+        <a href={fallbackUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex font-bold underline underline-offset-4">Search directly on eBay</a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="flex items-center justify-between gap-4">
+        <div><p className="text-xs font-bold uppercase tracking-wider text-sky-300">Live eBay listings</p><p className="mt-1 text-xs text-slate-500">Prices and availability can change. Verify every listing on eBay.</p></div>
+        <a href={fallbackUrl} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-sky-300">See all →</a>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {items.slice(0, 6).map((item) => (
+          <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-sky-400/40 hover:bg-white/[0.07]">
+            <h3 className="line-clamp-3 text-sm font-bold leading-5">{item.title}</h3>
+            <p className="mt-3 text-lg font-black text-white">{item.price ? `${item.currency === "GBP" ? "£" : `${item.currency ?? ""} `}${item.price}` : "See price"}</p>
+            <p className="mt-1 text-xs text-slate-500">{[item.condition, item.location].filter(Boolean).join(" · ") || "View listing details"}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [mode, setMode] = useState<Mode>("cars");
   const [platform, setPlatform] = useState<Platform>("all");
@@ -349,6 +393,9 @@ export default function Home() {
   const [partCategory, setPartCategory] = useState("");
   const [error, setError] = useState("");
   const [showResults, setShowResults] = useState(false);
+  const [ebayItems, setEbayItems] = useState<EbayListing[]>([]);
+  const [ebayLoading, setEbayLoading] = useState(false);
+  const [ebayError, setEbayError] = useState("");
 
   const trackActivity = async (eventName: "car_search" | "part_search" | "part_number_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
     const client = getSupabaseBrowserClient();
@@ -371,6 +418,8 @@ export default function Home() {
     setMode(nextMode);
     setShowResults(false);
     setError("");
+    setEbayItems([]);
+    setEbayError("");
   };
 
   const vehicleReady = Boolean(make && model && year);
@@ -410,6 +459,22 @@ export default function Home() {
     return `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(query)}`;
   }, [bodyStyle, engine, fuel, make, model, part, partCategory, partNumber, year]);
 
+  const searchEbay = async (query: string) => {
+    setEbayLoading(true);
+    setEbayError("");
+    setEbayItems([]);
+    try {
+      const response = await fetch(`/api/ebay/search?q=${encodeURIComponent(query)}`);
+      const payload = (await response.json()) as { items?: EbayListing[]; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Live eBay results are unavailable.");
+      setEbayItems(payload.items ?? []);
+    } catch (searchError) {
+      setEbayError(searchError instanceof Error ? searchError.message : "Live eBay results are unavailable.");
+    } finally {
+      setEbayLoading(false);
+    }
+  };
+
   const handleCarSearch = async () => {
     if (!make.trim()) {
       setError("Enter a make to start your search.");
@@ -422,7 +487,11 @@ export default function Home() {
     setError("");
     setShowResults(true);
     await trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
-    if (platform !== "all") {
+    const query = [make, model, year, price ? `under £${price}` : "", postcode ? `near ${postcode}` : "", "car"].filter(Boolean).join(" ");
+    if (platform === "all" || platform === "ebay") {
+      void searchEbay(query);
+    }
+    if (platform !== "all" && platform !== "ebay") {
       window.open(carLinks[platform], "_blank", "noopener,noreferrer");
     }
   };
@@ -439,6 +508,7 @@ export default function Home() {
     setError("");
     setShowResults(true);
     await trackActivity("part_search", { vehicle: vehicleLabel, engine: engine || undefined, fuel: fuel || undefined, bodyStyle: bodyStyle || undefined, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
+    void searchEbay([vehicleLabel, partCategory, part, partNumber].filter(Boolean).join(" "));
   };
 
   const handlePartNumberSearch = async () => {
@@ -454,6 +524,7 @@ export default function Home() {
     setError("");
     setShowResults(true);
     await trackActivity("part_number_search", { hasPartNumber: true });
+    void searchEbay(number);
   };
 
   return (
@@ -890,20 +961,24 @@ export default function Home() {
                   </a>
                 ))}
             </div>
+            {(platform === "all" || platform === "ebay") && <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={carLinks.ebay} />}
             <SaveButton item={{ kind: "car_search", title: [year, make, model].filter(Boolean).join(" "), data: { make, model, year, price, postcode, platform, links: carLinks } }} />
           </section>
         )}
 
         {showResults && mode === "parts" && (
-          <section className="mx-auto mt-6 max-w-3xl rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 sm:flex sm:items-center sm:justify-between sm:gap-5">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Search ready</p>
-              <h3 className="mt-2 text-lg font-bold">{[vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · ")}</h3>
-              <p className="mt-1 text-sm text-slate-400">Check the listing&apos;s compatibility details before purchasing.</p>
-              <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, make, model, year, engine, fuel, bodyStyle, part, partCategory, partNumber, link: partsLink } }} />
-            </div>
-            <a href={partsLink} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View parts on eBay</a>
-          </section>
+          <div className="mx-auto mt-6 max-w-3xl">
+            <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 sm:flex sm:items-center sm:justify-between sm:gap-5">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Search ready</p>
+                <h3 className="mt-2 text-lg font-bold">{[vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · ")}</h3>
+                <p className="mt-1 text-sm text-slate-400">Check the listing&apos;s compatibility details before purchasing.</p>
+                <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, make, model, year, engine, fuel, bodyStyle, part, partCategory, partNumber, link: partsLink } }} />
+              </div>
+              <a href={partsLink} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View all on eBay</a>
+            </section>
+            <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={partsLink} />
+          </div>
         )}
 
         <section className="mx-auto mt-16 grid max-w-4xl gap-4 sm:grid-cols-3">
