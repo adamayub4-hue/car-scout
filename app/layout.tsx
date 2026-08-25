@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   },
   description:
     "Search UK car marketplaces and narrow down vehicle-parts listings from one simple starting point.",
-  keywords: ["UK used cars", "car parts", "vehicle parts finder", "Auto Trader search", "eBay Motors"],
+  keywords: ["UK used cars", "car parts", "vehicle parts finder", "UK car marketplaces", "Auto Trader search", "Facebook Marketplace cars", "eBay Motors", "MOTORS used cars"],
   alternates: {
     canonical: "/",
   },

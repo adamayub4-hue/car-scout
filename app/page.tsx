@@ -7,7 +7,8 @@ import SaveButton from "./components/save-button";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 
 type Mode = "cars" | "parts";
-type Platform = "all" | "autotrader" | "ebay" | "gumtree";
+type MarketplaceId = "autotrader" | "facebook" | "ebay" | "motors" | "gumtree" | "cargurus" | "pistonheads" | "aacars" | "carandclassic";
+type Platform = "all" | "more" | MarketplaceId;
 type PartMethod = "diagram" | "catalogue" | "search";
 
 type EbayListing = {
@@ -327,9 +328,31 @@ function DiagramExplorer({
 
 const platformCards = [
   { id: "autotrader", name: "Auto Trader", label: "Largest UK marketplace" },
+  { id: "facebook", name: "Facebook Marketplace", label: "Local and private-sale cars" },
   { id: "ebay", name: "eBay Motors", label: "Auctions and fixed-price cars" },
+  { id: "motors", name: "MOTORS / Cazoo", label: "Large dealer-focused marketplace" },
   { id: "gumtree", name: "Gumtree", label: "Local and private listings" },
+  { id: "cargurus", name: "CarGurus", label: "Dealer listings and price insights" },
+  { id: "pistonheads", name: "PistonHeads", label: "Performance and enthusiast cars" },
+  { id: "aacars", name: "AA Cars", label: "Cars from a network of UK dealers" },
+  { id: "carandclassic", name: "Car & Classic", label: "Classic and collectible vehicles" },
 ] as const;
+
+const moreMarketplaceIds: MarketplaceId[] = ["gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"];
+
+const platformNames: Record<Platform, string> = {
+  all: "all marketplaces",
+  more: "more marketplaces",
+  autotrader: "Auto Trader",
+  facebook: "Facebook Marketplace",
+  ebay: "eBay",
+  motors: "MOTORS / Cazoo",
+  gumtree: "Gumtree",
+  cargurus: "CarGurus",
+  pistonheads: "PistonHeads",
+  aacars: "AA Cars",
+  carandclassic: "Car & Classic",
+};
 
 const years = Array.from(
   { length: new Date().getFullYear() - 1959 },
@@ -444,10 +467,18 @@ export default function Home() {
     }
     if (postcode) autoTraderParams.set("postcode", postcode);
     if (price) autoTraderParams.set("price-to", price);
+    const motorsSlug = (value: string) => value.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const motorsPath = [motorsSlug(make), motorsSlug(model)].filter(Boolean).join("/");
     return {
       autotrader: `https://www.autotrader.co.uk/car-search?${autoTraderParams.toString()}`,
+      facebook: `https://www.facebook.com/marketplace/uk/search?query=${encodeURIComponent(query)}`,
       ebay: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${query} car`)}`,
+      motors: motorsPath ? `https://www.cazoo.co.uk/cars/${motorsPath}/` : "https://www.cazoo.co.uk/cars/",
       gumtree: `https://www.gumtree.com/search?search_category=cars&q=${encodeURIComponent(query)}`,
+      cargurus: `https://www.cargurus.co.uk/Cars/forsale?keywords=${encodeURIComponent(query)}`,
+      pistonheads: `https://www.pistonheads.com/buy/search?keyword=${encodeURIComponent(query)}`,
+      aacars: `https://www.theaa.com/used-cars/displaycars?keyword=${encodeURIComponent(query)}`,
+      carandclassic: `https://www.carandclassic.com/search?search=${encodeURIComponent(query)}`,
     };
   }, [make, model, postcode, price, year]);
 
@@ -493,7 +524,7 @@ export default function Home() {
     if (platform === "all" || platform === "ebay") {
       void searchEbay(query, "cars", price);
     }
-    if (platform !== "all" && platform !== "ebay") {
+    if (platform !== "all" && platform !== "more" && platform !== "ebay") {
       window.open(carLinks[platform], "_blank", "noopener,noreferrer");
     }
   };
@@ -593,8 +624,8 @@ export default function Home() {
                 <p className="text-sm font-semibold text-white">
                   Where should we search?
                 </p>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {(["all", "autotrader", "ebay", "gumtree"] as Platform[]).map(
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {(["all", "autotrader", "facebook", "ebay", "motors", "more"] as Platform[]).map(
                     (item) => (
                       <button
                         key={item}
@@ -610,13 +641,7 @@ export default function Home() {
                             : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:text-white"
                         }`}
                       >
-                        {item === "all"
-                          ? "All platforms"
-                          : item === "autotrader"
-                            ? "Auto Trader"
-                            : item === "ebay"
-                              ? "eBay"
-                              : "Gumtree"}
+                        {item === "all" ? "All platforms" : item === "more" ? "More platforms" : platformNames[item]}
                       </button>
                     ),
                   )}
@@ -684,7 +709,7 @@ export default function Home() {
                 onClick={handleCarSearch}
                 className="mt-5 w-full rounded-2xl bg-sky-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition hover:bg-sky-300"
               >
-                Search {platform === "all" ? "all marketplaces" : platform === "autotrader" ? "Auto Trader" : platform === "ebay" ? "eBay" : "Gumtree"}
+                Search {platformNames[platform]}
               </button>
             </>
           ) : (
@@ -953,7 +978,7 @@ export default function Home() {
           <section className="mx-auto mt-6 max-w-3xl">
             <div className="grid gap-3 sm:grid-cols-3">
               {platformCards
-                .filter((item) => platform === "all" || platform === item.id)
+                .filter((item) => platform === "all" || platform === item.id || (platform === "more" && moreMarketplaceIds.includes(item.id)))
                 .map((item) => (
                   <a key={item.id} href={carLinks[item.id]} target="_blank" rel="noreferrer" className="group rounded-2xl border border-white/10 bg-white/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-white/[0.07]">
                     <span className="text-xs font-bold uppercase tracking-wider text-sky-300">Search now</span>
