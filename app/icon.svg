@@ -1,15 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mekivo">
   <defs>
-    <linearGradient id="mekivo-gradient" x1="11" y1="9" x2="54" y2="55" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#38bdf8"/>
-      <stop offset="0.55" stop-color="#3b82f6"/>
-      <stop offset="1" stop-color="#34d399"/>
+    <linearGradient id="m" x1="13" y1="17" x2="52" y2="49" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67e8f9"/>
+      <stop offset=".52" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#6366f1"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="16" fill="#07101e"/>
-  <rect x="3" y="3" width="58" height="58" rx="14" fill="#0b1b30" stroke="#38bdf8" stroke-opacity=".32"/>
-  <path d="M13 43V21c0-2.2 1.8-4 4-4h2.5c1.4 0 2.7.7 3.4 1.9L32 33l9.1-14.1c.7-1.2 2-1.9 3.4-1.9H47c2.2 0 4 1.8 4 4v22h-8V29.8l-8.6 12.8a3 3 0 0 1-4.9 0L21 29.8V43z" fill="url(#mekivo-gradient)"/>
-  <path d="M32 33v8" stroke="#e0f2fe" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 4"/>
-  <circle cx="48" cy="45" r="7" fill="#07101e" stroke="#a7f3d0" stroke-width="3"/>
-  <path d="m53 50 5 5" stroke="#a7f3d0" stroke-width="3" stroke-linecap="round"/>
+  <rect width="64" height="64" rx="17" fill="#06101f"/>
+  <rect x="3" y="3" width="58" height="58" rx="14.5" fill="#0a1930" stroke="#7dd3fc" stroke-opacity=".2"/>
+  <path d="M12 47V18h9.2L32 34.2 42.8 18H52v29H41V35.4l-5.9 8.8c-1.5 2.3-4.7 2.3-6.2 0L23 35.4V47z" fill="url(#m)"/>
+  <path d="M32 34.5v10" stroke="#f0f9ff" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="2.5 4.5"/>
+  <path d="M44 49h9.5L50 45.5" fill="none" stroke="#a7f3d0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

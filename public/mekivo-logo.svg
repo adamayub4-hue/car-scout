@@ -1,21 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 112" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 104" role="img" aria-labelledby="title description">
   <title id="title">Mekivo</title>
   <desc id="description">Mekivo vehicle and parts search logo</desc>
   <defs>
-    <linearGradient id="mekivo-gradient" x1="18" y1="14" x2="92" y2="96" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#38bdf8"/>
-      <stop offset="0.55" stop-color="#3b82f6"/>
-      <stop offset="1" stop-color="#34d399"/>
+    <linearGradient id="mekivo-gradient" x1="20" y1="18" x2="88" y2="86" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67e8f9"/>
+      <stop offset="0.52" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#6366f1"/>
     </linearGradient>
   </defs>
   <g>
-    <rect x="4" y="4" width="104" height="104" rx="27" fill="#07101e"/>
-    <rect x="9" y="9" width="94" height="94" rx="23" fill="#0b1b30" stroke="#38bdf8" stroke-opacity=".35"/>
-    <path d="M25 75V38c0-3.9 3.1-7 7-7h3.8c2.5 0 4.8 1.3 6.1 3.4L56 57l14.1-22.6c1.3-2.1 3.6-3.4 6.1-3.4H80c3.9 0 7 3.1 7 7v37H73V52L60.1 72.4a4.8 4.8 0 0 1-8.1 0L39 52v23z" fill="url(#mekivo-gradient)"/>
-    <path d="M56 57v14" stroke="#e0f2fe" stroke-width="3" stroke-linecap="round" stroke-dasharray="3 6"/>
-    <circle cx="83" cy="77" r="12" fill="#07101e" stroke="#a7f3d0" stroke-width="5"/>
-    <path d="m92 86 9 9" stroke="#a7f3d0" stroke-width="5" stroke-linecap="round"/>
+    <rect x="4" y="4" width="96" height="96" rx="25" fill="#06101f"/>
+    <rect x="8" y="8" width="88" height="88" rx="21" fill="#0a1930" stroke="#7dd3fc" stroke-opacity=".22"/>
+    <path d="M20 74V29h14.3L52 54.1 69.7 29H84v45H67V56l-9.2 13.1c-2.8 4-8.8 4-11.6 0L37 56v18z" fill="url(#mekivo-gradient)"/>
+    <path d="M52 54v15" stroke="#f0f9ff" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="4 7"/>
+    <path d="M72 78h15l-5.5-5.5" fill="none" stroke="#a7f3d0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <text x="132" y="72" fill="#f8fafc" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="56" font-weight="800" letter-spacing="-2">Mekivo</text>
-  <text x="135" y="96" fill="#94a3b8" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="600" letter-spacing="1.2">SEARCH SMARTER</text>
+  <text x="122" y="70" fill="#f8fafc" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="58" font-weight="850" letter-spacing="-2.8">Mekivo</text>
 </svg>
