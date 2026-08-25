@@ -459,12 +459,14 @@ export default function Home() {
     return `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(query)}`;
   }, [bodyStyle, engine, fuel, make, model, part, partCategory, partNumber, year]);
 
-  const searchEbay = async (query: string, type: "cars" | "parts") => {
+  const searchEbay = async (query: string, type: "cars" | "parts", maxPrice?: string) => {
     setEbayLoading(true);
     setEbayError("");
     setEbayItems([]);
     try {
-      const response = await fetch(`/api/ebay/search?type=${type}&q=${encodeURIComponent(query)}`);
+      const params = new URLSearchParams({ type, q: query });
+      if (maxPrice) params.set("maxPrice", maxPrice);
+      const response = await fetch(`/api/ebay/search?${params}`);
       const payload = (await response.json()) as { items?: EbayListing[]; error?: string };
       if (!response.ok) throw new Error(payload.error || "Live eBay results are unavailable.");
       setEbayItems(payload.items ?? []);
@@ -487,9 +489,9 @@ export default function Home() {
     setError("");
     setShowResults(true);
     await trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
-    const query = [make, model, year, price ? `under £${price}` : "", postcode ? `near ${postcode}` : "", "car"].filter(Boolean).join(" ");
+    const query = [make, model, year].filter(Boolean).join(" ");
     if (platform === "all" || platform === "ebay") {
-      void searchEbay(query, "cars");
+      void searchEbay(query, "cars", price);
     }
     if (platform !== "all" && platform !== "ebay") {
       window.open(carLinks[platform], "_blank", "noopener,noreferrer");

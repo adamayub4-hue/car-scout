@@ -22,11 +22,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const make = clean(url.searchParams.get("make"));
   const model = clean(url.searchParams.get("model"));
-  const year = clean(url.searchParams.get("year"), 4);
-
   if (!make) return NextResponse.json({ image: null }, { status: 400 });
 
-  const search = [year, make, model].filter(Boolean).join(" ") || `${make} automobile`;
+  const search = model ? `"${make} ${model}" automobile` : `${make} automobile`;
   const params = new URLSearchParams({
     action: "query",
     format: "json",
@@ -49,10 +47,17 @@ export async function GET(request: Request) {
     if (!response.ok) throw new Error("Commons request failed");
     const payload = await response.json();
     const pages = Object.values(payload?.query?.pages || {}) as CommonsPage[];
+    const normalizedMake = make.toLowerCase();
+    const normalizedModel = model.toLowerCase();
     const page = pages.find((item) => {
       const mime = item.imageinfo?.[0]?.mime || "";
       const title = item.title?.toLowerCase() || "";
-      return mime.startsWith("image/") && !/(logo|badge|diagram|drawing|interior|engine)/.test(title);
+      const objectName = plainText(item.imageinfo?.[0]?.extmetadata?.ObjectName?.value).toLowerCase();
+      const searchable = `${title} ${objectName}`;
+      return mime.startsWith("image/")
+        && searchable.includes(normalizedMake)
+        && (!normalizedModel || searchable.includes(normalizedModel))
+        && !/(logo|badge|diagram|drawing|interior|engine)/.test(searchable);
     });
     const info = page?.imageinfo?.[0];
     if (!info?.thumburl) return NextResponse.json({ image: null });
