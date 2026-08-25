@@ -1002,6 +1002,7 @@ export default function Home() {
           <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
             <a href="/privacy" className="hover:text-slate-300">Privacy</a>
             <a href="/terms" className="hover:text-slate-300">Terms</a>
+            <a href="/guides" className="hover:text-slate-300">Guides</a>
             <a href="/support" className="hover:text-slate-300">Suggestions and support</a>
           </nav>
         </footer>
