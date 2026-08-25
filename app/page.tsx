@@ -288,7 +288,10 @@ function DiagramExplorer({
           <button type="button" onClick={() => onCategory("")} className="text-xs font-semibold text-sky-300 hover:text-sky-200">← All vehicle systems</button>
           <h3 className="mt-1 text-lg font-bold">{selectedSystem.name}</h3>
         </div>
-        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-400">Tap a numbered part</span>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.06] px-3 py-1.5 text-xs text-amber-100">General guide — not vehicle-specific</span>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-400">Tap a numbered part</span>
+        </div>
       </div>
       <div className="grid gap-5 p-5 sm:grid-cols-[1.35fr_0.85fr] sm:p-6">
         <div className="relative min-h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-4">
