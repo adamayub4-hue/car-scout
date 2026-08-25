@@ -573,9 +573,7 @@ export default function Home() {
             onClick={() => setAppMode("cars")}
             className="flex items-center gap-3 text-left"
           >
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-sky-400 text-xl font-black text-slate-950 shadow-lg shadow-sky-500/20">
-              M
-            </span>
+            <Image src="/icon.svg" alt="" width={44} height={44} className="h-11 w-11 drop-shadow-[0_8px_18px_rgba(14,165,233,0.24)]" priority />
             <span>
               <strong className="block text-xl tracking-tight">Mekivo</strong>
               <span className="text-xs text-slate-400">
