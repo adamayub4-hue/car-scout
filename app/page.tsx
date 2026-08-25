@@ -577,7 +577,7 @@ export default function Home() {
             <span>
               <strong className="block text-xl tracking-tight">Mekivo</strong>
               <span className="text-xs text-slate-400">
-                Search smarter. Buy with confidence.
+                UK car &amp; parts search
               </span>
             </span>
           </button>

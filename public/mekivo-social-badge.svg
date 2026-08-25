@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" role="img" aria-labelledby="title description">
+  <title id="title">Mekivo</title>
+  <desc id="description">Mekivo UK car and parts search badge</desc>
+  <defs>
+    <linearGradient id="background" x1="100" y1="80" x2="980" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0c203d"/>
+      <stop offset="1" stop-color="#050b16"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="270" y1="220" x2="810" y2="690" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67e8f9"/>
+      <stop offset=".52" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1080" rx="220" fill="#030712"/>
+  <rect x="34" y="34" width="1012" height="1012" rx="192" fill="url(#background)" stroke="#7dd3fc" stroke-opacity=".22" stroke-width="12"/>
+  <path d="M245 630V205h142l153 218 153-218h142v425H642V465l-54 78c-24 35-72 35-96 0l-54-78v165z" fill="url(#brand)"/>
+  <path d="M540 423v127" stroke="#f0f9ff" stroke-width="26" stroke-linecap="round" stroke-dasharray="34 54"/>
+  <path d="M682 658h130l-48-48" fill="none" stroke="#a7f3d0" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="540" y="820" text-anchor="middle" fill="#f8fafc" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="142" font-weight="850" letter-spacing="-7">Mekivo</text>
+  <text x="540" y="897" text-anchor="middle" fill="#7dd3fc" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="34" font-weight="750" letter-spacing="9">UK CAR &amp; PARTS SEARCH</text>
+</svg>
