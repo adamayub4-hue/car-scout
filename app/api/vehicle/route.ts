@@ -17,6 +17,16 @@ function json(body: object, status = 200) {
 }
 
 export async function POST(request: Request) {
+  if (process.env.ENABLE_DVLA_LOOKUP !== "true") {
+    return json(
+      {
+        error:
+          "Registration lookup is not available yet. Please use Make & model for now.",
+      },
+      503,
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const registrationNumber = cleanRegistration(body?.registrationNumber);
 

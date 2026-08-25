@@ -22,7 +22,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The public registration route is hidden until DVLA access is approved. Vehicle-specific diagrams are also hidden until a licensed automotive-data provider is connected. The ready-to-use parts catalogue remains a general discovery aid and does not claim exact factory-option or torque-specification compatibility.
 
-When DVLA access is approved, set `DVLA_API_KEY` in the deployment environment and re-enable the server-side registration route only after production testing.
+When DVLA access is approved, set `DVLA_API_KEY` in a non-production deployment first. Test the lookup there, then set `ENABLE_DVLA_LOOKUP=true` only when the feature is ready to be exposed. Without that explicit flag, the server route remains disabled even if a key is present.
 
 ## Deployment
 
