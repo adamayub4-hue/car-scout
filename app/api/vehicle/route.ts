@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 
 const endpoint =
   "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles";
+const motEndpoint = "https://history.mot.api.gov.uk/v1/trade/vehicles/registration";
 
 const lookupWindowMs = 60_000;
 const lookupLimit = 8;
 const lookupBuckets = new Map<string, { count: number; resetAt: number }>();
+let motToken: { value: string; expiresAt: number } | null = null;
 
 function cleanRegistration(value: unknown) {
   return typeof value === "string"
@@ -45,6 +47,57 @@ function rateLimit(request: Request) {
 
   current.count += 1;
   return null;
+}
+
+async function getMotAccessToken() {
+  const clientId = process.env.DVSA_MOT_CLIENT_ID;
+  const clientSecret = process.env.DVSA_MOT_CLIENT_SECRET;
+  const tokenUrl = process.env.DVSA_MOT_TOKEN_URL;
+  const scope = process.env.DVSA_MOT_SCOPE;
+
+  if (!clientId || !clientSecret || !tokenUrl || !scope) return null;
+  if (motToken && motToken.expiresAt > Date.now() + 60_000) return motToken.value;
+
+  const response = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope,
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => null);
+  if (!payload?.access_token) return null;
+
+  motToken = {
+    value: payload.access_token,
+    expiresAt: Date.now() + Math.max(60, Number(payload.expires_in) || 1_200) * 1_000,
+  };
+  return motToken.value;
+}
+
+async function getMotVehicle(registrationNumber: string) {
+  const apiKey = process.env.DVSA_MOT_API_KEY;
+  if (!apiKey) return null;
+
+  const token = await getMotAccessToken();
+  if (!token) return null;
+
+  const response = await fetch(`${motEndpoint}/${encodeURIComponent(registrationNumber)}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-API-Key": apiKey,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) return null;
+  return response.json().catch(() => null);
 }
 
 export async function POST(request: Request) {
@@ -112,10 +165,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // VES deliberately omits the model. The DVSA MOT History API supplies it,
+    // so enrich the response when those separately-issued credentials exist.
+    const motVehicle = await getMotVehicle(registrationNumber).catch(() => null);
+
     return json({
       vehicle: {
         registrationNumber: payload.registrationNumber,
-        make: payload.make,
+        make: motVehicle?.make || payload.make,
+        model: motVehicle?.model || undefined,
         yearOfManufacture: payload.yearOfManufacture,
         engineCapacity: payload.engineCapacity,
         fuelType: payload.fuelType,

@@ -25,6 +25,7 @@ type EbayListing = {
 type VehicleLookup = {
   registrationNumber?: string;
   make?: string;
+  model?: string;
   yearOfManufacture?: number;
   engineCapacity?: number;
   fuelType?: string;
@@ -477,7 +478,7 @@ export default function Home() {
       const matchedMake = Object.keys(makes).find((item) => item.toLowerCase() === vehicle.make?.toLowerCase());
       setRegistration(vehicle.registrationNumber || cleanedRegistration);
       setMake(matchedMake || vehicle.make || "");
-      setModel("");
+      setModel(vehicle.model || "");
       setYear(vehicle.yearOfManufacture ? String(vehicle.yearOfManufacture) : "");
       setEngine(vehicle.engineCapacity ? `${(vehicle.engineCapacity / 1000).toFixed(1)}L` : "");
       setFuel(vehicle.fuelType ? vehicle.fuelType.charAt(0) + vehicle.fuelType.slice(1).toLowerCase() : "");
@@ -806,7 +807,7 @@ export default function Home() {
               <div className="hidden mt-6 rounded-3xl border border-sky-400/20 bg-sky-400/[0.055] p-5 sm:p-6">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">Quick vehicle lookup</p>
                 <h3 className="mt-1 text-lg font-bold">Find it by registration</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-400">We use official DVLA vehicle data. You&apos;ll still confirm the model before searching for parts.</p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">We use official DVLA and DVSA vehicle data to identify the vehicle before you search for parts.</p>
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                   <label className="sr-only" htmlFor="registration-number">UK registration number</label>
                   <input
@@ -828,14 +829,18 @@ export default function Home() {
                     disabled={vehicleLookupLoading}
                     className="shrink-0 rounded-2xl bg-sky-400 px-5 py-3.5 font-bold text-slate-950 transition hover:bg-sky-300 disabled:cursor-wait disabled:opacity-60"
                   >
-                    {vehicleLookupLoading ? "Checking DVLA…" : "Find vehicle"}
+                    {vehicleLookupLoading ? "Identifying vehicle…" : "Find vehicle"}
                   </button>
                 </div>
                 {vehicleLookup && (
                   <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.07] p-4 text-sm text-emerald-50">
-                    <p className="font-bold">{[vehicleLookup.yearOfManufacture, vehicleLookup.make, vehicleLookup.colour].filter(Boolean).join(" · ")}</p>
+                    <p className="font-bold">{[vehicleLookup.yearOfManufacture, vehicleLookup.make, vehicleLookup.model, vehicleLookup.colour].filter(Boolean).join(" · ")}</p>
                     <p className="mt-1 text-xs leading-5 text-emerald-100/75">{[vehicleLookup.fuelType, vehicleLookup.engineCapacity ? `${vehicleLookup.engineCapacity}cc` : "", vehicleLookup.motStatus ? `MOT: ${vehicleLookup.motStatus}` : "", vehicleLookup.taxStatus ? `Tax: ${vehicleLookup.taxStatus}` : ""].filter(Boolean).join(" · ")}</p>
-                    <p className="mt-2 text-xs font-semibold text-emerald-200">Now choose the model below to continue.</p>
+                    {vehicleLookup.model ? (
+                      <p className="mt-2 text-xs font-semibold text-emerald-200">Vehicle identified. Check the details above, then continue to the part finder.</p>
+                    ) : (
+                      <p className="mt-2 text-xs font-semibold text-amber-200">Exact model identification is temporarily unavailable. Do not choose parts until you have confirmed the model from the vehicle or V5C logbook.</p>
+                    )}
                   </div>
                 )}
               </div>
