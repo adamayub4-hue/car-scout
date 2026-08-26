@@ -484,7 +484,7 @@ export default function Home() {
       setBodyStyle("");
       resetPartsBelowVehicle();
       setVehicleLookup(vehicle);
-      await trackActivity("vehicle_lookup", { registrationNumber: cleanedRegistration, make: vehicle.make, year: vehicle.yearOfManufacture });
+      await trackActivity("vehicle_lookup", { usedRegistration: true, make: vehicle.make, year: vehicle.yearOfManufacture });
     } catch (lookupError) {
       setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
     } finally {
