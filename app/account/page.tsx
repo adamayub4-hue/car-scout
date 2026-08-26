@@ -26,6 +26,15 @@ export default function AccountPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const loadAdminStatus = async (userId: string | null | undefined) => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase || !userId) { setIsAdmin(false); return false; }
+    const { data: row, error } = await supabase.from("admins").select("user_id").eq("user_id", userId).maybeSingle();
+    const allowed = !error && Boolean(row);
+    setIsAdmin(allowed);
+    return allowed;
+  };
+
   const loadItems = async () => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
@@ -40,12 +49,12 @@ export default function AccountPage() {
       setUser(data.user);
       setLoading(false);
       if (data.user) void loadItems();
-      if (data.user) void supabase.from("admins").select("user_id").eq("user_id", data.user.id).maybeSingle().then(({ data: row }) => setIsAdmin(Boolean(row)));
+      void loadAdminStatus(data.user?.id);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) void loadItems();
-      else setItems([]);
+      if (session?.user) { void loadItems(); void loadAdminStatus(session.user.id); }
+      else { setItems([]); setIsAdmin(false); }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
@@ -66,6 +75,7 @@ export default function AccountPage() {
       setMessage("Check your email to confirm your account, then sign in.");
     } else {
       setUser(result.data.user);
+      void loadAdminStatus(result.data.user?.id);
       setMessage(isSignUp ? "Your account is ready." : "Welcome back.");
     }
   };
@@ -80,6 +90,7 @@ export default function AccountPage() {
   const signOut = async () => {
     await getSupabaseBrowserClient()?.auth.signOut();
     setUser(null);
+    setIsAdmin(false);
   };
 
   const exportData = async () => {
@@ -121,6 +132,12 @@ export default function AccountPage() {
             <p className="text-xs font-bold uppercase tracking-wider text-sky-300">Your account</p>
             <h1 className="mt-2 text-3xl font-bold">Saved vehicles and searches</h1>
             <p className="mt-2 text-sm text-slate-400">Signed in as {user.email}</p>
+            {isAdmin && (
+              <Link href="/admin" className="mt-6 flex items-center justify-between rounded-2xl border border-amber-300/30 bg-amber-300/[0.08] p-5 transition hover:border-amber-200/60 hover:bg-amber-300/[0.12]">
+                <span><span className="block text-xs font-bold uppercase tracking-wider text-amber-300">Master owner account</span><strong className="mt-1 block text-lg">Open Mekivo control centre</strong><span className="mt-1 block text-sm text-slate-400">View users, reports, feedback, saved items and recent activity.</span></span>
+                <span aria-hidden="true" className="ml-4 text-2xl text-amber-300">→</span>
+              </Link>
+            )}
             {items.length === 0 ? (
               <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-slate-300">Nothing saved yet. Run a car or part search, then choose “Save to my account”.</div>
             ) : (
