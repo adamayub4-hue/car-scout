@@ -22,6 +22,17 @@ type EbayListing = {
   location: string | null;
 };
 
+type VehicleLookup = {
+  registrationNumber?: string;
+  make?: string;
+  yearOfManufacture?: number;
+  engineCapacity?: number;
+  fuelType?: string;
+  colour?: string;
+  motStatus?: string;
+  taxStatus?: string;
+};
+
 type DiagramSystem = {
   name: string;
   shortName: string;
@@ -413,6 +424,9 @@ export default function Home() {
   const [bodyStyle, setBodyStyle] = useState("");
   const [price, setPrice] = useState("");
   const [postcode, setPostcode] = useState("");
+  const [registration, setRegistration] = useState("");
+  const [vehicleLookup, setVehicleLookup] = useState<VehicleLookup | null>(null);
+  const [vehicleLookupLoading, setVehicleLookupLoading] = useState(false);
   const [partMethod, setPartMethod] = useState<PartMethod | "">("");
   const [part, setPart] = useState("");
   const [partNumber, setPartNumber] = useState("");
@@ -438,6 +452,44 @@ export default function Home() {
     setPartNumber("");
     setShowResults(false);
     setError("");
+  };
+
+  const handleVehicleLookup = async () => {
+    const cleanedRegistration = registration.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (cleanedRegistration.length < 5) {
+      setError("Enter a valid UK registration, for example AB12 CDE.");
+      return;
+    }
+
+    setVehicleLookupLoading(true);
+    setVehicleLookup(null);
+    setError("");
+    try {
+      const response = await fetch("/api/vehicle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationNumber: cleanedRegistration }),
+      });
+      const payload = (await response.json()) as { vehicle?: VehicleLookup; error?: string };
+      if (!response.ok || !payload.vehicle) throw new Error(payload.error || "We could not identify that vehicle.");
+
+      const vehicle = payload.vehicle;
+      const matchedMake = Object.keys(makes).find((item) => item.toLowerCase() === vehicle.make?.toLowerCase());
+      setRegistration(vehicle.registrationNumber || cleanedRegistration);
+      setMake(matchedMake || vehicle.make || "");
+      setModel("");
+      setYear(vehicle.yearOfManufacture ? String(vehicle.yearOfManufacture) : "");
+      setEngine(vehicle.engineCapacity ? `${(vehicle.engineCapacity / 1000).toFixed(1)}L` : "");
+      setFuel(vehicle.fuelType ? vehicle.fuelType.charAt(0) + vehicle.fuelType.slice(1).toLowerCase() : "");
+      setBodyStyle("");
+      resetPartsBelowVehicle();
+      setVehicleLookup(vehicle);
+      await trackActivity("vehicle_lookup", { registrationNumber: cleanedRegistration, make: vehicle.make, year: vehicle.yearOfManufacture });
+    } catch (lookupError) {
+      setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
+    } finally {
+      setVehicleLookupLoading(false);
+    }
   };
 
   const setAppMode = (nextMode: Mode) => {
@@ -747,8 +799,45 @@ export default function Home() {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Step 1</p>
                   <h2 className="mt-1 text-2xl font-bold">Tell us which vehicle</h2>
-                  <p className="mt-2 text-sm text-slate-400">Registration lookup will return after DVLA access is approved.</p>
+                  <p className="mt-2 text-sm text-slate-400">Use the registration for a quick start, or enter the vehicle manually.</p>
                 </div>
+              </div>
+
+              <div className="mt-6 rounded-3xl border border-sky-400/20 bg-sky-400/[0.055] p-5 sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">Quick vehicle lookup</p>
+                <h3 className="mt-1 text-lg font-bold">Find it by registration</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">We use official DVLA vehicle data. You&apos;ll still confirm the model before searching for parts.</p>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <label className="sr-only" htmlFor="registration-number">UK registration number</label>
+                  <input
+                    id="registration-number"
+                    value={registration}
+                    onChange={(event) => {
+                      setRegistration(event.target.value.toUpperCase().slice(0, 9));
+                      setVehicleLookup(null);
+                      setError("");
+                    }}
+                    onKeyDown={(event) => { if (event.key === "Enter") void handleVehicleLookup(); }}
+                    placeholder="e.g. AB12 CDE"
+                    autoComplete="off"
+                    className={`${fieldClass} font-bold uppercase tracking-[0.12em]`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVehicleLookup}
+                    disabled={vehicleLookupLoading}
+                    className="shrink-0 rounded-2xl bg-sky-400 px-5 py-3.5 font-bold text-slate-950 transition hover:bg-sky-300 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {vehicleLookupLoading ? "Checking DVLA…" : "Find vehicle"}
+                  </button>
+                </div>
+                {vehicleLookup && (
+                  <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.07] p-4 text-sm text-emerald-50">
+                    <p className="font-bold">{[vehicleLookup.yearOfManufacture, vehicleLookup.make, vehicleLookup.colour].filter(Boolean).join(" · ")}</p>
+                    <p className="mt-1 text-xs leading-5 text-emerald-100/75">{[vehicleLookup.fuelType, vehicleLookup.engineCapacity ? `${vehicleLookup.engineCapacity}cc` : "", vehicleLookup.motStatus ? `MOT: ${vehicleLookup.motStatus}` : "", vehicleLookup.taxStatus ? `Tax: ${vehicleLookup.taxStatus}` : ""].filter(Boolean).join(" · ")}</p>
+                    <p className="mt-2 text-xs font-semibold text-emerald-200">Now choose the model below to continue.</p>
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
