@@ -34,7 +34,7 @@ create table if not exists public.complaints (
 );
 create table if not exists public.activity_events (
   id bigint generated always as identity primary key, user_id uuid not null references auth.users(id) on delete cascade,
-  event_name text not null check (event_name in ('car_search', 'part_search', 'vehicle_lookup', 'save_item')),
+  event_name text not null check (event_name in ('car_search', 'part_search', 'part_number_search', 'vehicle_lookup', 'save_item')),
   metadata jsonb not null default '{}'::jsonb, created_at timestamptz not null default now()
 );
 create index if not exists saved_items_user_created_idx on public.saved_items (user_id, created_at desc);
