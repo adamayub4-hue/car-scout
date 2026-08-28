@@ -70,7 +70,14 @@ async function getMotAccessToken() {
     cache: "no-store",
   });
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    console.warn("DVSA MOT token request failed", {
+      status: response.status,
+      error: typeof payload?.error === "string" ? payload.error : undefined,
+    });
+    return null;
+  }
   const payload = await response.json().catch(() => null);
   if (!payload?.access_token) return null;
 
@@ -96,7 +103,10 @@ async function getMotVehicle(registrationNumber: string) {
     cache: "no-store",
   });
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    console.warn("DVSA MOT vehicle request failed", { status: response.status });
+    return null;
+  }
   return response.json().catch(() => null);
 }
 
