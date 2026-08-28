@@ -800,11 +800,11 @@ export default function Home() {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Step 1</p>
                   <h2 className="mt-1 text-2xl font-bold">Tell us which vehicle</h2>
-                  <p className="mt-2 text-sm text-slate-400">Enter the vehicle manually while exact registration identification is being connected.</p>
+                  <p className="mt-2 text-sm text-slate-400">Use the registration for the quickest match, or enter the vehicle manually.</p>
                 </div>
               </div>
 
-              <div className="hidden mt-6 rounded-3xl border border-sky-400/20 bg-sky-400/[0.055] p-5 sm:p-6">
+              <div className="mt-6 rounded-3xl border border-sky-400/20 bg-sky-400/[0.055] p-5 sm:p-6">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">Quick vehicle lookup</p>
                 <h3 className="mt-1 text-lg font-bold">Find it by registration</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-400">We use official DVLA and DVSA vehicle data to identify the vehicle before you search for parts.</p>
