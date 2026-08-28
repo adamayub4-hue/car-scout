@@ -139,8 +139,10 @@ const diagramSystems: Record<string, DiagramSystem> = {
   },
 };
 
-// Enable only when a licensed provider can return diagrams for the selected vehicle.
-const vehicleSpecificDiagramsAvailable = false;
+// Enable only after the licensed provider adapter described in
+// docs/vehicle-diagram-provider.md is connected and validated.
+const vehicleSpecificDiagramsAvailable =
+  process.env.NEXT_PUBLIC_VEHICLE_DIAGRAMS_ENABLED === "true";
 
 function SystemIcon({ system }: { system: string }) {
   const paths: Record<string, React.ReactNode> = {

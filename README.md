@@ -20,9 +20,9 @@ Open [http://localhost:3000](http://localhost:3000).
 - Responsive mobile and desktop interface
 - Clear marketplace hand-off and compatibility guidance
 
-The public registration route is hidden until DVLA access is approved. Vehicle-specific diagrams are also hidden until a licensed automotive-data provider is connected. The ready-to-use parts catalogue remains a general discovery aid and does not claim exact factory-option or torque-specification compatibility.
+The public registration route uses DVLA vehicle data enriched with the DVSA MOT History API model. Vehicle-specific diagrams remain hidden until a licensed automotive-data provider is connected. The ready-to-use parts catalogue remains a general discovery aid and does not claim exact factory-option or torque-specification compatibility.
 
-When DVLA access is approved, set `DVLA_API_KEY` in a non-production deployment first. Test the lookup there, then set `ENABLE_DVLA_LOOKUP=true` only when the feature is ready to be exposed. Without that explicit flag, the server route remains disabled even if a key is present.
+Registration lookup requires `DVLA_API_KEY`, the five `DVSA_MOT_*` OAuth/API values and `ENABLE_DVLA_LOOKUP=true`. Keep `NEXT_PUBLIC_VEHICLE_DIAGRAMS_ENABLED` unset until a licensed diagram provider is connected and validated.
 
 ## Deployment
 

@@ -15,6 +15,27 @@ function cleanRegistration(value: unknown) {
     : "";
 }
 
+function normaliseModel(make: unknown, model: unknown) {
+  if (typeof model !== "string") return undefined;
+  const cleanedModel = model.trim();
+  if (!cleanedModel) return undefined;
+  if (/^(UNKNOWN|NOT RECORDED|NOT STATED|N\/?A)$/i.test(cleanedModel)) {
+    return undefined;
+  }
+
+  // DVSA sometimes returns Mercedes passenger-car classes as a single letter.
+  // Expand only this well-defined format; never guess an unknown model.
+  if (
+    typeof make === "string" &&
+    make.toUpperCase().startsWith("MERCEDES") &&
+    /^[A-Z]$/i.test(cleanedModel)
+  ) {
+    return `${cleanedModel.toUpperCase()}-Class`;
+  }
+
+  return cleanedModel;
+}
+
 function json(body: object, status = 200, headers: Record<string, string> = {}) {
   return NextResponse.json(body, {
     status,
@@ -70,14 +91,7 @@ async function getMotAccessToken() {
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    console.warn("DVSA MOT token request failed", {
-      status: response.status,
-      error: typeof payload?.error === "string" ? payload.error : undefined,
-    });
-    return null;
-  }
+  if (!response.ok) return null;
   const payload = await response.json().catch(() => null);
   if (!payload?.access_token) return null;
 
@@ -103,10 +117,7 @@ async function getMotVehicle(registrationNumber: string) {
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    console.warn("DVSA MOT vehicle request failed", { status: response.status });
-    return null;
-  }
+  if (!response.ok) return null;
   return response.json().catch(() => null);
 }
 
@@ -183,7 +194,7 @@ export async function POST(request: Request) {
       vehicle: {
         registrationNumber: payload.registrationNumber,
         make: motVehicle?.make || payload.make,
-        model: motVehicle?.model || undefined,
+        model: normaliseModel(motVehicle?.make || payload.make, motVehicle?.model),
         yearOfManufacture: payload.yearOfManufacture,
         engineCapacity: payload.engineCapacity,
         fuelType: payload.fuelType,
