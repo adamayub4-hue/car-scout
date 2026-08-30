@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import SaveButton from "./components/save-button";
+import AppearanceControl from "./components/appearance";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 
 type Mode = "cars" | "parts";
@@ -238,22 +239,22 @@ function VehicleReference({ make, model, year }: { make: string; model: string; 
 
   const loading = Boolean(make && result.query !== query);
   const image = result.query === query ? result.image : null;
-  if (loading) return <div className="mt-5 h-52 animate-pulse rounded-2xl border border-white/10 bg-white/[0.035]" aria-label="Loading vehicle reference image" />;
+  if (loading) return <div className="mt-5 h-52 animate-pulse rounded-2xl border border-outline/10 bg-overlay/[0.035]" aria-label="Loading vehicle reference image" />;
   if (!image) return null;
 
   return (
-    <figure className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-[#091526]">
-      <div className="relative aspect-[16/7] min-h-48 bg-white/5">
+    <figure className="mt-5 overflow-hidden rounded-2xl border border-outline/10 bg-panel">
+      <div className="relative aspect-[16/7] min-h-48 bg-overlay/5">
         <Image src={image.url} alt={`${year} ${make} ${model} visual reference`} fill sizes="(max-width: 768px) 100vw, 700px" className="object-cover" />
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#07101e] to-transparent px-4 pb-4 pt-12">
+        <div className="vehicle-photo-caption absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#07101e] to-transparent px-4 pb-4 pt-12">
           <strong className="text-sm">{[year, make, model].filter(Boolean).join(" ")} reference</strong>
-          <p className="mt-1 text-xs text-slate-300">Use this to recognise the vehicle only. Body style, trim and fitted parts may differ.</p>
+          <p className="mt-1 text-xs text-muted">Use this to recognise the vehicle only. Body style, trim and fitted parts may differ.</p>
         </div>
       </div>
-      <figcaption className="flex flex-wrap gap-x-2 px-4 py-2 text-[10px] text-slate-500">
-        <a href={image.pageUrl} target="_blank" rel="noreferrer" className="hover:text-slate-300">{image.title}</a>
+      <figcaption className="flex flex-wrap gap-x-2 px-4 py-2 text-[10px] text-subtle">
+        <a href={image.pageUrl} target="_blank" rel="noreferrer" className="hover:text-muted">{image.title}</a>
         <span>· {image.creator}</span>
-        <a href={image.licenseUrl} target="_blank" rel="noreferrer" className="hover:text-slate-300">· {image.license}</a>
+        <a href={image.licenseUrl} target="_blank" rel="noreferrer" className="hover:text-muted">· {image.license}</a>
       </figcaption>
     </figure>
   );
@@ -274,19 +275,19 @@ function DiagramExplorer({
 
   if (!selectedSystem) {
     return (
-      <div className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-[#091526]">
-        <div className="border-b border-white/10 px-5 py-4 sm:px-6">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Visual parts guide</p>
+      <div className="mt-5 overflow-hidden rounded-3xl border border-outline/10 bg-panel">
+        <div className="border-b border-outline/10 px-5 py-4 sm:px-6">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Visual parts guide</p>
           <h3 className="mt-1 text-lg font-bold">Where on the vehicle is the part?</h3>
-          <p className="mt-2 text-sm text-slate-400">Choose the closest area. You&apos;ll see simple component pictures on the next step.</p>
+          <p className="mt-2 text-sm text-muted">Choose the closest area. You&apos;ll see simple component pictures on the next step.</p>
         </div>
         <div className="p-5 sm:p-6">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {Object.entries(diagramSystems).map(([id, system], index) => (
-              <button key={id} type="button" onClick={() => onCategory(id)} className="group rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-sky-400/40 hover:bg-white/[0.07]">
+              <button key={id} type="button" onClick={() => onCategory(id)} className="group rounded-2xl border border-outline/10 bg-overlay/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-sky-400/40 hover:bg-overlay/[0.07]">
                 <span className="flex items-center justify-between" style={{ color: system.accent }}><SystemIcon system={id} /><span className="grid h-7 w-7 place-items-center rounded-full border text-xs font-black" style={{ borderColor: `${system.accent}88` }}>{index + 1}</span></span>
                 <strong className="mt-3 block text-sm">{system.shortName}</strong>
-                <span className="mt-1 block text-xs leading-4 text-slate-500">{system.description}</span>
+                <span className="mt-1 block text-xs leading-4 text-subtle">{system.description}</span>
               </button>
             ))}
           </div>
@@ -296,19 +297,19 @@ function DiagramExplorer({
   }
 
   return (
-    <div className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-[#091526]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+    <div className="mt-5 overflow-hidden rounded-3xl border border-outline/10 bg-panel">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline/10 px-5 py-4 sm:px-6">
         <div>
-          <button type="button" onClick={() => onCategory("")} className="text-xs font-semibold text-sky-300 hover:text-sky-200">← All vehicle systems</button>
+          <button type="button" onClick={() => onCategory("")} className="text-xs font-semibold text-link hover:text-link">← All vehicle systems</button>
           <h3 className="mt-1 text-lg font-bold">{selectedSystem.name}</h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.06] px-3 py-1.5 text-xs text-amber-100">General guide — not vehicle-specific</span>
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-400">Tap a numbered part</span>
+          <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.06] px-3 py-1.5 text-xs text-warning">General guide — not vehicle-specific</span>
+          <span className="rounded-full border border-outline/10 bg-overlay/[0.04] px-3 py-1.5 text-xs text-muted">Tap a numbered part</span>
         </div>
       </div>
       <div className="grid gap-5 p-5 sm:grid-cols-[1.35fr_0.85fr] sm:p-6">
-        <div className="relative min-h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+        <div className="relative min-h-80 overflow-hidden rounded-2xl border border-outline/10 bg-overlay/[0.025] p-4">
           <svg viewBox="0 0 560 360" role="img" aria-label={`Exploded ${selectedSystem.name} parts diagram`} className="h-full w-full">
             <rect x="20" y="20" width="520" height="300" rx="24" fill="#07101e" stroke="#1e293b" strokeWidth="2" />
             <SystemArtwork system={category} accent={selectedSystem.accent} />
@@ -326,17 +327,17 @@ function DiagramExplorer({
           </svg>
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">What does your part look like?</p>
-          <p className="mt-2 text-xs leading-5 text-slate-400">Compare its general shape, then select the closest match.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-subtle">What does your part look like?</p>
+          <p className="mt-2 text-xs leading-5 text-muted">Compare its general shape, then select the closest match.</p>
           <div className="mt-3 space-y-2">
             {selectedSystem.parts.map((item, index) => (
-              <button key={item} type="button" aria-pressed={part === item} onClick={() => onPart(item)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${part === item ? "border-sky-400/60 bg-sky-400/10" : "border-white/10 bg-white/[0.025] hover:border-white/25"}`}>
+              <button key={item} type="button" aria-pressed={part === item} onClick={() => onPart(item)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${part === item ? "border-sky-400/60 bg-sky-400/10" : "border-outline/10 bg-overlay/[0.025] hover:border-outline/25"}`}>
                 <span className="relative grid h-16 w-[4.5rem] shrink-0 place-items-center rounded-lg bg-black/20"><PartSketch part={item} accent={selectedSystem.accent} /><span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full text-[10px] font-black text-slate-950" style={{ backgroundColor: selectedSystem.accent }}>{index + 1}</span></span>
-                <span><strong className="block text-sm">{item}</strong><span className="mt-1 block text-xs leading-4 text-slate-500">{partHints[item]}</span></span>
+                <span><strong className="block text-sm">{item}</strong><span className="mt-1 block text-xs leading-4 text-subtle">{partHints[item]}</span></span>
               </button>
             ))}
           </div>
-          {part && <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-xs leading-5 text-emerald-100"><strong>{part} selected.</strong> We&apos;ll include the vehicle details in your search. A visual match is only a starting point—confirm the part number and fitment with the seller before buying.</div>}
+          {part && <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-xs leading-5 text-success"><strong>{part} selected.</strong> We&apos;ll include the vehicle details in your search. A visual match is only a starting point—confirm the part number and fitment with the seller before buying.</div>}
         </div>
       </div>
     </div>
@@ -381,16 +382,16 @@ function isValidPostcode(value: string) {
 }
 
 const fieldClass =
-  "w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-[15px] text-white outline-none transition placeholder:text-slate-500 focus:border-sky-400/60 focus:bg-white/[0.09] focus:ring-4 focus:ring-sky-400/10";
+  "w-full rounded-2xl border border-outline/10 bg-overlay/[0.06] px-4 py-3.5 text-[15px] text-foreground outline-none transition placeholder:text-subtle focus:border-sky-400/60 focus:bg-overlay/[0.09] focus:ring-4 focus:ring-sky-400/10";
 
 function EbayResults({ items, loading, error, fallbackUrl }: { items: EbayListing[]; loading: boolean; error: string; fallbackUrl: string }) {
   if (loading) {
-    return <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm text-slate-300">Loading live eBay listings…</div>;
+    return <div className="mt-4 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5 text-sm text-muted">Loading live eBay listings…</div>;
   }
 
   if (error || items.length === 0) {
     return (
-      <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-5 text-sm text-amber-100">
+      <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-5 text-sm text-warning">
         <p>{error || "No live eBay listings matched this search."}</p>
         <a href={fallbackUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex font-bold underline underline-offset-4">Search directly on eBay</a>
       </div>
@@ -400,15 +401,15 @@ function EbayResults({ items, loading, error, fallbackUrl }: { items: EbayListin
   return (
     <div className="mt-5">
       <div className="flex items-center justify-between gap-4">
-        <div><p className="text-xs font-bold uppercase tracking-wider text-sky-300">Live eBay listings</p><p className="mt-1 text-xs text-slate-500">Prices and availability can change. Verify every listing on eBay.</p></div>
-        <a href={fallbackUrl} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-sky-300">See all →</a>
+        <div><p className="text-xs font-bold uppercase tracking-wider text-link">Live eBay listings</p><p className="mt-1 text-xs text-subtle">Prices and availability can change. Verify every listing on eBay.</p></div>
+        <a href={fallbackUrl} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-link">See all →</a>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.slice(0, 6).map((item) => (
-          <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-sky-400/40 hover:bg-white/[0.07]">
+          <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-2xl border border-outline/10 bg-overlay/[0.04] p-4 transition hover:border-sky-400/40 hover:bg-overlay/[0.07]">
             <h3 className="line-clamp-3 text-sm font-bold leading-5">{item.title}</h3>
-            <p className="mt-3 text-lg font-black text-white">{item.price ? `${item.currency === "GBP" ? "£" : `${item.currency ?? ""} `}${item.price}` : "See price"}</p>
-            <p className="mt-1 text-xs text-slate-500">{[item.condition, item.location].filter(Boolean).join(" · ") || "View listing details"}</p>
+            <p className="mt-3 text-lg font-black text-foreground">{item.price ? `${item.currency === "GBP" ? "£" : `${item.currency ?? ""} `}${item.price}` : "See price"}</p>
+            <p className="mt-1 text-xs text-subtle">{[item.condition, item.location].filter(Boolean).join(" · ") || "View listing details"}</p>
           </a>
         ))}
       </div>
@@ -619,10 +620,10 @@ export default function Home() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#07101e] text-white">
+    <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(14,165,233,0.18),transparent_32%),radial-gradient(circle_at_90%_15%,rgba(99,102,241,0.15),transparent_28%)]" />
       <div className="relative mx-auto w-full max-w-6xl px-4 pb-20 pt-7 sm:px-6 lg:px-8">
-        <header className="flex items-center justify-between border-b border-white/10 pb-6">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-outline/10 pb-6">
           <button
             type="button"
             onClick={() => setAppMode("cars")}
@@ -631,31 +632,32 @@ export default function Home() {
             <Image src="/icon.svg" alt="" width={44} height={44} className="h-11 w-11 drop-shadow-[0_8px_18px_rgba(14,165,233,0.24)]" priority />
             <span>
               <strong className="block text-xl tracking-tight">Mekivo</strong>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-muted">
                 UK car &amp; parts search
               </span>
             </span>
           </button>
           <div className="flex items-center gap-2">
-            <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 sm:inline-flex">UK beta</span>
-            <Link href="/account" className="rounded-full border border-white/15 bg-white/[0.05] px-4 py-2 text-xs font-semibold text-white transition hover:border-sky-300/50 hover:bg-white/[0.1]">My account</Link>
+            <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-success sm:inline-flex">UK beta</span>
+            <AppearanceControl />
+            <Link href="/account" className="rounded-full border border-outline/15 bg-overlay/[0.05] px-4 py-2 text-xs font-semibold text-foreground transition hover:border-sky-300/50 hover:bg-overlay/[0.1]">My account</Link>
           </div>
         </header>
 
         <section className="mx-auto max-w-3xl pb-9 pt-14 text-center sm:pt-20">
-          <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-sky-300">
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-link">
             One search. More places.
           </p>
           <h1 className="text-balance text-4xl font-bold tracking-[-0.045em] sm:text-6xl">
             Find your next car—or the right part.
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-pretty text-base leading-7 text-slate-400 sm:text-lg">
+          <p className="mx-auto mt-5 max-w-2xl text-pretty text-base leading-7 text-muted sm:text-lg">
             Mekivo turns a scattered search across UK marketplaces into one
             clear starting point.
           </p>
         </section>
 
-        <div className="mx-auto mb-6 grid max-w-md grid-cols-2 rounded-2xl border border-white/10 bg-white/[0.05] p-1.5 shadow-2xl shadow-black/20">
+        <div className="mx-auto mb-6 grid max-w-md grid-cols-2 rounded-2xl border border-outline/10 bg-overlay/[0.05] p-1.5 shadow-2xl shadow-black/20">
           {(["cars", "parts"] as const).map((item) => (
             <button
               key={item}
@@ -665,7 +667,7 @@ export default function Home() {
               className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
                 mode === item
                   ? "bg-white text-slate-950 shadow-lg"
-                  : "text-slate-400 hover:text-white"
+                  : "text-muted hover:text-foreground"
               }`}
             >
               {item === "cars" ? "Find cars" : "Find parts"}
@@ -673,11 +675,11 @@ export default function Home() {
           ))}
         </div>
 
-        <section className="mx-auto max-w-3xl rounded-[28px] border border-white/10 bg-slate-950/55 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
+        <section className="mx-auto max-w-3xl rounded-[28px] border border-outline/10 bg-panel/95 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
           {mode === "cars" ? (
             <>
               <div className="mb-6">
-                <p className="text-sm font-semibold text-white">
+                <p className="text-sm font-semibold text-foreground">
                   Where should we search?
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -693,8 +695,8 @@ export default function Home() {
                         }}
                         className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition ${
                           platform === item
-                            ? "border-sky-400/50 bg-sky-400/15 text-sky-200"
-                            : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:text-white"
+                            ? "border-sky-400/50 bg-sky-400/15 text-link"
+                            : "border-outline/10 bg-overlay/[0.04] text-muted hover:border-outline/20 hover:text-foreground"
                         }`}
                       >
                         {item === "all" ? "All platforms" : item === "more" ? "More platforms" : platformNames[item]}
@@ -704,7 +706,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <label className="text-sm text-slate-300">
+                <label className="text-sm text-muted">
                   <span className="mb-2 block">Make</span>
                   <input
                     list="car-make-options"
@@ -718,18 +720,18 @@ export default function Home() {
                   />
                   <datalist id="car-make-options">{Object.keys(makes).map((item) => <option key={item} value={item} />)}</datalist>
                 </label>
-                <label className="text-sm text-slate-300">
-                  <span className="mb-2 block">Model <span className="text-slate-500">(optional)</span></span>
+                <label className="text-sm text-muted">
+                  <span className="mb-2 block">Model <span className="text-subtle">(optional)</span></span>
                   <input value={model} onChange={(event) => { setModel(event.target.value); setShowResults(false); }} placeholder="e.g. 3 Series" className={fieldClass} />
                 </label>
-                <label className="text-sm text-slate-300">
-                  <span className="mb-2 block">Year <span className="text-slate-500">(optional)</span></span>
+                <label className="text-sm text-muted">
+                  <span className="mb-2 block">Year <span className="text-subtle">(optional)</span></span>
                   <select value={year} onChange={(event) => { setYear(event.target.value); setShowResults(false); }} className={fieldClass}>
                     <option value="">Any year</option>
                     {years.map((item) => <option key={item}>{item}</option>)}
                   </select>
                 </label>
-                <label className="text-sm text-slate-300">
+                <label className="text-sm text-muted">
                   <span className="mb-2 block">Maximum price</span>
                   <input
                     value={price}
@@ -742,7 +744,7 @@ export default function Home() {
                     className={fieldClass}
                   />
                 </label>
-                <label className="text-sm text-slate-300">
+                <label className="text-sm text-muted">
                   <span className="mb-2 block">Postcode</span>
                   <input
                     value={postcode}
@@ -756,7 +758,7 @@ export default function Home() {
                 </label>
               </div>
               {error && (
-                <p role="alert" className="mt-4 text-sm text-rose-300">
+                <p role="alert" className="mt-4 text-sm text-danger">
                   {error}
                 </p>
               )}
@@ -771,9 +773,9 @@ export default function Home() {
           ) : (
             <>
               <div className="mb-7 rounded-3xl border border-emerald-300/20 bg-emerald-300/[0.055] p-5 sm:p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Fastest route</p>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-success">Fastest route</p>
                 <h2 className="mt-1 text-xl font-bold">Already know the part number?</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">Search an OEM or manufacturer number directly without selecting a vehicle.</p>
+                <p className="mt-2 text-sm leading-6 text-muted">Search an OEM or manufacturer number directly without selecting a vehicle.</p>
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                   <label className="sr-only" htmlFor="quick-part-number">OEM or manufacturer part number</label>
                   <input
@@ -800,16 +802,16 @@ export default function Home() {
 
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Step 1</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Step 1</p>
                   <h2 className="mt-1 text-2xl font-bold">Tell us which vehicle</h2>
-                  <p className="mt-2 text-sm text-slate-400">Use the registration for the quickest match, or enter the vehicle manually.</p>
+                  <p className="mt-2 text-sm text-muted">Use the registration for the quickest match, or enter the vehicle manually.</p>
                 </div>
               </div>
 
               <div className="mt-6 rounded-3xl border border-sky-400/20 bg-sky-400/[0.055] p-5 sm:p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">Quick vehicle lookup</p>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-link">Quick vehicle lookup</p>
                 <h3 className="mt-1 text-lg font-bold">Find it by registration</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-400">We use official DVLA and DVSA vehicle data to identify the vehicle before you search for parts.</p>
+                <p className="mt-2 text-sm leading-6 text-muted">We use official DVLA and DVSA vehicle data to identify the vehicle before you search for parts.</p>
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                   <label className="sr-only" htmlFor="registration-number">UK registration number</label>
                   <input
@@ -835,20 +837,20 @@ export default function Home() {
                   </button>
                 </div>
                 {vehicleLookup && (
-                  <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.07] p-4 text-sm text-emerald-50">
+                  <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.07] p-4 text-sm text-success">
                     <p className="font-bold">{[vehicleLookup.yearOfManufacture, vehicleLookup.make, vehicleLookup.model, vehicleLookup.colour].filter(Boolean).join(" · ")}</p>
-                    <p className="mt-1 text-xs leading-5 text-emerald-100/75">{[vehicleLookup.fuelType, vehicleLookup.engineCapacity ? `${vehicleLookup.engineCapacity}cc` : "", vehicleLookup.motStatus ? `MOT: ${vehicleLookup.motStatus}` : "", vehicleLookup.taxStatus ? `Tax: ${vehicleLookup.taxStatus}` : ""].filter(Boolean).join(" · ")}</p>
+                    <p className="mt-1 text-xs leading-5 text-success/75">{[vehicleLookup.fuelType, vehicleLookup.engineCapacity ? `${vehicleLookup.engineCapacity}cc` : "", vehicleLookup.motStatus ? `MOT: ${vehicleLookup.motStatus}` : "", vehicleLookup.taxStatus ? `Tax: ${vehicleLookup.taxStatus}` : ""].filter(Boolean).join(" · ")}</p>
                     {vehicleLookup.model ? (
-                      <p className="mt-2 text-xs font-semibold text-emerald-200">Vehicle identified. Check the details above, then continue to the part finder.</p>
+                      <p className="mt-2 text-xs font-semibold text-success">Vehicle identified. Check the details above, then continue to the part finder.</p>
                     ) : (
-                      <p className="mt-2 text-xs font-semibold text-amber-200">Exact model identification is temporarily unavailable. Do not choose parts until you have confirmed the model from the vehicle or V5C logbook.</p>
+                      <p className="mt-2 text-xs font-semibold text-warning">Exact model identification is temporarily unavailable. Do not choose parts until you have confirmed the model from the vehicle or V5C logbook.</p>
                     )}
                   </div>
                 )}
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm text-muted">
                     <span className="mb-2 block">Make</span>
                     <input
                       list="manual-make-options"
@@ -867,7 +869,7 @@ export default function Home() {
                     />
                     <datalist id="manual-make-options">{Object.keys(makes).map((item) => <option key={item} value={item} />)}</datalist>
                   </label>
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm text-muted">
                     <span className="mb-2 block">Model</span>
                     <input
                       list="manual-model-options"
@@ -886,7 +888,7 @@ export default function Home() {
                     />
                     <datalist id="manual-model-options">{make && makes[make as keyof typeof makes]?.map((item) => <option key={item} value={item} />)}</datalist>
                   </label>
-                  <label className="text-sm text-slate-300">
+                  <label className="text-sm text-muted">
                     <span className="mb-2 block">Year</span>
                     <select
                       value={year}
@@ -904,14 +906,14 @@ export default function Home() {
               </div>
 
               {vehicleReady && (
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4">
-                  <p className="text-sm font-semibold text-slate-200">Add details for a more precise parts search <span className="font-normal text-slate-500">(optional)</span></p>
+                <div className="mt-4 rounded-2xl border border-outline/10 bg-overlay/[0.025] p-4">
+                  <p className="text-sm font-semibold text-muted">Add details for a more precise parts search <span className="font-normal text-subtle">(optional)</span></p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-muted">
                       <span className="mb-2 block">Engine or variant</span>
                       <input value={engine} onChange={(event) => { setEngine(event.target.value); resetPartsBelowVehicle(); }} placeholder="e.g. 2.0 TDI 150" className={fieldClass} />
                     </label>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-muted">
                       <span className="mb-2 block">Fuel</span>
                       <select value={fuel} onChange={(event) => { setFuel(event.target.value); resetPartsBelowVehicle(); }} className={fieldClass}>
                         <option value="">Not sure</option>
@@ -922,7 +924,7 @@ export default function Home() {
                         <option>LPG</option>
                       </select>
                     </label>
-                    <label className="text-sm text-slate-300">
+                    <label className="text-sm text-muted">
                       <span className="mb-2 block">Body style</span>
                       <select value={bodyStyle} onChange={(event) => { setBodyStyle(event.target.value); resetPartsBelowVehicle(); }} className={fieldClass}>
                         <option value="">Not sure</option>
@@ -936,16 +938,16 @@ export default function Home() {
                       </select>
                     </label>
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">These details narrow the marketplace query. They do not replace seller fitment confirmation or a VIN check.</p>
+                  <p className="mt-3 text-xs leading-5 text-subtle">These details narrow the marketplace query. They do not replace seller fitment confirmation or a VIN check.</p>
                 </div>
               )}
 
               {vehicleReady && (
-                <div className="mt-8 border-t border-white/10 pt-7">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Step 2</p>
+                <div className="mt-8 border-t border-outline/10 pt-7">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Step 2</p>
                   <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-2xl font-bold">How do you want to find it?</h2>
-                    <span className="rounded-full bg-white/[0.06] px-3 py-1.5 text-xs text-slate-300">{vehicleLabel}</span>
+                    <span className="rounded-full bg-overlay/[0.06] px-3 py-1.5 text-xs text-muted">{vehicleLabel}</span>
                   </div>
                   <VehicleReference
                     make={make}
@@ -973,12 +975,12 @@ export default function Home() {
                         className={`rounded-2xl border p-4 text-left transition ${
                           partMethod === id
                             ? "border-sky-400/60 bg-sky-400/10"
-                            : "border-white/10 bg-white/[0.035] hover:border-white/25"
+                            : "border-outline/10 bg-overlay/[0.035] hover:border-outline/25"
                         }`}
                       >
-                        <span className="text-xs font-semibold text-sky-300">{badge}</span>
+                        <span className="text-xs font-semibold text-link">{badge}</span>
                         <strong className="mt-3 block">{title}</strong>
-                        <span className="mt-1 block text-sm leading-5 text-slate-400">{description}</span>
+                        <span className="mt-1 block text-sm leading-5 text-muted">{description}</span>
                       </button>
                     ))}
                   </div>
@@ -1001,7 +1003,7 @@ export default function Home() {
 
                   {partMethod === "catalogue" && (
                     <div className="mt-5">
-                      <p className="mb-3 text-sm font-semibold text-slate-300">Choose a system</p>
+                      <p className="mb-3 text-sm font-semibold text-muted">Choose a system</p>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {Object.keys(categories).map((category) => (
                           <button
@@ -1015,8 +1017,8 @@ export default function Home() {
                             }}
                             className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${
                               partCategory === category
-                                ? "border-sky-400/60 bg-sky-400/15 text-sky-200"
-                                : "border-white/10 bg-white/[0.04] text-slate-300"
+                                ? "border-sky-400/60 bg-sky-400/15 text-link"
+                                : "border-outline/10 bg-overlay/[0.04] text-muted"
                             }`}
                           >
                             {category}
@@ -1036,8 +1038,8 @@ export default function Home() {
                               }}
                               className={`rounded-full border px-3 py-2 text-sm transition ${
                                 part === item
-                                  ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-200"
-                                  : "border-white/10 text-slate-400 hover:text-white"
+                                  ? "border-emerald-400/50 bg-emerald-400/10 text-success"
+                                  : "border-outline/10 text-muted hover:text-foreground"
                               }`}
                             >
                               {item}
@@ -1050,12 +1052,12 @@ export default function Home() {
 
                   {partMethod === "search" && (
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <label className="text-sm text-slate-300">
+                      <label className="text-sm text-muted">
                         <span className="mb-2 block">Part name</span>
                         <input value={part} onChange={(event) => { setPart(event.target.value); setShowResults(false); }} placeholder="e.g. front brake pads" className={fieldClass} />
                       </label>
-                      <label className="text-sm text-slate-300">
-                        <span className="mb-2 block">Part number <span className="text-slate-500">(optional)</span></span>
+                      <label className="text-sm text-muted">
+                        <span className="mb-2 block">Part number <span className="text-subtle">(optional)</span></span>
                         <input value={partNumber} onChange={(event) => { setPartNumber(event.target.value); setShowResults(false); }} placeholder="OEM or manufacturer number" className={fieldClass} />
                       </label>
                     </div>
@@ -1066,7 +1068,7 @@ export default function Home() {
                   )}
                 </div>
               )}
-              {error && <p role="alert" className="mt-4 text-sm text-rose-300">{error}</p>}
+              {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
             </>
           )}
         </section>
@@ -1077,11 +1079,11 @@ export default function Home() {
               {platformCards
                 .filter((item) => platform === "all" || platform === item.id || (platform === "more" && moreMarketplaceIds.includes(item.id)))
                 .map((item) => (
-                  <a key={item.id} href={carLinks[item.id]} target="_blank" rel="noreferrer" className="group rounded-2xl border border-white/10 bg-white/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-white/[0.07]">
-                    <span className="text-xs font-bold uppercase tracking-wider text-sky-300">Search now</span>
+                  <a key={item.id} href={carLinks[item.id]} target="_blank" rel="noreferrer" className="group rounded-2xl border border-outline/10 bg-overlay/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-overlay/[0.07]">
+                    <span className="text-xs font-bold uppercase tracking-wider text-link">Search now</span>
                     <h3 className="mt-3 text-lg font-bold">{item.name}</h3>
-                    <p className="mt-1 min-h-10 text-sm text-slate-400">{item.label}</p>
-                    <span className="mt-5 block text-sm font-semibold text-white">Open results →</span>
+                    <p className="mt-1 min-h-10 text-sm text-muted">{item.label}</p>
+                    <span className="mt-5 block text-sm font-semibold text-foreground">Open results →</span>
                   </a>
                 ))}
             </div>
@@ -1094,9 +1096,9 @@ export default function Home() {
           <div className="mx-auto mt-6 max-w-3xl">
             <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 sm:flex sm:items-center sm:justify-between sm:gap-5">
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Search ready</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-success">Search ready</p>
                 <h3 className="mt-2 text-lg font-bold">{[vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · ")}</h3>
-                <p className="mt-1 text-sm text-slate-400">Check the listing&apos;s compatibility details before purchasing.</p>
+                <p className="mt-1 text-sm text-muted">Check the listing&apos;s compatibility details before purchasing.</p>
                 <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, make, model, year, engine, fuel, bodyStyle, part, partCategory, partNumber, link: partsLink } }} />
               </div>
               <a href={partsLink} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View all on eBay</a>
@@ -1111,21 +1113,21 @@ export default function Home() {
             ["02", "Match smarter", "Start parts searches with a specific make, model and year."],
             ["03", "Stay in control", "Mekivo sends you to the original listing so you can verify every detail yourself."],
           ].map(([number, title, copy]) => (
-            <div key={number} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
-              <span className="text-xs font-bold text-sky-300">{number}</span>
+            <div key={number} className="rounded-2xl border border-outline/10 bg-overlay/[0.025] p-5">
+              <span className="text-xs font-bold text-link">{number}</span>
               <h3 className="mt-4 font-bold">{title}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">{copy}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">{copy}</p>
             </div>
           ))}
         </section>
 
-        <footer className="mt-16 border-t border-white/10 pt-6 text-center text-xs leading-5 text-slate-500">
+        <footer className="mt-16 border-t border-outline/10 pt-6 text-center text-xs leading-5 text-subtle">
           <p>Mekivo does not sell vehicles or guarantee listing accuracy or part compatibility. Verify all information with the marketplace or seller.</p>
           <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
-            <a href="/privacy" className="hover:text-slate-300">Privacy</a>
-            <a href="/terms" className="hover:text-slate-300">Terms</a>
-            <a href="/guides" className="hover:text-slate-300">Guides</a>
-            <a href="/support" className="hover:text-slate-300">Suggestions and support</a>
+            <a href="/privacy" className="hover:text-muted">Privacy</a>
+            <a href="/terms" className="hover:text-muted">Terms</a>
+            <a href="/guides" className="hover:text-muted">Guides</a>
+            <a href="/support" className="hover:text-muted">Suggestions and support</a>
           </nav>
         </footer>
       </div>

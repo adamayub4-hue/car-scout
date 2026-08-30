@@ -7,7 +7,7 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "../lib/supabase"
 
 type FeedbackKind = "suggestion" | "problem";
 
-const fieldClass = "w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-sky-400/60";
+const fieldClass = "w-full rounded-xl border border-outline/10 bg-overlay/[0.06] px-4 py-3 text-foreground outline-none placeholder:text-subtle focus:border-sky-400/60";
 
 export default function SupportPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -43,39 +43,39 @@ export default function SupportPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#07101e] px-4 py-8 text-white">
+    <main className="min-h-screen bg-background px-4 py-8 text-foreground">
       <div className="mx-auto max-w-xl">
-        <Link href="/" className="text-sm font-semibold text-sky-300">← Back to Mekivo</Link>
-        <section className="mt-8 rounded-3xl border border-white/10 bg-white/[0.035] p-6 sm:p-8">
-          <p className="text-xs font-bold uppercase tracking-wider text-sky-300">Feedback and support</p>
+        <Link href="/" className="text-sm font-semibold text-link">← Back to Mekivo</Link>
+        <section className="mt-8 rounded-3xl border border-outline/10 bg-overlay/[0.035] p-6 sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-wider text-link">Feedback and support</p>
           <h1 className="mt-2 text-3xl font-bold">Help improve Mekivo</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-400">Share an idea or report a problem. Every message goes to Mekivo&apos;s private owner dashboard.</p>
+          <p className="mt-3 text-sm leading-6 text-muted">Share an idea or report a problem. Every message goes to Mekivo&apos;s private owner dashboard.</p>
 
-          <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.04] p-1.5">
+          <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-overlay/[0.04] p-1.5">
             {(["suggestion", "problem"] as FeedbackKind[]).map((value) => (
-              <button key={value} type="button" aria-pressed={kind === value} onClick={() => { setKind(value); setStatus(""); }} className={`rounded-xl px-3 py-3 text-sm font-semibold transition ${kind === value ? "bg-white text-slate-950" : "text-slate-400 hover:text-white"}`}>
+              <button key={value} type="button" aria-pressed={kind === value} onClick={() => { setKind(value); setStatus(""); }} className={`rounded-xl px-3 py-3 text-sm font-semibold transition ${kind === value ? "bg-white text-slate-950" : "text-muted hover:text-foreground"}`}>
                 {value === "suggestion" ? "Suggest an idea" : "Report a problem"}
               </button>
             ))}
           </div>
 
           {!isSupabaseConfigured() ? (
-            <p className="mt-6 text-amber-300">Feedback accounts are being connected.</p>
+            <p className="mt-6 text-warning">Feedback accounts are being connected.</p>
           ) : loading ? (
-            <p className="mt-6 text-slate-400">Checking your account…</p>
+            <p className="mt-6 text-muted">Checking your account…</p>
           ) : !user ? (
-            <div className="mt-6 rounded-xl border border-white/10 p-4 text-sm text-slate-300">Please <Link href="/account" className="font-semibold text-sky-300">sign in or create an account</Link> before sending feedback. This helps prevent spam and lets you include your saved vehicle context.</div>
+            <div className="mt-6 rounded-xl border border-outline/10 p-4 text-sm text-muted">Please <Link href="/account" className="font-semibold text-link">sign in or create an account</Link> before sending feedback. This helps prevent spam and lets you include your saved vehicle context.</div>
           ) : (
             <form onSubmit={submit} className="mt-7 space-y-4">
-              <label className="block text-sm text-slate-300">
+              <label className="block text-sm text-muted">
                 {kind === "suggestion" ? "What is your idea?" : "What went wrong?"}
                 <input required minLength={3} maxLength={120} value={subject} onChange={(event) => setSubject(event.target.value)} placeholder={kind === "suggestion" ? "A short title for your suggestion" : "A short description of the problem"} className={`mt-2 ${fieldClass}`} />
               </label>
-              <label className="block text-sm text-slate-300">
+              <label className="block text-sm text-muted">
                 {kind === "suggestion" ? "How would it improve Mekivo?" : "Tell us what happened"}
                 <textarea required minLength={10} maxLength={4000} rows={7} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add enough detail for us to understand and act on it." className={`mt-2 resize-y ${fieldClass}`} />
               </label>
-              {status && <p role="status" className="text-sm text-sky-200">{status}</p>}
+              {status && <p role="status" className="text-sm text-link">{status}</p>}
               <button className="rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950">{kind === "suggestion" ? "Send suggestion" : "Send report"}</button>
             </form>
           )}

@@ -1,13 +1,50 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: dark;
   --background: #07101e;
   --foreground: #f8fafc;
+  --panel: #091526;
+  --overlay: #ffffff;
+  --outline: #ffffff;
+  --muted: #aab8ca;
+  --subtle: #94a3b8;
+  --link: #7dd3fc;
+  --success: #a7f3d0;
+  --warning: #fde68a;
+  --danger: #fda4af;
+  --purple: #c4b5fd;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #f5f8fc;
+  --foreground: #142238;
+  --panel: #ffffff;
+  --overlay: #264467;
+  --outline: #264467;
+  --muted: #45566c;
+  --subtle: #52657b;
+  --link: #03658d;
+  --success: #126448;
+  --warning: #805000;
+  --danger: #a62045;
+  --purple: #6d28d9;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-overlay: var(--overlay);
+  --color-outline: var(--outline);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-link: var(--link);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-purple: var(--purple);
   --font-sans: Arial, Helvetica, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
@@ -34,3 +71,17 @@ select {
 ::selection {
   background: rgba(56, 189, 248, 0.35);
 }
+
+.appearance-control { display: flex; align-items: center; border: 1px solid color-mix(in srgb, var(--outline) 18%, transparent); border-radius: 999px; padding: 2px; background: var(--panel); font-size: 12px; }
+.appearance-toggle, .appearance-device { min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; padding: 4px 8px; }
+.appearance-track { display: flex; width: 42px; height: 24px; padding: 3px; border-radius: 999px; background: #64748b; }
+.appearance-thumb { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #fff; color: #142238; font-size: 14px; line-height: 1; transition: transform 150ms ease; }
+.appearance-toggle[aria-checked="true"] .appearance-track { background: #0284c7; }
+.appearance-toggle[aria-checked="true"] .appearance-thumb { transform: translateX(18px); }
+.appearance-device { color: var(--muted); }
+.appearance-device[aria-pressed="true"] { background: color-mix(in srgb, var(--link) 14%, transparent); color: var(--link); }
+.appearance-control button:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+/* Text over a photographic scrim always needs a dark background and light ink. */
+.vehicle-photo-caption { color: #f8fafc; }
+.vehicle-photo-caption p { color: #cbd5e1; }
+@media (prefers-reduced-motion: reduce) { .appearance-thumb { transition: none; } }

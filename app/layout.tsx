@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { AppearanceRuntime } from "./components/appearance";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mekivo.uk"),
@@ -38,8 +39,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(()=>{let p='system';try{const s=localStorage.getItem('mekivo-appearance');if(s==='light'||s==='dark')p=s}catch{}document.documentElement.dataset.appearance=p;document.documentElement.dataset.theme=p==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p})()` }} />
+      </head>
       <body className="min-h-full flex flex-col">
+        <AppearanceRuntime />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "WebSite", name: "Mekivo", url: "https://mekivo.uk", description: "A UK car and vehicle-parts marketplace search starting point.", inLanguage: "en-GB" }) }} />
         {children}<Analytics /><SpeedInsights />
       </body>

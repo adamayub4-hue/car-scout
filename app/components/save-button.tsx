@@ -50,12 +50,12 @@ export default function SaveButton({ item }: { item: SavedItem }) {
         type="button"
         onClick={save}
         disabled={state === "saving" || state === "saved"}
-        className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white transition hover:border-sky-300/50 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-xl border border-outline/15 bg-overlay/[0.06] px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-sky-300/50 hover:bg-overlay/[0.1] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {state === "saving" ? "Saving…" : state === "saved" ? "✓ Saved" : "Save to my account"}
       </button>
       {message && (
-        <p className={`mt-2 text-xs ${state === "error" ? "text-rose-300" : "text-emerald-300"}`} role="status">
+        <p className={`mt-2 text-xs ${state === "error" ? "text-danger" : "text-success"}`} role="status">
           {message}
         </p>
       )}
