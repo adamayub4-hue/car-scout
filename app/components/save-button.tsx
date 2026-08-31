@@ -39,9 +39,10 @@ export default function SaveButton({ item }: { item: SavedItem }) {
       setMessage("Could not save this yet. Please try again.");
       return;
     }
-    await supabase.from("activity_events").insert({ user_id: auth.user.id, event_name: "save_item", metadata: { kind: item.kind } });
     setState("saved");
     setMessage("Saved to your account.");
+    // The save is already confirmed; optional telemetry must not hold up success.
+    void Promise.resolve(supabase.from("activity_events").insert({ user_id: auth.user.id, event_name: "save_item", metadata: { kind: item.kind } })).catch(() => {});
   };
 
   return (

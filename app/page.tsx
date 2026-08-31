@@ -442,11 +442,13 @@ export default function Home() {
   const [ebayError, setEbayError] = useState("");
 
   const trackActivity = async (eventName: "car_search" | "part_search" | "part_number_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
-    const client = getSupabaseBrowserClient();
-    if (!client) return;
-    const { data } = await client.auth.getSession();
-    const user = data.session?.user;
-    if (user) await client.from("activity_events").insert({ user_id: user.id, event_name: eventName, metadata });
+    try {
+      const client = getSupabaseBrowserClient();
+      if (!client) return;
+      const { data } = await client.auth.getSession();
+      const user = data.session?.user;
+      if (user) await client.from("activity_events").insert({ user_id: user.id, event_name: eventName, metadata });
+    } catch { /* Optional telemetry must never interrupt the customer journey. */ }
   };
 
   const resetPartsBelowVehicle = () => {
@@ -488,7 +490,7 @@ export default function Home() {
       setBodyStyle("");
       resetPartsBelowVehicle();
       setVehicleLookup(vehicle);
-      await trackActivity("vehicle_lookup", { usedRegistration: true, make: vehicle.make, year: vehicle.yearOfManufacture });
+      void trackActivity("vehicle_lookup", { usedRegistration: true, make: vehicle.make, year: vehicle.yearOfManufacture });
     } catch (lookupError) {
       setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
     } finally {
@@ -578,7 +580,7 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
-    await trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
+    void trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
     const query = [make, model, year].filter(Boolean).join(" ");
     if (platform === "all" || platform === "ebay") {
       void searchEbay(query, "cars", price);
@@ -599,7 +601,7 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
-    await trackActivity("part_search", { vehicle: vehicleLabel, engine: engine || undefined, fuel: fuel || undefined, bodyStyle: bodyStyle || undefined, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
+    void trackActivity("part_search", { vehicle: vehicleLabel, engine: engine || undefined, fuel: fuel || undefined, bodyStyle: bodyStyle || undefined, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
     void searchEbay([vehicleLabel, partCategory, part, partNumber].filter(Boolean).join(" "), "parts");
   };
 
@@ -615,7 +617,7 @@ export default function Home() {
     setPart("");
     setError("");
     setShowResults(true);
-    await trackActivity("part_number_search", { hasPartNumber: true });
+    void trackActivity("part_number_search", { hasPartNumber: true });
     void searchEbay(number, "parts");
   };
 
