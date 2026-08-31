@@ -827,7 +827,7 @@ export default function Home() {
                     onKeyDown={(event) => { if (event.key === "Enter") void handleVehicleLookup(); }}
                     placeholder="e.g. AB12 CDE"
                     autoComplete="off"
-                    className={`${fieldClass} font-bold uppercase tracking-[0.12em]`}
+                    className="w-full min-w-0 rounded-2xl border-2 border-yellow-600 bg-yellow-300 px-4 py-3.5 text-center text-lg font-bold uppercase tracking-[0.12em] text-slate-950 caret-slate-950 outline-none placeholder:text-slate-700 placeholder:opacity-100 focus:border-slate-950 focus:ring-2 focus:ring-yellow-300 focus:ring-offset-2 focus:ring-offset-background"
                   />
                   <button
                     type="button"
