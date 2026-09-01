@@ -485,7 +485,7 @@ export default function Home() {
       setMake(matchedMake || vehicle.make || "");
       setModel(vehicle.model || "");
       setYear(vehicle.yearOfManufacture ? String(vehicle.yearOfManufacture) : "");
-      setEngine(vehicle.engineCapacity ? `${(vehicle.engineCapacity / 1000).toFixed(1)}L` : "");
+      setEngine(vehicle.engineCapacity ? `${(Math.round(vehicle.engineCapacity / 100) / 10).toFixed(1)}L` : "");
       setFuel(vehicle.fuelType ? vehicle.fuelType.charAt(0) + vehicle.fuelType.slice(1).toLowerCase() : "");
       setBodyStyle("");
       resetPartsBelowVehicle();
