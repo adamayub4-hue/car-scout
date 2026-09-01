@@ -19,6 +19,7 @@ async function withDeadline<T>(request: PromiseLike<T>): Promise<T> {
 
 export default function AdminPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null), [profiles, setProfiles] = useState<Profile[]>([]), [complaints, setComplaints] = useState<Complaint[]>([]), [events, setEvents] = useState<EventRow[]>([]), [saved, setSaved] = useState<SavedRow[]>([]);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null), [ownerLinkLoading, setOwnerLinkLoading] = useState(false), [ownerLinkMessage, setOwnerLinkMessage] = useState("");
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState<string | null>(null);
   const [counts, setCounts] = useState({ users: 0, open: 0, saved: 0 });
   const [savingId, setSavingId] = useState<string | null>(null), [saveError, setSaveError] = useState<string | null>(null);
@@ -33,7 +34,8 @@ export default function AdminPage() {
       const authResult = await withDeadline(client.auth.getUser());
       if (id !== requestId.current) return;
       if (authResult.error) throw authResult.error;
-      if (!authResult.data.user) { setAllowed(false); return; }
+      if (!authResult.data.user) { setSignedIn(false); setAllowed(false); return; }
+      setSignedIn(true);
       const adminResult = await withDeadline(client.from("admins").select("user_id").eq("user_id", authResult.data.user.id).maybeSingle());
       if (id !== requestId.current) return;
       if (adminResult.error) throw adminResult.error;
@@ -55,6 +57,17 @@ export default function AdminPage() {
     } finally { if (id === requestId.current) setLoading(false); }
   };
   useEffect(() => { const lifecycle = requestId; const timer = window.setTimeout(() => void load(), 0); return () => { window.clearTimeout(timer); lifecycle.current++; }; }, []);
+  const requestOwnerLink = async () => {
+    const client = getSupabaseBrowserClient();
+    if (!client) { setOwnerLinkMessage("Owner sign-in is temporarily unavailable."); return; }
+    setOwnerLinkLoading(true); setOwnerLinkMessage("");
+    const { error } = await client.auth.signInWithOtp({
+      email: "adamayub4@gmail.com",
+      options: { shouldCreateUser: false, emailRedirectTo: "https://mekivo.uk/admin" },
+    });
+    setOwnerLinkLoading(false);
+    setOwnerLinkMessage(error ? "We couldn’t send the owner sign-in link. Try again shortly." : "A secure one-time sign-in link has been sent to the owner email address.");
+  };
   const updateStatus = async (id: string, status: Complaint["status"]) => {
     if (saving.current) return;
     saving.current = true; setSavingId(id); setSaveError(null);
@@ -70,7 +83,7 @@ export default function AdminPage() {
   };
   if (loadError) return <main className="min-h-screen bg-background p-8 text-foreground"><div className="mx-auto max-w-lg rounded-2xl border border-rose-300/30 p-6"><h1 className="text-2xl font-bold">Dashboard unavailable</h1><p role="alert" className="mt-3 text-muted">{loadError}</p><button type="button" onClick={() => void load()} className="mt-5 rounded-lg bg-sky-300 px-4 py-2 font-bold text-slate-950">Retry dashboard</button><Link href="/account" className="ml-4 text-link">Sign in</Link></div></main>;
   if (loading || allowed === null) return <main className="min-h-screen bg-background p-8 text-muted"><p role="status">Loading dashboard and checking owner access…</p></main>;
-  if (!allowed) return <main className="min-h-screen bg-background p-8 text-foreground"><div className="mx-auto max-w-lg rounded-2xl border border-rose-300/20 p-6"><h1 className="text-2xl font-bold">Owner access only</h1><p className="mt-3 text-muted">This dashboard is protected by database permissions.</p><Link href="/account" className="mt-5 inline-block text-link">Sign in to the owner account →</Link></div></main>;
+  if (!allowed) return <main className="min-h-screen bg-background p-8 text-foreground"><div className="mx-auto max-w-lg rounded-2xl border border-rose-300/20 p-6"><h1 className="text-2xl font-bold">Owner access only</h1><p className="mt-3 text-muted">This dashboard is protected by your owner account and database permissions.</p>{signedIn === false ? <><button type="button" disabled={ownerLinkLoading} onClick={() => void requestOwnerLink()} className="mt-5 w-full rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950 disabled:opacity-60">{ownerLinkLoading ? "Sending secure link…" : "Email me a secure owner sign-in link"}</button>{ownerLinkMessage && <p role="status" className="mt-3 text-sm text-muted">{ownerLinkMessage}</p>}<p className="mt-4 text-xs leading-5 text-subtle">The link works once and is sent only to the registered owner email. Owner permissions are checked again before this dashboard opens.</p></> : <p className="mt-4 text-sm text-danger">This signed-in account does not have owner permission.</p>}<Link href="/account" className="mt-5 inline-block text-link">Use the normal account sign-in →</Link></div></main>;
   return <main className="min-h-screen bg-background px-4 py-8 text-foreground"><div className="mx-auto max-w-6xl"><header className="flex items-center justify-between border-b border-outline/10 pb-6"><div><p className="text-xs font-bold uppercase tracking-wider text-link">Private owner area</p><h1 className="mt-1 text-3xl font-bold">Mekivo control centre</h1></div><Link href="/" className="text-sm text-muted">View site</Link></header>
     <button type="button" disabled={savingId !== null} onClick={() => void load()} className="mt-5 rounded-lg border border-outline/20 px-4 py-2 text-sm disabled:opacity-50">Refresh dashboard</button>
     {saveError && <p role="alert" className="mt-4 rounded-xl border border-rose-300/30 p-4 text-danger">{saveError}</p>}
