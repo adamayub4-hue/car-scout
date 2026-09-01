@@ -83,7 +83,7 @@ for (const options of [{ authError: true }, { noClient: true }, { nullCount: tru
     const h = await loaded(options); assert.match(text(h.render()), /Dashboard unavailable/);
   });
 }
-for (const options of [{ denied: true }, { signedOut: true }]) {
+for (const options of [{ denied: true }, { signedOut: true }, { signedOut: true, authError: true }]) {
   test(`non-owner cannot load private records: ${JSON.stringify(options)}`, async () => {
     const h = await loaded(options); assert.match(text(h.render()), /Owner access only/);
     assert.ok(h.calls.every(c => c.table === 'admins'));

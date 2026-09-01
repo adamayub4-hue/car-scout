@@ -33,8 +33,8 @@ export default function AdminPage() {
       if (!client) throw new Error("Service unavailable");
       const authResult = await withDeadline(client.auth.getUser());
       if (id !== requestId.current) return;
-      if (authResult.error) throw authResult.error;
       if (!authResult.data.user) { setSignedIn(false); setAllowed(false); return; }
+      if (authResult.error) throw authResult.error;
       setSignedIn(true);
       const adminResult = await withDeadline(client.from("admins").select("user_id").eq("user_id", authResult.data.user.id).maybeSingle());
       if (id !== requestId.current) return;
