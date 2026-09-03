@@ -12,7 +12,7 @@ export default function TermsPage() {
       <article className="mx-auto max-w-3xl rounded-3xl border border-outline/10 bg-panel/95 p-6 sm:p-10">
         <Link href="/" className="text-sm font-semibold text-link">← Back to Mekivo</Link>
         <h1 className="mt-7 text-4xl font-bold tracking-tight">Terms of use</h1>
-        <p className="mt-3 text-sm text-subtle">Last updated 22 August 2026</p>
+        <p className="mt-3 text-sm text-subtle">Last updated 3 September 2026</p>
         <div className="mt-8 space-y-7 text-sm leading-7 text-muted">
           <section><h2 className="text-lg font-bold text-foreground">Search service</h2><p className="mt-2">Mekivo is a discovery tool that prepares searches and directs you to independent marketplaces. Mekivo is not the seller, dealer, parts supplier or payment provider.</p></section>
           <section><h2 className="text-lg font-bold text-foreground">Accuracy and compatibility</h2><p className="mt-2">Listings, prices and availability can change. Vehicle diagrams are illustrative, not manufacturer workshop documentation. Confirm specifications, history, condition, part numbers and fitment with the seller before committing to a purchase.</p></section>
