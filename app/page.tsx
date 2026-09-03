@@ -381,6 +381,26 @@ function isValidPostcode(value: string) {
   return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(value.trim());
 }
 
+const ebayAffiliateParams = {
+  mkcid: "1",
+  mkrid: "710-53481-19255-0",
+  siteid: "3",
+  campid: "5339201924",
+  toolid: "10001",
+  mkevt: "1",
+} as const;
+
+function withEbayAffiliateTracking(url: string, customId: string) {
+  try {
+    const trackedUrl = new URL(url);
+    Object.entries(ebayAffiliateParams).forEach(([key, value]) => trackedUrl.searchParams.set(key, value));
+    trackedUrl.searchParams.set("customid", customId);
+    return trackedUrl.toString();
+  } catch {
+    return url;
+  }
+}
+
 const fieldClass =
   "w-full rounded-2xl border border-outline/10 bg-overlay/[0.06] px-4 py-3.5 text-[15px] text-foreground outline-none transition placeholder:text-subtle focus:border-sky-400/60 focus:bg-overlay/[0.09] focus:ring-4 focus:ring-sky-400/10";
 
@@ -393,7 +413,7 @@ function EbayResults({ items, loading, error, fallbackUrl }: { items: EbayListin
     return (
       <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-5 text-sm text-warning">
         <p>{error || "No live eBay listings matched this search."}</p>
-        <a href={fallbackUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex font-bold underline underline-offset-4">Search directly on eBay</a>
+        <a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" className="mt-3 inline-flex font-bold underline underline-offset-4">Search directly on eBay</a>
       </div>
     );
   }
@@ -401,12 +421,12 @@ function EbayResults({ items, loading, error, fallbackUrl }: { items: EbayListin
   return (
     <div className="mt-5">
       <div className="flex items-center justify-between gap-4">
-        <div><p className="text-xs font-bold uppercase tracking-wider text-link">Live eBay listings</p><p className="mt-1 text-xs text-subtle">Prices and availability can change. Verify every listing on eBay.</p></div>
-        <a href={fallbackUrl} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-link">See all →</a>
+        <div><p className="text-xs font-bold uppercase tracking-wider text-link">Live eBay listings</p><p className="mt-1 text-xs text-subtle">Prices and availability can change. Verify every listing on eBay. Mekivo may earn a commission from qualifying purchases.</p></div>
+        <a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" className="shrink-0 text-sm font-semibold text-link">See all →</a>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.slice(0, 6).map((item) => (
-          <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-2xl border border-outline/10 bg-overlay/[0.04] p-4 transition hover:border-sky-400/40 hover:bg-overlay/[0.07]">
+          <a key={item.id} href={withEbayAffiliateTracking(item.url, "mekivo-live-result")} target="_blank" rel="sponsored noreferrer" className="rounded-2xl border border-outline/10 bg-overlay/[0.04] p-4 transition hover:border-sky-400/40 hover:bg-overlay/[0.07]">
             <h3 className="line-clamp-3 text-sm font-bold leading-5">{item.title}</h3>
             <p className="mt-3 text-lg font-black text-foreground">{item.price ? `${item.currency === "GBP" ? "£" : `${item.currency ?? ""} `}${item.price}` : "See price"}</p>
             <p className="mt-1 text-xs text-subtle">{[item.condition, item.location].filter(Boolean).join(" · ") || "View listing details"}</p>
@@ -533,7 +553,7 @@ export default function Home() {
     return {
       autotrader: `https://www.autotrader.co.uk/car-search?${autoTraderParams.toString()}`,
       facebook: `https://www.facebook.com/marketplace/uk/search?query=${encodeURIComponent(query)}`,
-      ebay: `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${query} car`)}`,
+      ebay: withEbayAffiliateTracking(`https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(`${query} car`)}`, "mekivo-car-search"),
       motors: motorsPath ? `https://www.cazoo.co.uk/cars/${motorsPath}/` : "https://www.cazoo.co.uk/cars/",
       gumtree: `https://www.gumtree.com/search?search_category=cars&q=${encodeURIComponent(query)}`,
       cargurus: `https://www.cargurus.co.uk/Cars/forsale?keywords=${encodeURIComponent(query)}`,
@@ -548,7 +568,7 @@ export default function Home() {
     const query = [vehicle, partCategory, part, partNumber]
       .filter(Boolean)
       .join(" ");
-    return `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(query)}`;
+    return withEbayAffiliateTracking(`https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(query)}`, "mekivo-parts-search");
   }, [bodyStyle, engine, fuel, make, model, part, partCategory, partNumber, year]);
 
   const searchEbay = async (query: string, type: "cars" | "parts", maxPrice?: string) => {
@@ -1081,7 +1101,7 @@ export default function Home() {
               {platformCards
                 .filter((item) => platform === "all" || platform === item.id || (platform === "more" && moreMarketplaceIds.includes(item.id)))
                 .map((item) => (
-                  <a key={item.id} href={carLinks[item.id]} target="_blank" rel="noreferrer" className="group rounded-2xl border border-outline/10 bg-overlay/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-overlay/[0.07]">
+                  <a key={item.id} href={carLinks[item.id]} target="_blank" rel={item.id === "ebay" ? "sponsored noreferrer" : "noreferrer"} className="group rounded-2xl border border-outline/10 bg-overlay/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-overlay/[0.07]">
                     <span className="text-xs font-bold uppercase tracking-wider text-link">Search now</span>
                     <h3 className="mt-3 text-lg font-bold">{item.name}</h3>
                     <p className="mt-1 min-h-10 text-sm text-muted">{item.label}</p>
@@ -1103,7 +1123,7 @@ export default function Home() {
                 <p className="mt-1 text-sm text-muted">Check the listing&apos;s compatibility details before purchasing.</p>
                 <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, make, model, year, engine, fuel, bodyStyle, part, partCategory, partNumber, link: partsLink } }} />
               </div>
-              <a href={partsLink} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View all on eBay</a>
+              <a href={partsLink} target="_blank" rel="sponsored noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View all on eBay</a>
             </section>
             <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={partsLink} />
           </div>
@@ -1125,6 +1145,7 @@ export default function Home() {
 
         <footer className="mt-16 border-t border-outline/10 pt-6 text-center text-xs leading-5 text-subtle">
           <p>Mekivo does not sell vehicles or guarantee listing accuracy or part compatibility. Verify all information with the marketplace or seller.</p>
+          <p className="mt-2">Mekivo participates in the eBay Partner Network and may earn a commission from qualifying purchases made through eBay links, at no additional cost to you.</p>
           <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
             <a href="/privacy" className="hover:text-muted">Privacy</a>
             <a href="/terms" className="hover:text-muted">Terms</a>
