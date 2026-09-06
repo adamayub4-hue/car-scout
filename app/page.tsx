@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { track } from "@vercel/analytics";
 import SaveButton from "./components/save-button";
 import AppearanceControl from "./components/appearance";
 import { getSupabaseBrowserClient } from "./lib/supabase";
@@ -404,7 +405,30 @@ function withEbayAffiliateTracking(url: string, customId: string) {
 const fieldClass =
   "w-full rounded-2xl border border-outline/10 bg-overlay/[0.06] px-4 py-3.5 text-[15px] text-foreground outline-none transition placeholder:text-subtle focus:border-sky-400/60 focus:bg-overlay/[0.09] focus:ring-4 focus:ring-sky-400/10";
 
-function EbayResults({ items, loading, error, fallbackUrl }: { items: EbayListing[]; loading: boolean; error: string; fallbackUrl: string }) {
+const campaignKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_content"] as const;
+
+function campaignProperties() {
+  if (typeof window === "undefined") return {};
+  const params = new URLSearchParams(window.location.search);
+  const properties: Record<string, string> = {};
+  campaignKeys.forEach((key) => {
+    const current = params.get(key)?.slice(0, 80);
+    const stored = window.sessionStorage.getItem(`mekivo_${key}`);
+    const value = current || stored;
+    if (current) window.sessionStorage.setItem(`mekivo_${key}`, current);
+    if (value) properties[key] = value;
+  });
+  return properties;
+}
+
+function trackGrowthEvent(name: string, properties: Record<string, string | number | boolean> = {}) {
+  try {
+    track(name, { ...campaignProperties(), ...properties });
+  } catch { /* Analytics must never block a search or outbound click. */ }
+}
+
+function EbayResults({ items, loading, error, fallbackUrl, searchType }: { items: EbayListing[]; loading: boolean; error: string; fallbackUrl: string; searchType: Mode }) {
+  const trackEbayClick = (destination: "all_results" | "listing") => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: searchType, destination });
   if (loading) {
     return <div className="mt-4 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5 text-sm text-muted">Loading live eBay listings…</div>;
   }
@@ -413,7 +437,7 @@ function EbayResults({ items, loading, error, fallbackUrl }: { items: EbayListin
     return (
       <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-5 text-sm text-warning">
         <p>{error || "No live eBay listings matched this search."}</p>
-        <a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" className="mt-3 inline-flex font-bold underline underline-offset-4">Search directly on eBay</a>
+        <a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" onClick={() => trackEbayClick("all_results")} className="mt-3 inline-flex font-bold underline underline-offset-4">Search directly on eBay</a>
       </div>
     );
   }
@@ -422,11 +446,11 @@ function EbayResults({ items, loading, error, fallbackUrl }: { items: EbayListin
     <div className="mt-5">
       <div className="flex items-center justify-between gap-4">
         <div><p className="text-xs font-bold uppercase tracking-wider text-link">Live eBay listings</p><p className="mt-1 text-xs text-subtle">Prices and availability can change. Verify every listing on eBay. Mekivo may earn a commission from qualifying purchases.</p></div>
-        <a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" className="shrink-0 text-sm font-semibold text-link">See all →</a>
+        <a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" onClick={() => trackEbayClick("all_results")} className="shrink-0 text-sm font-semibold text-link">See all →</a>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.slice(0, 6).map((item) => (
-          <a key={item.id} href={withEbayAffiliateTracking(item.url, "mekivo-live-result")} target="_blank" rel="sponsored noreferrer" className="rounded-2xl border border-outline/10 bg-overlay/[0.04] p-4 transition hover:border-sky-400/40 hover:bg-overlay/[0.07]">
+          <a key={item.id} href={withEbayAffiliateTracking(item.url, "mekivo-live-result")} target="_blank" rel="sponsored noreferrer" onClick={() => trackEbayClick("listing")} className="rounded-2xl border border-outline/10 bg-overlay/[0.04] p-4 transition hover:border-sky-400/40 hover:bg-overlay/[0.07]">
             <h3 className="line-clamp-3 text-sm font-bold leading-5">{item.title}</h3>
             <p className="mt-3 text-lg font-black text-foreground">{item.price ? `${item.currency === "GBP" ? "£" : `${item.currency ?? ""} `}${item.price}` : "See price"}</p>
             <p className="mt-1 text-xs text-subtle">{[item.condition, item.location].filter(Boolean).join(" · ") || "View listing details"}</p>
@@ -460,6 +484,14 @@ export default function Home() {
   const [ebayItems, setEbayItems] = useState<EbayListing[]>([]);
   const [ebayLoading, setEbayLoading] = useState(false);
   const [ebayError, setEbayError] = useState("");
+
+  useEffect(() => {
+    const landingMode = new URLSearchParams(window.location.search).get("mode") === "parts" ? "parts" : "cars";
+    trackGrowthEvent("campaign_landing", { landing_mode: landingMode });
+    if (landingMode !== "parts") return;
+    const frame = window.requestAnimationFrame(() => setMode("parts"));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const trackActivity = async (eventName: "car_search" | "part_search" | "part_number_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
     try {
@@ -510,6 +542,7 @@ export default function Home() {
       setBodyStyle("");
       resetPartsBelowVehicle();
       setVehicleLookup(vehicle);
+      trackGrowthEvent("vehicle_lookup_success", { has_model: Boolean(vehicle.model) });
       void trackActivity("vehicle_lookup", { usedRegistration: true, make: vehicle.make, year: vehicle.yearOfManufacture });
     } catch (lookupError) {
       setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
@@ -600,12 +633,14 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
+    trackGrowthEvent("search_completed", { search_type: "cars", marketplace: platform, has_model: Boolean(model), has_year: Boolean(year), has_price: Boolean(price), has_postcode: Boolean(postcode) });
     void trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
     const query = [make, model, year].filter(Boolean).join(" ");
     if (platform === "all" || platform === "ebay") {
       void searchEbay(query, "cars", price);
     }
     if (platform !== "all" && platform !== "more" && platform !== "ebay") {
+      trackGrowthEvent("marketplace_outbound", { marketplace: platform, search_type: "cars", destination: "search_results" });
       window.open(carLinks[platform], "_blank", "noopener,noreferrer");
     }
   };
@@ -621,6 +656,7 @@ export default function Home() {
     }
     setError("");
     setShowResults(true);
+    trackGrowthEvent("search_completed", { search_type: "parts", search_method: partMethod || "unknown", has_part_number: Boolean(partNumber) });
     void trackActivity("part_search", { vehicle: vehicleLabel, engine: engine || undefined, fuel: fuel || undefined, bodyStyle: bodyStyle || undefined, category: partCategory, part: part || undefined, hasPartNumber: Boolean(partNumber) });
     void searchEbay([vehicleLabel, partCategory, part, partNumber].filter(Boolean).join(" "), "parts");
   };
@@ -637,6 +673,7 @@ export default function Home() {
     setPart("");
     setError("");
     setShowResults(true);
+    trackGrowthEvent("search_completed", { search_type: "parts", search_method: "part_number", has_part_number: true });
     void trackActivity("part_number_search", { hasPartNumber: true });
     void searchEbay(number, "parts");
   };
@@ -1101,7 +1138,7 @@ export default function Home() {
               {platformCards
                 .filter((item) => platform === "all" || platform === item.id || (platform === "more" && moreMarketplaceIds.includes(item.id)))
                 .map((item) => (
-                  <a key={item.id} href={carLinks[item.id]} target="_blank" rel={item.id === "ebay" ? "sponsored noreferrer" : "noreferrer"} className="group rounded-2xl border border-outline/10 bg-overlay/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-overlay/[0.07]">
+                  <a key={item.id} href={carLinks[item.id]} target="_blank" rel={item.id === "ebay" ? "sponsored noreferrer" : "noreferrer"} onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: item.id, search_type: "cars", destination: "search_results" })} className="group rounded-2xl border border-outline/10 bg-overlay/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-overlay/[0.07]">
                     <span className="text-xs font-bold uppercase tracking-wider text-link">Search now</span>
                     <h3 className="mt-3 text-lg font-bold">{item.name}</h3>
                     <p className="mt-1 min-h-10 text-sm text-muted">{item.label}</p>
@@ -1109,7 +1146,7 @@ export default function Home() {
                   </a>
                 ))}
             </div>
-            {(platform === "all" || platform === "ebay") && <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={carLinks.ebay} />}
+            {(platform === "all" || platform === "ebay") && <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={carLinks.ebay} searchType="cars" />}
             <SaveButton item={{ kind: "car_search", title: [year, make, model].filter(Boolean).join(" "), data: { make, model, year, price, postcode, platform, links: carLinks } }} />
           </section>
         )}
@@ -1123,9 +1160,9 @@ export default function Home() {
                 <p className="mt-1 text-sm text-muted">Check the listing&apos;s compatibility details before purchasing.</p>
                 <SaveButton item={{ kind: "part_search", title: [vehicleLabel, part || partCategory || partNumber].filter(Boolean).join(" · "), data: { vehicleLabel, make, model, year, engine, fuel, bodyStyle, part, partCategory, partNumber, link: partsLink } }} />
               </div>
-              <a href={partsLink} target="_blank" rel="sponsored noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View all on eBay</a>
+              <a href={partsLink} target="_blank" rel="sponsored noreferrer" onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: "parts", destination: "all_results" })} className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View all on eBay</a>
             </section>
-            <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={partsLink} />
+            <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={partsLink} searchType="parts" />
           </div>
         )}
 

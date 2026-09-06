@@ -24,8 +24,9 @@ for (const name of ['handleCarSearch', 'handlePartsSearch', 'handlePartNumberSea
     const ctx = {
       make: 'Audi', model: 'A3', year: '2018', price: '', postcode: '', platform: 'all',
       vehicleReady: true, vehicleLabel: '2018 Audi A3', engine: '', fuel: '', bodyStyle: '',
-      part: 'oil filter', partCategory: '', partNumber: '06J115403Q',
+      part: 'oil filter', partCategory: '', partNumber: '06J115403Q', partMethod: 'search',
       setError() {}, setShowResults() {}, setPartNumber() {}, setPartMethod() {}, setPartCategory() {}, setPart() {},
+      trackGrowthEvent() {},
       trackActivity: (...args) => { events.push(args); return new Promise(() => {}); },
       searchEbay: (...args) => searches.push(args),
     };
@@ -40,6 +41,7 @@ test('external marketplace opens in the click turn despite stalled analytics', a
   const opened = [];
   const pending = handler('handleCarSearch', {
     make: 'Audi', model: 'A3', year: '', price: '', postcode: '', platform: 'autotrader',
+    trackGrowthEvent() {},
     setError() {}, setShowResults() {}, trackActivity: () => new Promise(() => {}),
     carLinks: { autotrader: 'https://example.com/search' }, window: { open: (...args) => opened.push(args) },
   })();
