@@ -39,9 +39,9 @@ test('first-time guidance explains the complete car and parts journeys', () => {
 
 test('generic visual parts locator is available without licensed vehicle-specific data', () => {
   for (const message of [
-    'Tap the area closest to your part',
-    'General guide for most cars',
-    'Naming guide only.',
+    'Select the vehicle system',
+    'General reference · Not vehicle-specific',
+    'Illustration is for location guidance only.',
     'Transmission & drivetrain',
     'Exhaust & emissions',
     'Search matching listings',

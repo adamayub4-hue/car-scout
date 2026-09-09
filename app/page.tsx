@@ -40,11 +40,12 @@ type DiagramSystem = {
   name: string;
   shortName: string;
   description: string;
-  accent: string;
   parts: readonly string[];
   hotspot: readonly [number, number];
   partPositions: readonly (readonly [number, number])[];
 };
+
+const diagramLine = "#94a3b8";
 
 const makes = {
   "Alfa Romeo": ["Giulia", "Giulietta", "MiTo", "Stelvio"],
@@ -91,7 +92,6 @@ const diagramSystems: Record<string, DiagramSystem> = {
     name: "Engine & cooling",
     shortName: "Engine",
     description: "Filters, belts, cooling and service components",
-    accent: "#38bdf8",
     parts: ["Air Filter", "Oil Filter", "Timing Belt", "Water Pump"],
     hotspot: [446, 166],
     partPositions: [[145, 112], [183, 239], [367, 118], [411, 235]],
@@ -100,7 +100,6 @@ const diagramSystems: Record<string, DiagramSystem> = {
     name: "Braking system",
     shortName: "Brakes",
     description: "Pads, discs, calipers and sensors",
-    accent: "#fb7185",
     parts: ["Brake Disc", "Brake Pads", "Brake Caliper", "ABS Sensor"],
     hotspot: [444, 232],
     partPositions: [[280, 180], [370, 145], [402, 224], [154, 102]],
@@ -109,7 +108,6 @@ const diagramSystems: Record<string, DiagramSystem> = {
     name: "Suspension & steering",
     shortName: "Suspension",
     description: "Dampers, springs, arms and steering parts",
-    accent: "#a78bfa",
     parts: ["Shock Absorber", "Coil Spring", "Control Arm", "Drop Link"],
     hotspot: [153, 232],
     partPositions: [[177, 185], [286, 177], [397, 222], [390, 104]],
@@ -118,7 +116,6 @@ const diagramSystems: Record<string, DiagramSystem> = {
     name: "Body & lighting",
     shortName: "Body",
     description: "Panels, lamps, mirrors and exterior trim",
-    accent: "#34d399",
     parts: ["Front Bumper", "Headlight", "Wing Mirror", "Tail Light"],
     hotspot: [530, 205],
     partPositions: [[447, 241], [456, 141], [282, 99], [112, 160]],
@@ -127,7 +124,6 @@ const diagramSystems: Record<string, DiagramSystem> = {
     name: "Electrical system",
     shortName: "Electrical",
     description: "Battery, charging, starting and control units",
-    accent: "#fbbf24",
     parts: ["Battery", "Alternator", "Starter Motor", "Fuse Box"],
     hotspot: [383, 156],
     partPositions: [[153, 183], [290, 177], [406, 205], [374, 94]],
@@ -136,7 +132,6 @@ const diagramSystems: Record<string, DiagramSystem> = {
     name: "Interior & controls",
     shortName: "Interior",
     description: "Seats, dashboard, controls and cabin trim",
-    accent: "#f472b6",
     parts: ["Steering Wheel", "Dashboard", "Front Seat", "Gear Knob"],
     hotspot: [278, 139],
     partPositions: [[180, 126], [284, 116], [383, 207], [284, 245]],
@@ -145,7 +140,6 @@ const diagramSystems: Record<string, DiagramSystem> = {
     name: "Exhaust & emissions",
     shortName: "Exhaust",
     description: "Pipes, silencers, filters and exhaust sensors",
-    accent: "#f97316",
     parts: ["Exhaust Back Box", "Catalytic Converter", "DPF", "Oxygen Sensor"],
     hotspot: [245, 267],
     partPositions: [[430, 229], [276, 181], [157, 229], [340, 94]],
@@ -154,7 +148,6 @@ const diagramSystems: Record<string, DiagramSystem> = {
     name: "Transmission & drivetrain",
     shortName: "Drivetrain",
     description: "Clutch, gearbox, shafts and driven-wheel joints",
-    accent: "#22d3ee",
     parts: ["Clutch Kit", "Gearbox", "Driveshaft", "CV Joint"],
     hotspot: [352, 224],
     partPositions: [[198, 182], [277, 182], [415, 182], [478, 182]],
@@ -181,20 +174,6 @@ const electricDiagramOverrides: Partial<Record<string, DiagramSystem>> = {
   },
 };
 
-function SystemIcon({ system }: { system: string }) {
-  const paths: Record<string, React.ReactNode> = {
-    Engine: <><rect x="7" y="9" width="18" height="14" rx="3" /><path d="M10 9V6h5v3M25 13h3v6h-3M7 13H4v6h3M12 16h8" /></>,
-    Brakes: <><circle cx="16" cy="16" r="10" /><circle cx="16" cy="16" r="4" /><path d="M23 9l4 2v10l-4 2" /></>,
-    Suspension: <><path d="M10 4h12M12 7h8l-7 4 7 4-7 4 7 4h-8M10 26h12" /></>,
-    Body: <><path d="M4 20h24l-2-7-5-4H11l-5 5-2 6Z" /><circle cx="10" cy="21" r="3" /><circle cx="23" cy="21" r="3" /></>,
-    Electrical: <><rect x="5" y="8" width="22" height="17" rx="3" /><path d="M11 8V5h10v3M10 16h5M12.5 13.5v5M20 14v5M17.5 16.5h5" /></>,
-    Interior: <><path d="M8 25V14c0-4 3-7 7-7h2c4 0 7 3 7 7v11M8 19h16M13 13h6M16 19v6" /></>,
-    Exhaust: <><path d="M4 19h7l4-5h8l4 5h2M11 19v5h12v-5M6 19v7m23-7v7" /><circle cx="17" cy="19" r="2" /></>,
-    Drivetrain: <><circle cx="8" cy="16" r="4" /><circle cx="24" cy="16" r="4" /><path d="M12 16h4m4 0h0M16 10h5l3 6-3 6h-5l-3-6Z" /></>,
-  };
-  return <svg viewBox="0 0 32 32" aria-hidden="true" className="h-7 w-7 fill-none stroke-current stroke-[1.8]">{paths[system]}</svg>;
-}
-
 function SystemArtwork({ system, accent }: { system: string; accent: string }) {
   const common = { fill: "none", stroke: accent, strokeWidth: 3, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const artwork: Record<string, React.ReactNode> = {
@@ -206,6 +185,8 @@ function SystemArtwork({ system, accent }: { system: string; accent: string }) {
     Interior: <g {...common}><path d="M82 252V112l67-46h253l76 67v119Z" /><circle cx="180" cy="126" r="48" /><circle cx="180" cy="126" r="20" /><path d="M180 78v96M132 126h96M237 84h98l30 62H237z" /><path d="M352 159h83v104h-83c-16-28-16-74 0-104ZM245 203h68v67h-68zM279 203v67M263 232h33" /></g>,
     Exhaust: <g {...common}><path d="M56 229h102l48-48h111l45 48h137" /><rect x="70" y="196" width="93" height="67" rx="24" /><path d="M163 229h44M207 181l39-51h66l31 51M251 130v102M307 130v102" /><rect x="362" y="199" width="100" height="60" rx="22" /><path d="M340 94v83m-12-83h24M340 94l22-28" /></g>,
     Drivetrain: <g {...common}><path d="M78 182h120M363 182h119" /><circle cx="82" cy="182" r="48" /><circle cx="478" cy="182" r="48" /><circle cx="82" cy="182" r="17" /><circle cx="478" cy="182" r="17" /><path d="M198 137h105l60 45-60 45H198l-34-45Z" /><circle cx="198" cy="182" r="39" /><path d="M237 137v90M303 137v90M363 182h-60M164 182h34" /></g>,
+    ElectricElectrical: <g {...common}><rect x="91" y="137" width="124" height="94" rx="5" /><path d="M116 137v-18h27v18m37 0v-18h19v18M112 183h32m-16-16v32m40-16h27" /><circle cx="290" cy="177" r="59" /><circle cx="290" cy="177" r="27" /><path d="M290 118v32m-51 27h24m27 27v32m27-59h32M257 136l18 27m48-27-18 27m-48 55 18-27m48 27-18-27" /><rect x="350" y="157" width="113" height="93" rx="4" /><path d="M368 178h77m-77 18h77m-77 18h77m-77 18h47" /><rect x="332" y="66" width="101" height="54" rx="4" /><path d="M347 83h71m-71 19h44M382 120v28" /></g>,
+    ElectricDrivetrain: <g {...common}><path d="M74 182h81M507 182h-29" /><circle cx="82" cy="182" r="45" /><circle cx="82" cy="182" r="15" /><path d="M155 139h86l38 43-38 43h-86l-29-43Z" /><circle cx="198" cy="182" r="29" /><circle cx="198" cy="182" r="10" /><path d="M227 182h164M249 168v28m20-28v28m98-28v28" /><path d="m391 153 47 29-47 29-26-29Z" /><circle cx="415" cy="182" r="12" /><circle cx="478" cy="182" r="42" /><circle cx="478" cy="182" r="17" /><path d="M449 153l58 58m0-58-58 58" /></g>,
   };
   return <>{artwork[system]}</>;
 }
@@ -276,6 +257,9 @@ function PartSketch({ part, accent }: { part: string; accent: string }) {
   if (/Clutch/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="28" r="22" /><circle cx="36" cy="28" r="8" /><path d="M36 6v14M14 28h14m8 8v14m8-22h14" /></g></svg>;
   if (/Gearbox/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M8 19h18l8-9h20l10 13-7 24H24L8 37Z" /><circle cx="42" cy="28" r="8" /><path d="M8 28H3m61 0h5" /></g></svg>;
   if (/Driveshaft|CV Joint/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="10" cy="28" r="7" /><circle cx="62" cy="28" r="7" /><path d="M17 28h38M22 21v14m7-14v14m21-14v14" /></g></svg>;
+  if (/Drive Motor/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="28" r="22" /><circle cx="36" cy="28" r="9" /><path d="M36 6v13M14 28h13m9 9v13m9-22h13M21 13l9 10m21-10-9 10M21 43l9-10m21 10-9-10" /></g></svg>;
+  if (/Power Inverter|Onboard Charger/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><rect x="8" y="11" width="56" height="38" rx="3" /><path d="M16 19h40M16 27h40M16 35h40M16 43h25" /></g></svg>;
+  if (/Reduction Gear|Differential/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M9 17h18l8-8h18l10 13-6 25H23L9 37Z" /><circle cx="38" cy="28" r="12" /><circle cx="38" cy="28" r="4" /><path d="M9 28H3m60 0h6" /></g></svg>;
   return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M8 38V20l12-9h32l12 11v16Z" /><path d="M22 38v9m28-9v9M19 27h34" /></g></svg>;
 }
 
@@ -333,48 +317,74 @@ function DiagramExplorer({
   onPart: (value: string) => void;
 }) {
   const selectedHeadingRef = useRef<HTMLHeadingElement>(null);
+  const mapHeadingRef = useRef<HTMLHeadingElement>(null);
+  const hadSelectionRef = useRef(false);
   const electricOnly = /^electric/i.test(fuel.trim());
   const visibleDiagramSystems = Object.entries(diagramSystems)
     .filter(([id]) => !electricOnly || (id !== "Engine" && id !== "Exhaust"))
     .map(([id, system]) => [id, electricOnly ? (electricDiagramOverrides[id] || system) : system] as const);
-  const selectedSystem = category
-    ? (electricOnly ? (electricDiagramOverrides[category] || diagramSystems[category]) : diagramSystems[category])
-    : null;
+  const selectedSystem = visibleDiagramSystems.find(([id]) => id === category)?.[1] || null;
+  const selectedSystemNumber = selectedSystem
+    ? visibleDiagramSystems.findIndex(([id]) => id === category) + 1
+    : 0;
+  const selectedArtwork = electricOnly && category === "Electrical"
+    ? "ElectricElectrical"
+    : electricOnly && category === "Drivetrain"
+      ? "ElectricDrivetrain"
+      : category;
 
   useEffect(() => {
-    if (category) selectedHeadingRef.current?.focus();
-  }, [category]);
+    if (selectedSystem) selectedHeadingRef.current?.focus();
+    else if (hadSelectionRef.current) mapHeadingRef.current?.focus();
+    hadSelectionRef.current = Boolean(selectedSystem);
+  }, [selectedSystem]);
 
   if (!selectedSystem) {
     return (
-      <div className="mt-5 overflow-hidden rounded-3xl border border-outline/10 bg-panel">
-        <div className="border-b border-outline/10 px-5 py-4 sm:px-6">
+      <div className="mt-5 overflow-hidden rounded-lg border border-outline/15 bg-panel shadow-[0_18px_45px_rgba(2,8,23,0.12)]">
+        <div className="border-b border-outline/15 px-5 py-5 sm:px-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Visual parts guide</p>
-              <h3 className="mt-1 text-lg font-bold">Tap the area closest to your part</h3>
-              <p className="mt-2 text-sm leading-6 text-muted">Use the car map or the system list. We&apos;ll show common names and simple shapes next.</p>
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-link">Parts guide / Vehicle map</p>
+              <h3 ref={mapHeadingRef} tabIndex={-1} className="mt-2 text-xl font-semibold tracking-tight outline-none">Select the vehicle system</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Choose the area nearest the component. The next view shows common parts and reference shapes for that system.</p>
             </div>
-            <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.06] px-3 py-1.5 text-xs text-warning">General guide for most cars</span>
+            <span className="rounded-[3px] border border-outline/20 bg-overlay/[0.035] px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">General reference · Not vehicle-specific</span>
           </div>
         </div>
-        <div className="grid gap-5 p-5 lg:grid-cols-[1.25fr_0.75fr] sm:p-6">
-          <div className="relative min-h-72 overflow-hidden rounded-2xl border border-outline/10 bg-[#07101e] sm:min-h-96">
+        <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(17rem,0.65fr)] sm:p-6">
+          <div className="self-start overflow-hidden rounded-[4px] border border-slate-700/80 bg-[#060d17] shadow-inner">
+            <div className="flex items-center justify-between border-b border-slate-700/80 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-slate-400">
+              <span>Vehicle diagram</span>
+              <span className="hidden sm:inline">General side view</span>
+            </div>
+            <div className="relative" style={{ aspectRatio: "560 / 320" }}>
             <svg viewBox="0 0 560 320" aria-hidden="true" className="absolute inset-0 h-full w-full">
               <defs>
-                <linearGradient id="whole-car-shell" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#38bdf8" stopOpacity="0.23" />
-                  <stop offset="1" stopColor="#818cf8" stopOpacity="0.08" />
-                </linearGradient>
+                <pattern id="locator-grid" width="28" height="28" patternUnits="userSpaceOnUse">
+                  <path d="M28 0H0V28" fill="none" stroke="#1e293b" strokeWidth="1" opacity="0.55" />
+                </pattern>
               </defs>
-              <path d="M45 222 62 174l91-28 70-71h139l72 69 69 25 20 53h-59a54 54 0 0 0-106 0H207a54 54 0 0 0-106 0Z" fill="url(#whole-car-shell)" stroke="#7dd3fc" strokeWidth="3" strokeLinejoin="round" />
-              <path d="m229 90-48 57h211l-48-57ZM286 90v57M72 174h94m244-20 77 28M216 192h138" fill="none" stroke="#64748b" strokeWidth="2" />
-              <circle cx="154" cy="225" r="45" fill="#0f172a" stroke="#94a3b8" strokeWidth="3" />
-              <circle cx="154" cy="225" r="20" fill="none" stroke="#64748b" strokeWidth="3" />
-              <circle cx="411" cy="225" r="45" fill="#0f172a" stroke="#94a3b8" strokeWidth="3" />
-              <circle cx="411" cy="225" r="20" fill="none" stroke="#64748b" strokeWidth="3" />
-              <path d="M209 250h151M255 250l38 29h73M92 270h72" fill="none" stroke="#475569" strokeWidth="4" strokeLinecap="round" />
-              <text x="280" y="307" textAnchor="middle" fill="#94a3b8" fontSize="12">Tap a numbered area or choose from the list</text>
+              <rect width="560" height="320" fill="url(#locator-grid)" />
+              <path d="M24 256H536M280 30V279" fill="none" stroke="#334155" strokeWidth="1" strokeDasharray="4 7" />
+              <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M39 222 52 198 64 173 145 145 219 78 357 78 434 143 500 166 522 205 519 222h-51c-4-31-27-53-57-53s-53 22-57 53H210c-4-31-27-53-57-53s-53 22-57 53Z" fill="#0b1524" stroke="#a7b3c3" strokeWidth="2.2" />
+                <path d="m229 91-47 53h207l-43-53Zm57 0v53M182 144l-36 1M389 144l45-1M239 151l-13 69m105-69 18 69M225 220h126M220 153h134" stroke="#64748b" strokeWidth="1.4" />
+                <path d="M248 160h35m44 0h12M76 181l60-20m303-9 54 26M48 207h43m381 0h45M217 231h141" stroke="#475569" strokeWidth="1.2" />
+                <path d="M407 117h-28M166 151h36M115 153h29M421 153h34" stroke="#7dd3fc" strokeWidth="1.6" />
+                <path d="M383 154h52v21M410 104v50M76 175v34M481 171v38" stroke="#334155" strokeWidth="1" strokeDasharray="4 4" />
+                <circle cx="153" cy="222" r="49" fill="#07101e" stroke="#94a3b8" strokeWidth="2" />
+                <circle cx="153" cy="222" r="31" stroke="#475569" strokeWidth="1.4" />
+                <circle cx="153" cy="222" r="8" stroke="#94a3b8" strokeWidth="1.6" />
+                <path d="m153 191 10 23 21 8-21 8-10 23-10-23-21-8 21-8Z" stroke="#475569" strokeWidth="1" />
+                <circle cx="411" cy="222" r="49" fill="#07101e" stroke="#94a3b8" strokeWidth="2" />
+                <circle cx="411" cy="222" r="31" stroke="#475569" strokeWidth="1.4" />
+                <circle cx="411" cy="222" r="8" stroke="#94a3b8" strokeWidth="1.6" />
+                <path d="m411 191 10 23 21 8-21 8-10 23-10-23-21-8 21-8Z" stroke="#475569" strokeWidth="1" />
+                <path d="M83 280H481m-398-5v10m398-10v10" stroke="#475569" strokeWidth="1" />
+              </g>
+              <text x="29" y="43" fill="#64748b" fontFamily="monospace" fontSize="9" letterSpacing="1.3">FRONT →</text>
+              <text x="280" y="294" textAnchor="middle" fill="#64748b" fontFamily="monospace" fontSize="9" letterSpacing="1.2">GENERIC PASSENGER VEHICLE · NOT TO SCALE</text>
             </svg>
             {visibleDiagramSystems.map(([id, system], index) => {
               const [x, y] = system.hotspot;
@@ -382,81 +392,113 @@ function DiagramExplorer({
                 <button
                   key={id}
                   type="button"
-                  aria-label={`Explore ${system.name}`}
+                  aria-label={`${system.name}: view common parts`}
+                  tabIndex={-1}
                   onClick={() => onCategory(id)}
-                  className="absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] bg-slate-950 text-sm font-black text-white shadow-lg outline-none transition hover:scale-110 focus-visible:ring-4 focus-visible:ring-white/70"
-                  style={{ left: `${(x / 560) * 100}%`, top: `${(y / 320) * 100}%`, borderColor: system.accent }}
+                  className="group absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#060d17]"
+                  style={{ left: `${(x / 560) * 100}%`, top: `${(y / 320) * 100}%` }}
                 >
-                  {index + 1}
+                  <span className="grid h-8 min-w-8 place-items-center rounded-[2px] border border-sky-300/80 bg-[#07101e] px-1 font-mono text-[11px] font-bold tabular-nums text-sky-200 shadow-[0_0_0_1px_rgba(2,8,23,0.75)] transition-colors group-hover:bg-sky-300 group-hover:text-slate-950">{String(index + 1).padStart(2, "0")}</span>
                 </button>
               );
             })}
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-700/80 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+              <span>Location guide</span>
+              <span className="hidden sm:inline">Choose a numbered area</span>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+          <div className="overflow-hidden rounded-[4px] border border-outline/15 bg-overlay/[0.02]">
+            <div className="flex items-center justify-between border-b border-outline/15 px-4 py-3 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle">
+              <span>System list</span>
+              <span>{String(visibleDiagramSystems.length).padStart(2, "0")} systems</span>
+            </div>
             {visibleDiagramSystems.map(([id, system], index) => (
-              <button key={id} type="button" onClick={() => onCategory(id)} className="group flex items-center gap-3 rounded-xl border border-outline/10 bg-overlay/[0.035] p-3 text-left outline-none transition hover:-translate-y-0.5 hover:border-sky-400/40 hover:bg-overlay/[0.07] focus-visible:ring-2 focus-visible:ring-sky-300">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-black/20" style={{ color: system.accent }}><SystemIcon system={id} /></span>
-                <span className="min-w-0"><strong className="block text-sm"><span style={{ color: system.accent }}>{index + 1}.</span> {system.shortName}</strong><span className="mt-0.5 hidden text-xs leading-4 text-subtle sm:block">{system.description}</span></span>
+              <button key={id} type="button" onClick={() => onCategory(id)} className="group grid w-full grid-cols-[2.7rem_minmax(0,1fr)_1.25rem] items-center gap-2 border-b border-outline/10 px-4 py-3 text-left outline-none transition-colors last:border-b-0 hover:bg-sky-400/[0.055] focus-visible:bg-sky-400/[0.08] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300">
+                <span className="font-mono text-xs font-semibold tabular-nums text-link">{String(index + 1).padStart(2, "0")}</span>
+                <span className="min-w-0"><strong className="block text-sm font-semibold">{system.shortName}</strong><span className="mt-0.5 block text-xs leading-4 text-subtle">{system.description}</span></span>
+                <span aria-hidden="true" className="font-mono text-sm text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-link">→</span>
               </button>
             ))}
           </div>
         </div>
-        <p className="border-t border-outline/10 px-5 py-4 text-xs leading-5 text-subtle sm:px-6"><strong className="text-warning">Naming guide only.</strong> Parts, systems and positions vary by model, year, power type and body style; some shown parts will not be fitted to every vehicle. {electricOnly ? "Combustion-engine and exhaust options are hidden for this electric vehicle. " : ""}Use this to learn a likely part name, then confirm the exact part number and fitment with the seller, manufacturer information or a qualified technician.</p>
+        <p className="border-t border-outline/15 px-5 py-4 text-xs leading-5 text-subtle sm:px-6"><strong className="font-semibold text-muted">Illustration is for location guidance only.</strong> Parts, systems and positions vary by model, year, power type and body style; some shown parts will not be fitted to every vehicle. {electricOnly ? "Combustion-engine and exhaust options are hidden for this electric vehicle. " : ""}Use this to learn a likely part name, then confirm the exact part number and fitment with the seller, manufacturer information or a qualified technician.</p>
       </div>
     );
   }
 
   return (
-    <div className="mt-5 overflow-hidden rounded-3xl border border-outline/10 bg-panel">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline/10 px-5 py-4 sm:px-6">
+    <div className="mt-5 overflow-hidden rounded-lg border border-outline/15 bg-panel shadow-[0_18px_45px_rgba(2,8,23,0.12)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline/15 px-5 py-5 sm:px-6">
         <div>
-          <button type="button" onClick={() => onCategory("")} className="text-xs font-semibold text-link hover:text-link">← All vehicle systems</button>
-          <h3 ref={selectedHeadingRef} tabIndex={-1} className="mt-1 text-lg font-bold outline-none">{selectedSystem.name}</h3>
+          <button type="button" onClick={() => onCategory("")} className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-link hover:text-link">← Return to system map</button>
+          <p className="mt-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-subtle">System {String(selectedSystemNumber).padStart(2, "0")}</p>
+          <h3 ref={selectedHeadingRef} tabIndex={-1} className="mt-1 text-xl font-semibold tracking-tight outline-none">{selectedSystem.name}</h3>
+          <p className="mt-1 text-sm text-muted">{selectedSystem.description}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.06] px-3 py-1.5 text-xs text-warning">General guide — not vehicle-specific</span>
-          <span className="rounded-full border border-outline/10 bg-overlay/[0.04] px-3 py-1.5 text-xs text-muted">Tap a numbered part</span>
-        </div>
+        <span className="rounded-[3px] border border-outline/20 bg-overlay/[0.035] px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">General reference · Not vehicle-specific</span>
       </div>
-      <div className="grid gap-5 p-5 sm:grid-cols-[1.35fr_0.85fr] sm:p-6">
-        <div className="relative min-h-80 overflow-hidden rounded-2xl border border-outline/10 bg-overlay/[0.025]">
-          <svg viewBox="0 0 560 360" aria-hidden="true" className="absolute inset-0 h-full w-full">
-            <rect x="20" y="20" width="520" height="300" rx="24" fill="#07101e" stroke="#1e293b" strokeWidth="2" />
-            <SystemArtwork system={category} accent={selectedSystem.accent} />
-            <text x="280" y="344" textAnchor="middle" fill="#64748b" fontSize="12">General system illustration — select a numbered component</text>
-          </svg>
-          {selectedSystem.parts.map((item, index) => {
-            const [x, y] = selectedSystem.partPositions[index];
-            const active = part === item;
-            return (
-              <button
-                key={item}
-                type="button"
-                aria-label={item}
-                aria-pressed={active}
-                onClick={() => onPart(item)}
-                className="absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] text-sm font-black shadow-lg outline-none transition hover:scale-110 focus-visible:ring-4 focus-visible:ring-white/70"
-                style={{ left: `${(x / 560) * 100}%`, top: `${(y / 360) * 100}%`, borderColor: active ? "#fff" : selectedSystem.accent, backgroundColor: active ? selectedSystem.accent : "#0f172a", color: active ? "#07101e" : "#fff" }}
-              >
-                {index + 1}
-              </button>
-            );
-          })}
+      <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(19rem,0.8fr)] sm:p-6">
+        <div className="overflow-hidden rounded-[4px] border border-slate-700/80 bg-[#060d17] shadow-inner">
+          <div className="flex items-center justify-between border-b border-slate-700/80 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-slate-400">
+            <span>Part diagram / {selectedSystem.shortName}</span>
+            <span className="hidden sm:inline">System {String(selectedSystemNumber).padStart(2, "0")}</span>
+          </div>
+          <div className="relative" style={{ aspectRatio: "560 / 360" }}>
+            <svg viewBox="0 0 560 360" aria-hidden="true" className="absolute inset-0 h-full w-full">
+              <defs>
+                <pattern id="assembly-grid" width="28" height="28" patternUnits="userSpaceOnUse">
+                  <path d="M28 0H0V28" fill="none" stroke="#1e293b" strokeWidth="1" opacity="0.55" />
+                </pattern>
+              </defs>
+              <rect width="560" height="360" fill="url(#assembly-grid)" />
+              <path d="M28 318H532M280 28V326" fill="none" stroke="#334155" strokeWidth="1" strokeDasharray="4 7" />
+              <path d="M38 42h44M38 42v44m484-44h-44m44 0v44M38 308h44m-44 0v-44m484 44h-44m44 0v-44" fill="none" stroke="#475569" strokeWidth="1.2" />
+              <SystemArtwork system={selectedArtwork} accent={diagramLine} />
+            </svg>
+            {selectedSystem.parts.map((item, index) => {
+              const [x, y] = selectedSystem.partPositions[index];
+              const active = part === item;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  aria-label={item}
+                  aria-pressed={active}
+                  tabIndex={-1}
+                  onClick={() => onPart(item)}
+                  className="group absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#060d17]"
+                  style={{ left: `${(x / 560) * 100}%`, top: `${(y / 360) * 100}%` }}
+                >
+                  <span className={`grid h-8 min-w-8 place-items-center rounded-[2px] border px-1 font-mono text-[11px] font-bold tabular-nums shadow-[0_0_0_1px_rgba(2,8,23,0.75)] transition-colors ${active ? "border-sky-200 bg-sky-300 text-slate-950" : "border-slate-400 bg-[#07101e] text-slate-100 group-hover:border-sky-300 group-hover:text-sky-200"}`}>{String(index + 1).padStart(2, "0")}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between border-t border-slate-700/80 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+            <span>Reference shape</span>
+            <span className="hidden sm:inline">Choose a numbered part</span>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-subtle">What does your part look like?</p>
-          <p className="mt-2 text-xs leading-5 text-muted">Compare its general shape, then select the closest match.</p>
-          <div className="mt-3 space-y-2">
+        <div className="min-w-0">
+          <div className="flex items-center justify-between border-b border-outline/15 pb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle">
+            <span>Part list</span>
+            <span>{String(selectedSystem.parts.length).padStart(2, "0")} items</span>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-muted">Compare the reference shape and description, then select the closest match.</p>
+          <div className="mt-3 overflow-hidden rounded-[4px] border border-outline/15">
             {selectedSystem.parts.map((item, index) => (
-              <button key={item} type="button" aria-pressed={part === item} onClick={() => onPart(item)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${part === item ? "border-sky-400/60 bg-sky-400/10" : "border-outline/10 bg-overlay/[0.025] hover:border-outline/25"}`}>
-                <span className="relative grid h-16 w-[4.5rem] shrink-0 place-items-center rounded-lg bg-black/20"><PartSketch part={item} accent={selectedSystem.accent} /><span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full text-[10px] font-black text-slate-950" style={{ backgroundColor: selectedSystem.accent }}>{index + 1}</span></span>
-                <span><strong className="block text-sm">{item}</strong><span className="mt-1 block text-xs leading-4 text-subtle">{partHints[item]}</span></span>
+              <button key={item} type="button" aria-pressed={part === item} onClick={() => onPart(item)} className={`grid w-full grid-cols-[2.4rem_minmax(0,1fr)] items-center gap-2 border-b border-outline/10 p-3 text-left outline-none transition-colors last:border-b-0 sm:grid-cols-[2.4rem_4.5rem_minmax(0,1fr)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300 ${part === item ? "bg-sky-400/[0.09]" : "bg-overlay/[0.018] hover:bg-overlay/[0.05]"}`}>
+                <span className={`self-start pt-1 font-mono text-[11px] font-semibold tabular-nums ${part === item ? "text-link" : "text-subtle"}`}>{String(index + 1).padStart(2, "0")}</span>
+                <span className="hidden h-14 w-16 shrink-0 place-items-center rounded-[2px] border border-outline/10 bg-black/15 sm:grid"><PartSketch part={item} accent={diagramLine} /></span>
+                <span><strong className="block text-sm font-semibold">{item}</strong><span className="mt-1 block text-xs leading-4 text-subtle">{partHints[item]}</span></span>
               </button>
             ))}
           </div>
-          {part && <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-3 text-xs leading-5 text-success"><strong>{part} selected.</strong> We&apos;ll include the vehicle details in your search. A visual match is only a starting point—confirm the part number and fitment with the seller before buying.</div>}
+          {part && <div className="mt-3 rounded-[4px] border border-sky-400/25 bg-sky-400/[0.06] p-3 text-xs leading-5 text-muted"><strong className="font-semibold text-link">Selected: {part}.</strong> We&apos;ll include the vehicle details in your search. A visual match is only a starting point—confirm the part number and fitment with the seller before buying.</div>}
         </div>
       </div>
+      <p className="border-t border-outline/15 px-5 py-4 text-xs leading-5 text-subtle sm:px-6"><strong className="font-semibold text-muted">Illustration is for location guidance only.</strong> Components and positions vary by vehicle. Confirm the exact part number and compatibility before buying.</p>
     </div>
   );
 }
