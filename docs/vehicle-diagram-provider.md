@@ -1,6 +1,8 @@
-# Licensed vehicle-diagram integration
+# Vehicle parts guide and licensed diagram integration
 
-Mekivo must not scrape workshop diagrams or republish catalogue artwork without a licence. The current visual guide stays unavailable until a provider such as TecDoc, Autodata or an equivalent supplier grants production access and confirms permitted display and caching terms.
+Mekivo includes an original, generic visual parts guide that helps a user learn a likely name for a common component. It is deliberately described as a naming guide rather than a compatibility check. It does not use or reproduce third-party workshop or catalogue artwork.
+
+Vehicle-specific exploded diagrams, provider identifiers, OE references and fitment results remain unavailable until a provider such as TecAlliance grants production access and confirms permitted display and caching terms. Mekivo must not scrape workshop diagrams or republish catalogue artwork without a licence.
 
 ## Provider adapter contract
 
@@ -35,4 +37,5 @@ It should return:
 3. Implement a server route that maps the provider response to the adapter contract above.
 4. Test at least ten registrations across different makes, years and engine variants.
 5. Verify mobile hotspot accessibility and image attribution.
-6. Set `NEXT_PUBLIC_VEHICLE_DIAGRAMS_ENABLED=true` only after the production checks pass.
+6. Keep licensed vehicle-specific results visually distinct from the generic naming guide.
+7. Enable the provider-backed route only after the production checks pass.

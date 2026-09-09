@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { track } from "@vercel/analytics";
@@ -82,6 +82,8 @@ const categories = {
   Body: ["Front Bumper", "Rear Bumper", "Wing Mirror", "Headlight", "Tail Light"],
   Interior: ["Steering Wheel", "Dashboard", "Seat", "Gear Knob", "Floor Mat"],
   Electrical: ["Battery", "Alternator", "Starter Motor", "Fuse Box", "ECU"],
+  Exhaust: ["Exhaust Back Box", "Catalytic Converter", "DPF", "Oxygen Sensor", "Exhaust Pipe"],
+  Drivetrain: ["Clutch Kit", "Gearbox", "Driveshaft", "CV Joint", "Differential"],
 } as const;
 
 const diagramSystems: Record<string, DiagramSystem> = {
@@ -139,12 +141,45 @@ const diagramSystems: Record<string, DiagramSystem> = {
     hotspot: [278, 139],
     partPositions: [[180, 126], [284, 116], [383, 207], [284, 245]],
   },
+  Exhaust: {
+    name: "Exhaust & emissions",
+    shortName: "Exhaust",
+    description: "Pipes, silencers, filters and exhaust sensors",
+    accent: "#f97316",
+    parts: ["Exhaust Back Box", "Catalytic Converter", "DPF", "Oxygen Sensor"],
+    hotspot: [245, 267],
+    partPositions: [[430, 229], [276, 181], [157, 229], [340, 94]],
+  },
+  Drivetrain: {
+    name: "Transmission & drivetrain",
+    shortName: "Drivetrain",
+    description: "Clutch, gearbox, shafts and driven-wheel joints",
+    accent: "#22d3ee",
+    parts: ["Clutch Kit", "Gearbox", "Driveshaft", "CV Joint"],
+    hotspot: [352, 224],
+    partPositions: [[198, 182], [277, 182], [415, 182], [478, 182]],
+  },
 };
 
-// Enable only after the licensed provider adapter described in
-// docs/vehicle-diagram-provider.md is connected and validated.
-const vehicleSpecificDiagramsAvailable =
-  process.env.NEXT_PUBLIC_VEHICLE_DIAGRAMS_ENABLED === "true";
+const electricCategoryOverrides: Partial<Record<keyof typeof categories, readonly string[]>> = {
+  Electrical: ["12V Battery", "Drive Motor", "Power Inverter", "Onboard Charger"],
+  Drivetrain: ["Reduction Gear", "Driveshaft", "CV Joint", "Differential"],
+};
+
+const electricDiagramOverrides: Partial<Record<string, DiagramSystem>> = {
+  Electrical: {
+    ...diagramSystems.Electrical,
+    name: "Electric drive & electrical",
+    shortName: "Electric drive",
+    description: "12V battery, drive motor, inverter and onboard charging",
+    parts: electricCategoryOverrides.Electrical!,
+  },
+  Drivetrain: {
+    ...diagramSystems.Drivetrain,
+    description: "Reduction gear, shafts and driven-wheel joints",
+    parts: electricCategoryOverrides.Drivetrain!,
+  },
+};
 
 function SystemIcon({ system }: { system: string }) {
   const paths: Record<string, React.ReactNode> = {
@@ -154,6 +189,8 @@ function SystemIcon({ system }: { system: string }) {
     Body: <><path d="M4 20h24l-2-7-5-4H11l-5 5-2 6Z" /><circle cx="10" cy="21" r="3" /><circle cx="23" cy="21" r="3" /></>,
     Electrical: <><rect x="5" y="8" width="22" height="17" rx="3" /><path d="M11 8V5h10v3M10 16h5M12.5 13.5v5M20 14v5M17.5 16.5h5" /></>,
     Interior: <><path d="M8 25V14c0-4 3-7 7-7h2c4 0 7 3 7 7v11M8 19h16M13 13h6M16 19v6" /></>,
+    Exhaust: <><path d="M4 19h7l4-5h8l4 5h2M11 19v5h12v-5M6 19v7m23-7v7" /><circle cx="17" cy="19" r="2" /></>,
+    Drivetrain: <><circle cx="8" cy="16" r="4" /><circle cx="24" cy="16" r="4" /><path d="M12 16h4m4 0h0M16 10h5l3 6-3 6h-5l-3-6Z" /></>,
   };
   return <svg viewBox="0 0 32 32" aria-hidden="true" className="h-7 w-7 fill-none stroke-current stroke-[1.8]">{paths[system]}</svg>;
 }
@@ -167,6 +204,8 @@ function SystemArtwork({ system, accent }: { system: string; accent: string }) {
     Body: <g {...common}><path d="M67 226 91 150l87-35 55-46h129l68 53 63 27 22 77Z" /><path d="m240 85-35 72h168l-29-72M289 85v72M104 165h91M382 158h91" /><path d="M424 186h75v40h-75zM65 192h73v34H65z" fill={`${accent}1f`} /><path d="M253 54h66l18 31h-102z" /><circle cx="150" cy="235" r="42" /><circle cx="434" cy="235" r="42" /></g>,
     Electrical: <g {...common}><rect x="91" y="116" width="123" height="132" rx="13" /><path d="M121 116V91h63v25M119 173h36M137 155v36M175 173h24" /><circle cx="291" cy="177" r="68" /><path d="M291 109v136M233 177h116M256 128l70 98M326 128l-70 98" /><path d="M359 157h97v97h-97zM379 184h57M379 207h57M379 230h31M351 83h86l19 40h-124z" /></g>,
     Interior: <g {...common}><path d="M82 252V112l67-46h253l76 67v119Z" /><circle cx="180" cy="126" r="48" /><circle cx="180" cy="126" r="20" /><path d="M180 78v96M132 126h96M237 84h98l30 62H237z" /><path d="M352 159h83v104h-83c-16-28-16-74 0-104ZM245 203h68v67h-68zM279 203v67M263 232h33" /></g>,
+    Exhaust: <g {...common}><path d="M56 229h102l48-48h111l45 48h137" /><rect x="70" y="196" width="93" height="67" rx="24" /><path d="M163 229h44M207 181l39-51h66l31 51M251 130v102M307 130v102" /><rect x="362" y="199" width="100" height="60" rx="22" /><path d="M340 94v83m-12-83h24M340 94l22-28" /></g>,
+    Drivetrain: <g {...common}><path d="M78 182h120M363 182h119" /><circle cx="82" cy="182" r="48" /><circle cx="478" cy="182" r="48" /><circle cx="82" cy="182" r="17" /><circle cx="478" cy="182" r="17" /><path d="M198 137h105l60 45-60 45H198l-34-45Z" /><circle cx="198" cy="182" r="39" /><path d="M237 137v90M303 137v90M363 182h-60M164 182h34" /></g>,
   };
   return <>{artwork[system]}</>;
 }
@@ -196,6 +235,20 @@ const partHints: Record<string, string> = {
   Dashboard: "The wide moulded panel containing instruments and air vents.",
   "Front Seat": "The complete seat frame, cushion and backrest assembly.",
   "Gear Knob": "The hand grip fitted to the top of the gear lever.",
+  "Exhaust Back Box": "The large silencer box near the rear of the vehicle.",
+  "Catalytic Converter": "A metal chamber in the exhaust, usually closer to the engine.",
+  DPF: "A diesel particulate filter fitted in the exhaust on many diesel vehicles.",
+  "Oxygen Sensor": "A small wired sensor screwed into the exhaust pipe.",
+  "Clutch Kit": "The clutch disc, pressure plate and bearing fitted between engine and gearbox.",
+  Gearbox: "The large casing that transfers engine or motor power to the wheels.",
+  Driveshaft: "A solid shaft running from the gearbox or differential to a wheel.",
+  "CV Joint": "A flexible joint covered by a ribbed rubber boot near a driven wheel.",
+  "12V Battery": "The smaller low-voltage battery that powers vehicle controls and accessories.",
+  "Drive Motor": "The electric motor that turns electrical energy into movement.",
+  "Power Inverter": "An electronic unit that manages power between the traction battery and motor.",
+  "Onboard Charger": "The unit that converts incoming charge power for the traction battery.",
+  "Reduction Gear": "A compact gear unit that reduces motor speed before power reaches the wheels.",
+  Differential: "The geared unit that lets driven wheels rotate at different speeds when turning.",
 };
 
 function PartSketch({ part, accent }: { part: string; accent: string }) {
@@ -205,7 +258,7 @@ function PartSketch({ part, accent }: { part: string; accent: string }) {
   if (/Disc/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="34" cy="28" r="21" /><circle cx="34" cy="28" r="8" /><path d="M53 14l8 5v19l-8 5" /></g></svg>;
   if (/Pads/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M9 38V20c11-7 22-7 29 0v18c-9 5-19 5-29 0Zm29 0V20c9-6 18-5 25 1v16c-7 6-16 7-25 1Z" /></g></svg>;
   if (/Caliper/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M13 13h37l10 10v20H41V29H25v14H10V21Z" /><circle cx="35" cy="28" r="6" /></g></svg>;
-  if (/Sensor/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M12 12c19 0 15 31 35 31" /><rect x="45" y="35" width="16" height="14" rx="4" /><circle cx="12" cy="12" r="5" /></g></svg>;
+  if (/ABS Sensor/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M12 12c19 0 15 31 35 31" /><rect x="45" y="35" width="16" height="14" rx="4" /><circle cx="12" cy="12" r="5" /></g></svg>;
   if (/Spring/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M22 7h28M27 12h18l-17 7 17 7-17 7 17 7-18 6h23" /></g></svg>;
   if (/Absorber|Drop Link/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M35 6v13m-9 0h18v25H26zM35 44v7" /><circle cx="35" cy="8" r="5" /><circle cx="35" cy="49" r="5" /></g></svg>;
   if (/Control Arm/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M12 13l17 31h30L43 13Z" /><circle cx="12" cy="13" r="6" /><circle cx="43" cy="13" r="6" /><circle cx="59" cy="44" r="6" /></g></svg>;
@@ -217,26 +270,31 @@ function PartSketch({ part, accent }: { part: string; accent: string }) {
   if (/Starter/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><rect x="8" y="19" width="43" height="26" rx="12" /><rect x="41" y="10" width="20" height="19" rx="6" /><path d="M8 32H3m58-12h7" /></g></svg>;
   if (/Wheel/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="28" r="22" /><circle cx="36" cy="28" r="7" /><path d="M36 6v15M14 28h15m7 7v15m7-22h15" /></g></svg>;
   if (/Seat/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M23 7h22v27H23zM18 34h37v12H18zM23 46v6m27-6v6" /></g></svg>;
-  if (/Gear/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="14" r="10" /><path d="M36 24v25M27 49h18" /></g></svg>;
+  if (/Gear Knob/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="14" r="10" /><path d="M36 24v25M27 49h18" /></g></svg>;
+  if (/Exhaust|DPF|Catalytic/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M5 29h13m36 0h13" /><rect x="18" y="16" width="36" height="26" rx="10" /><path d="M26 16v26m20-26v26" /></g></svg>;
+  if (/Oxygen/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M8 9c23 1 18 28 37 28" /><rect x="43" y="29" width="16" height="19" rx="5" /><path d="M48 48v5m6-5v5" /></g></svg>;
+  if (/Clutch/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="36" cy="28" r="22" /><circle cx="36" cy="28" r="8" /><path d="M36 6v14M14 28h14m8 8v14m8-22h14" /></g></svg>;
+  if (/Gearbox/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M8 19h18l8-9h20l10 13-7 24H24L8 37Z" /><circle cx="42" cy="28" r="8" /><path d="M8 28H3m61 0h5" /></g></svg>;
+  if (/Driveshaft|CV Joint/.test(part)) return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><circle cx="10" cy="28" r="7" /><circle cx="62" cy="28" r="7" /><path d="M17 28h38M22 21v14m7-14v14m21-14v14" /></g></svg>;
   return <svg viewBox="0 0 72 56" aria-hidden="true" className="h-14 w-16"><g {...props}><path d="M8 38V20l12-9h32l12 11v16Z" /><path d="M22 38v9m28-9v9M19 27h34" /></g></svg>;
 }
 
 type VehicleImage = { url: string; pageUrl: string; title: string; creator: string; license: string; licenseUrl: string };
 
-function VehicleReference({ make, model, year }: { make: string; model: string; year: string }) {
-  const query = `${make}|${model}|${year}`;
+function VehicleReference({ make, model }: { make: string; model: string }) {
+  const query = `${make}|${model}`;
   const [result, setResult] = useState<{ query: string; image: VehicleImage | null }>({ query: "", image: null });
 
   useEffect(() => {
     if (!make) return;
     const controller = new AbortController();
-    const params = new URLSearchParams({ make, model, year });
+    const params = new URLSearchParams({ make, model });
     fetch(`/api/vehicle-image?${params}`, { signal: controller.signal })
       .then((response) => response.json())
       .then((payload) => setResult({ query, image: payload.image || null }))
       .catch((error) => { if (error?.name !== "AbortError") setResult({ query, image: null }); });
     return () => controller.abort();
-  }, [make, model, query, year]);
+  }, [make, model, query]);
 
   const loading = Boolean(make && result.query !== query);
   const image = result.query === query ? result.image : null;
@@ -246,10 +304,10 @@ function VehicleReference({ make, model, year }: { make: string; model: string; 
   return (
     <figure className="mt-5 overflow-hidden rounded-2xl border border-outline/10 bg-panel">
       <div className="relative aspect-[16/7] min-h-48 bg-overlay/5">
-        <Image src={image.url} alt={`${year} ${make} ${model} visual reference`} fill sizes="(max-width: 768px) 100vw, 700px" className="object-cover" />
+        <Image src={image.url} alt={`${make} ${model} model-family visual reference`} fill sizes="(max-width: 768px) 100vw, 700px" className="object-cover" />
         <div className="vehicle-photo-caption absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#07101e] to-transparent px-4 pb-4 pt-12">
-          <strong className="text-sm">{[year, make, model].filter(Boolean).join(" ")} reference</strong>
-          <p className="mt-1 text-xs text-muted">Use this to recognise the vehicle only. Body style, trim and fitted parts may differ.</p>
+          <strong className="text-sm">{[make, model].filter(Boolean).join(" ")} model-family reference</strong>
+          <p className="mt-1 text-xs text-muted">Use this only as a general visual reference. Model year, body style, trim and fitted parts may differ.</p>
         </div>
       </div>
       <figcaption className="flex flex-wrap gap-x-2 px-4 py-2 text-[10px] text-subtle">
@@ -264,35 +322,86 @@ function VehicleReference({ make, model, year }: { make: string; model: string; 
 function DiagramExplorer({
   category,
   part,
+  fuel,
   onCategory,
   onPart,
 }: {
   category: string;
   part: string;
+  fuel: string;
   onCategory: (value: string) => void;
   onPart: (value: string) => void;
 }) {
-  const selectedSystem = category ? diagramSystems[category] : null;
+  const selectedHeadingRef = useRef<HTMLHeadingElement>(null);
+  const electricOnly = /^electric/i.test(fuel.trim());
+  const visibleDiagramSystems = Object.entries(diagramSystems)
+    .filter(([id]) => !electricOnly || (id !== "Engine" && id !== "Exhaust"))
+    .map(([id, system]) => [id, electricOnly ? (electricDiagramOverrides[id] || system) : system] as const);
+  const selectedSystem = category
+    ? (electricOnly ? (electricDiagramOverrides[category] || diagramSystems[category]) : diagramSystems[category])
+    : null;
+
+  useEffect(() => {
+    if (category) selectedHeadingRef.current?.focus();
+  }, [category]);
 
   if (!selectedSystem) {
     return (
       <div className="mt-5 overflow-hidden rounded-3xl border border-outline/10 bg-panel">
         <div className="border-b border-outline/10 px-5 py-4 sm:px-6">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Visual parts guide</p>
-          <h3 className="mt-1 text-lg font-bold">Where on the vehicle is the part?</h3>
-          <p className="mt-2 text-sm text-muted">Choose the closest area. You&apos;ll see simple component pictures on the next step.</p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Visual parts guide</p>
+              <h3 className="mt-1 text-lg font-bold">Tap the area closest to your part</h3>
+              <p className="mt-2 text-sm leading-6 text-muted">Use the car map or the system list. We&apos;ll show common names and simple shapes next.</p>
+            </div>
+            <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.06] px-3 py-1.5 text-xs text-warning">General guide for most cars</span>
+          </div>
         </div>
-        <div className="p-5 sm:p-6">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {Object.entries(diagramSystems).map(([id, system], index) => (
-              <button key={id} type="button" onClick={() => onCategory(id)} className="group rounded-2xl border border-outline/10 bg-overlay/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-sky-400/40 hover:bg-overlay/[0.07]">
-                <span className="flex items-center justify-between" style={{ color: system.accent }}><SystemIcon system={id} /><span className="grid h-7 w-7 place-items-center rounded-full border text-xs font-black" style={{ borderColor: `${system.accent}88` }}>{index + 1}</span></span>
-                <strong className="mt-3 block text-sm">{system.shortName}</strong>
-                <span className="mt-1 block text-xs leading-4 text-subtle">{system.description}</span>
+        <div className="grid gap-5 p-5 lg:grid-cols-[1.25fr_0.75fr] sm:p-6">
+          <div className="relative min-h-72 overflow-hidden rounded-2xl border border-outline/10 bg-[#07101e] sm:min-h-96">
+            <svg viewBox="0 0 560 320" aria-hidden="true" className="absolute inset-0 h-full w-full">
+              <defs>
+                <linearGradient id="whole-car-shell" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="#38bdf8" stopOpacity="0.23" />
+                  <stop offset="1" stopColor="#818cf8" stopOpacity="0.08" />
+                </linearGradient>
+              </defs>
+              <path d="M45 222 62 174l91-28 70-71h139l72 69 69 25 20 53h-59a54 54 0 0 0-106 0H207a54 54 0 0 0-106 0Z" fill="url(#whole-car-shell)" stroke="#7dd3fc" strokeWidth="3" strokeLinejoin="round" />
+              <path d="m229 90-48 57h211l-48-57ZM286 90v57M72 174h94m244-20 77 28M216 192h138" fill="none" stroke="#64748b" strokeWidth="2" />
+              <circle cx="154" cy="225" r="45" fill="#0f172a" stroke="#94a3b8" strokeWidth="3" />
+              <circle cx="154" cy="225" r="20" fill="none" stroke="#64748b" strokeWidth="3" />
+              <circle cx="411" cy="225" r="45" fill="#0f172a" stroke="#94a3b8" strokeWidth="3" />
+              <circle cx="411" cy="225" r="20" fill="none" stroke="#64748b" strokeWidth="3" />
+              <path d="M209 250h151M255 250l38 29h73M92 270h72" fill="none" stroke="#475569" strokeWidth="4" strokeLinecap="round" />
+              <text x="280" y="307" textAnchor="middle" fill="#94a3b8" fontSize="12">Tap a numbered area or choose from the list</text>
+            </svg>
+            {visibleDiagramSystems.map(([id, system], index) => {
+              const [x, y] = system.hotspot;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  aria-label={`Explore ${system.name}`}
+                  onClick={() => onCategory(id)}
+                  className="absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] bg-slate-950 text-sm font-black text-white shadow-lg outline-none transition hover:scale-110 focus-visible:ring-4 focus-visible:ring-white/70"
+                  style={{ left: `${(x / 560) * 100}%`, top: `${(y / 320) * 100}%`, borderColor: system.accent }}
+                >
+                  {index + 1}
+                </button>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+            {visibleDiagramSystems.map(([id, system], index) => (
+              <button key={id} type="button" onClick={() => onCategory(id)} className="group flex items-center gap-3 rounded-xl border border-outline/10 bg-overlay/[0.035] p-3 text-left outline-none transition hover:-translate-y-0.5 hover:border-sky-400/40 hover:bg-overlay/[0.07] focus-visible:ring-2 focus-visible:ring-sky-300">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-black/20" style={{ color: system.accent }}><SystemIcon system={id} /></span>
+                <span className="min-w-0"><strong className="block text-sm"><span style={{ color: system.accent }}>{index + 1}.</span> {system.shortName}</strong><span className="mt-0.5 hidden text-xs leading-4 text-subtle sm:block">{system.description}</span></span>
               </button>
             ))}
           </div>
         </div>
+        <p className="border-t border-outline/10 px-5 py-4 text-xs leading-5 text-subtle sm:px-6"><strong className="text-warning">Naming guide only.</strong> Parts, systems and positions vary by model, year, power type and body style; some shown parts will not be fitted to every vehicle. {electricOnly ? "Combustion-engine and exhaust options are hidden for this electric vehicle. " : ""}Use this to learn a likely part name, then confirm the exact part number and fitment with the seller, manufacturer information or a qualified technician.</p>
       </div>
     );
   }
@@ -302,7 +411,7 @@ function DiagramExplorer({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline/10 px-5 py-4 sm:px-6">
         <div>
           <button type="button" onClick={() => onCategory("")} className="text-xs font-semibold text-link hover:text-link">← All vehicle systems</button>
-          <h3 className="mt-1 text-lg font-bold">{selectedSystem.name}</h3>
+          <h3 ref={selectedHeadingRef} tabIndex={-1} className="mt-1 text-lg font-bold outline-none">{selectedSystem.name}</h3>
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.06] px-3 py-1.5 text-xs text-warning">General guide — not vehicle-specific</span>
@@ -310,22 +419,29 @@ function DiagramExplorer({
         </div>
       </div>
       <div className="grid gap-5 p-5 sm:grid-cols-[1.35fr_0.85fr] sm:p-6">
-        <div className="relative min-h-80 overflow-hidden rounded-2xl border border-outline/10 bg-overlay/[0.025] p-4">
-          <svg viewBox="0 0 560 360" role="img" aria-label={`Exploded ${selectedSystem.name} parts diagram`} className="h-full w-full">
+        <div className="relative min-h-80 overflow-hidden rounded-2xl border border-outline/10 bg-overlay/[0.025]">
+          <svg viewBox="0 0 560 360" aria-hidden="true" className="absolute inset-0 h-full w-full">
             <rect x="20" y="20" width="520" height="300" rx="24" fill="#07101e" stroke="#1e293b" strokeWidth="2" />
             <SystemArtwork system={category} accent={selectedSystem.accent} />
-            {selectedSystem.parts.map((item, index) => {
-              const [x, y] = selectedSystem.partPositions[index];
-              const active = part === item;
-              return (
-                <g key={item} role="button" tabIndex={0} aria-label={item} onClick={() => onPart(item)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onPart(item); }} className="cursor-pointer outline-none">
-                  <circle cx={x} cy={y} r="18" fill={active ? selectedSystem.accent : "#0f172a"} stroke={active ? "#fff" : selectedSystem.accent} strokeWidth="3" />
-                  <text x={x} y={y + 5} textAnchor="middle" fill={active ? "#07101e" : "#fff"} fontSize="14" fontWeight="800">{index + 1}</text>
-                </g>
-              );
-            })}
-            <text x="280" y="344" textAnchor="middle" fill="#64748b" fontSize="12">Built-in interactive schematic — select a numbered component</text>
+            <text x="280" y="344" textAnchor="middle" fill="#64748b" fontSize="12">General system illustration — select a numbered component</text>
           </svg>
+          {selectedSystem.parts.map((item, index) => {
+            const [x, y] = selectedSystem.partPositions[index];
+            const active = part === item;
+            return (
+              <button
+                key={item}
+                type="button"
+                aria-label={item}
+                aria-pressed={active}
+                onClick={() => onPart(item)}
+                className="absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] text-sm font-black shadow-lg outline-none transition hover:scale-110 focus-visible:ring-4 focus-visible:ring-white/70"
+                style={{ left: `${(x / 560) * 100}%`, top: `${(y / 360) * 100}%`, borderColor: active ? "#fff" : selectedSystem.accent, backgroundColor: active ? selectedSystem.accent : "#0f172a", color: active ? "#07101e" : "#fff" }}
+              >
+                {index + 1}
+              </button>
+            );
+          })}
         </div>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-subtle">What does your part look like?</p>
@@ -561,6 +677,15 @@ export default function Home() {
 
   const vehicleReady = Boolean(make && model && year);
   const vehicleLabel = [year, make, model, engine, fuel, bodyStyle].filter(Boolean).join(" ");
+  const electricOnly = /^electric/i.test(fuel.trim());
+  const availablePartCategories = (Object.keys(categories) as Array<keyof typeof categories>)
+    .filter((category) => !electricOnly || (category !== "Engine" && category !== "Exhaust"));
+  const availableCatalogueParts = partCategory
+    ? (electricOnly ? (electricCategoryOverrides[partCategory as keyof typeof categories] || categories[partCategory as keyof typeof categories]) : categories[partCategory as keyof typeof categories])
+    : [];
+  const partsSearchReady = partMethod === "search"
+    ? Boolean(part.trim() || partNumber.trim())
+    : Boolean((partMethod === "diagram" || partMethod === "catalogue") && part.trim());
 
   const carLinks = useMemo(() => {
     const query = [
@@ -650,8 +775,12 @@ export default function Home() {
       setError("Select the make, model and year.");
       return;
     }
-    if (!part.trim() && !partCategory && !partNumber.trim()) {
-      setError("Choose a category or enter the part you need.");
+    if ((partMethod === "diagram" || partMethod === "catalogue") && !part.trim()) {
+      setError("Choose a specific part before searching.");
+      return;
+    }
+    if (partMethod === "search" && !part.trim() && !partNumber.trim()) {
+      setError("Enter a part name or part number before searching.");
       return;
     }
     setError("");
@@ -1043,11 +1172,10 @@ export default function Home() {
                   <VehicleReference
                     make={make}
                     model={model}
-                    year={year}
                   />
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
                     {([
-                      ...(vehicleSpecificDiagramsAvailable ? [["diagram", "Vehicle diagram", "Explore diagrams licensed for this exact vehicle", "Coming soon"] as const] : []),
+                      ["diagram", "Visual parts guide", "Not sure what it is? Find common parts by area and shape", "No part name needed"],
                       ["catalogue", "Parts catalogue", "Browse common parts by system", "Ready to use"],
                       ["search", "Search directly", "Enter a name or part number", "Fastest route"],
                     ] as const).map(([id, title, description, badge]) => (
@@ -1076,18 +1204,21 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {vehicleSpecificDiagramsAvailable && partMethod === "diagram" && (
+                  {partMethod === "diagram" && (
                     <DiagramExplorer
                       category={partCategory}
                       part={part}
+                      fuel={fuel}
                       onCategory={(value) => {
                         setPartCategory(value);
                         setPart("");
                         setShowResults(false);
+                        setError("");
                       }}
                       onPart={(value) => {
                         setPart(value);
                         setShowResults(false);
+                        setError("");
                       }}
                     />
                   )}
@@ -1096,7 +1227,7 @@ export default function Home() {
                     <div className="mt-5">
                       <p className="mb-3 text-sm font-semibold text-muted">Choose a system</p>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        {Object.keys(categories).map((category) => (
+                        {availablePartCategories.map((category) => (
                           <button
                             key={category}
                             type="button"
@@ -1105,6 +1236,7 @@ export default function Home() {
                               setPartCategory(category);
                               setPart("");
                               setShowResults(false);
+                              setError("");
                             }}
                             className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${
                               partCategory === category
@@ -1118,7 +1250,7 @@ export default function Home() {
                       </div>
                       {partCategory && (
                         <div className="mt-4 flex flex-wrap gap-2">
-                          {categories[partCategory as keyof typeof categories].map((item) => (
+                          {availableCatalogueParts.map((item) => (
                             <button
                               key={item}
                               type="button"
@@ -1126,6 +1258,7 @@ export default function Home() {
                               onClick={() => {
                                 setPart(item);
                                 setShowResults(false);
+                                setError("");
                               }}
                               className={`rounded-full border px-3 py-2 text-sm transition ${
                                 part === item
@@ -1145,17 +1278,20 @@ export default function Home() {
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <label className="text-sm text-muted">
                         <span className="mb-2 block">Part name</span>
-                        <input value={part} onChange={(event) => { setPart(event.target.value); setShowResults(false); }} placeholder="e.g. front brake pads" className={fieldClass} />
+                        <input value={part} onChange={(event) => { setPart(event.target.value); setShowResults(false); setError(""); }} placeholder="e.g. front brake pads" className={fieldClass} />
                       </label>
                       <label className="text-sm text-muted">
                         <span className="mb-2 block">Part number <span className="text-subtle">(optional)</span></span>
-                        <input value={partNumber} onChange={(event) => { setPartNumber(event.target.value); setShowResults(false); }} placeholder="OEM or manufacturer number" className={fieldClass} />
+                        <input value={partNumber} onChange={(event) => { setPartNumber(event.target.value); setShowResults(false); setError(""); }} placeholder="OEM or manufacturer number" className={fieldClass} />
                       </label>
                     </div>
                   )}
 
                   {(partMethod === "diagram" || partMethod === "catalogue" || partMethod === "search") && (
-                    <button type="button" onClick={handlePartsSearch} className="mt-5 w-full rounded-2xl bg-sky-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition hover:bg-sky-300">Find compatible listings</button>
+                    <>
+                      <button type="button" onClick={handlePartsSearch} disabled={!partsSearchReady} className="mt-5 w-full rounded-2xl bg-sky-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300 disabled:shadow-none">{partsSearchReady ? "Search matching listings" : "Choose a specific part to continue"}</button>
+                      {!partsSearchReady && <p className="mt-2 text-center text-xs text-subtle">Select a named part or enter a part number before searching.</p>}
+                    </>
                   )}
                 </div>
               )}

@@ -18,6 +18,31 @@ function plainText(value?: string) {
   return (value || "").replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").trim().slice(0, 120);
 }
 
+function safeCommonsUrl(value?: string) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const allowedHost = url.hostname === "upload.wikimedia.org" || url.hostname === "thumb.wikimedia.org";
+    const allowedPath = url.pathname.startsWith("/wikipedia/commons/thumb/");
+    if (url.protocol !== "https:" || url.port || !allowedHost || !allowedPath) return null;
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function safeExternalUrl(value?: string) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const make = clean(url.searchParams.get("make"));
@@ -60,17 +85,20 @@ export async function GET(request: Request) {
         && !/(logo|badge|diagram|drawing|interior|engine)/.test(searchable);
     });
     const info = page?.imageinfo?.[0];
-    if (!info?.thumburl) return NextResponse.json({ image: null });
+    const imageUrl = safeCommonsUrl(info?.thumburl);
+    if (!info || !imageUrl) return NextResponse.json({ image: null });
+    const pageUrl = safeExternalUrl(info.descriptionurl) || "https://commons.wikimedia.org/";
+    const licenseUrl = safeExternalUrl(info.extmetadata?.LicenseUrl?.value) || pageUrl;
 
     return NextResponse.json(
       {
         image: {
-          url: info.thumburl,
-          pageUrl: info.descriptionurl,
+          url: imageUrl,
+          pageUrl,
           title: plainText(info.extmetadata?.ObjectName?.value) || page?.title?.replace(/^File:/, ""),
           creator: plainText(info.extmetadata?.Artist?.value) || "Wikimedia Commons contributor",
           license: plainText(info.extmetadata?.LicenseShortName?.value) || "View licence",
-          licenseUrl: info.extmetadata?.LicenseUrl?.value || info.descriptionurl,
+          licenseUrl,
         },
       },
       { headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" } },
