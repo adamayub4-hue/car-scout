@@ -6,6 +6,19 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
 const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+
+test('first-time guidance explains the complete car and parts journeys', () => {
+  for (const message of [
+    'New to Mekivo? Start here.',
+    'Only the make is required.',
+    'Press Search, then choose a marketplace',
+    'Use the registration, or enter the make, model and year.',
+    'Open the listing and confirm fitment with the seller.',
+    'Choose a marketplace to view live listings',
+  ]) {
+    assert.match(source, new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
 function handler(name, context) {
   let expression;
   function visit(node) {

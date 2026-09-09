@@ -734,6 +734,35 @@ export default function Home() {
           ))}
         </div>
 
+        <aside aria-labelledby="mekivo-steps-title" className="mx-auto mb-4 max-w-3xl rounded-2xl border border-sky-400/20 bg-sky-400/[0.055] p-4 sm:p-5">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+            <h2 id="mekivo-steps-title" className="font-bold">New to Mekivo? Start here.</h2>
+            <p className="text-sm text-muted">You do not buy anything on Mekivo—we help you reach the original listing.</p>
+          </div>
+          <ol className="mt-4 grid gap-3 sm:grid-cols-3">
+            {(mode === "cars"
+              ? [
+                  ["1", "Choose where to search", "Not sure? Leave All platforms selected."],
+                  ["2", "Enter what you know", "Only the make is required. Add more to narrow it down."],
+                  ["3", "Open live listings", "Press Search, then choose a marketplace from the results."],
+                ]
+              : [
+                  ["1", "Identify the vehicle", "Use the registration, or enter the make, model and year."],
+                  ["2", "Tell us the part", "Choose a category, type its name or use a part number."],
+                  ["3", "Check before buying", "Open the listing and confirm fitment with the seller."],
+                ]
+            ).map(([number, title, copy]) => (
+              <li key={number} className="flex gap-3 rounded-xl border border-outline/10 bg-panel/65 p-3">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-400 text-xs font-black text-slate-950">{number}</span>
+                <span>
+                  <strong className="block text-sm">{title}</strong>
+                  <span className="mt-1 block text-xs leading-5 text-muted">{copy}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </aside>
+
         <section className="mx-auto max-w-3xl rounded-[28px] border border-outline/10 bg-panel/95 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
           {mode === "cars" ? (
             <>
@@ -741,6 +770,7 @@ export default function Home() {
                 <p className="text-sm font-semibold text-foreground">
                   Where should we search?
                 </p>
+                <p className="mt-1 text-xs leading-5 text-muted">Choose one marketplace, or keep All platforms selected for the widest search.</p>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {(["all", "autotrader", "facebook", "ebay", "motors", "more"] as Platform[]).map(
                     (item) => (
@@ -828,6 +858,7 @@ export default function Home() {
               >
                 Search {platformNames[platform]}
               </button>
+              <p className="mt-3 text-center text-xs leading-5 text-muted">Your results will appear below this box. Choose a marketplace to continue on its website.</p>
             </>
           ) : (
             <>
@@ -864,6 +895,7 @@ export default function Home() {
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Step 1</p>
                   <h2 className="mt-1 text-2xl font-bold">Tell us which vehicle</h2>
                   <p className="mt-2 text-sm text-muted">Use the registration for the quickest match, or enter the vehicle manually.</p>
+                  <p className="mt-1 text-xs leading-5 text-subtle">Once the vehicle is identified, the next step for choosing a part will appear below.</p>
                 </div>
               </div>
 
@@ -1134,6 +1166,11 @@ export default function Home() {
 
         {showResults && mode === "cars" && (
           <section className="mx-auto mt-6 max-w-3xl">
+            <div className="mb-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-success">Your next step</p>
+              <h2 className="mt-2 text-xl font-bold">Choose a marketplace to view live listings</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">We have prepared your search. Select one of the options below and its results will open in a new tab.</p>
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {platformCards
                 .filter((item) => platform === "all" || platform === item.id || (platform === "more" && moreMarketplaceIds.includes(item.id)))
