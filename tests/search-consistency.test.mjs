@@ -112,6 +112,40 @@ test('a timed-out response cannot become a successful result if fetch resolves l
   assert.ok(!h.events.some(([name]) => name === 'results_shown'));
 });
 
+test('an HTML rate-limit response shows retry guidance without trying to parse JSON', async () => {
+  const h = requestsHarness();
+  let jsonCalls = 0;
+  const pending = h.run(newSearch);
+  h.requests[0].resolve({ ok: false, status: 429, json: async () => { jsonCalls++; throw new SyntaxError('Unexpected token <'); } });
+  await pending;
+  assert.equal(jsonCalls, 0);
+  assert.equal(h.state.error, 'Too many searches. Please wait a minute, then try again.');
+  assert.equal(h.state.loading, false); assert.equal(h.state.items.length, 0); assert.equal(h.timers.size, 0);
+  assert.deepEqual(h.events.map(([name]) => name), ['results_error']);
+});
+
+test('an old rate-limit response cannot overwrite a newer result', async () => {
+  const h = requestsHarness();
+  const old = h.run(oldSearch), latest = h.run(newSearch);
+  h.requests[1].resolve(response('Correct part')); await latest;
+  h.requests[0].resolve({ ok: false, status: 429, json: async () => { throw new SyntaxError('HTML response'); } });
+  await old;
+  assert.equal(h.state.items[0].title, 'Correct part'); assert.equal(h.state.error, ''); assert.equal(h.state.loading, false);
+  assert.deepEqual(h.events.map(([name]) => name), ['results_shown']);
+});
+
+test('an HTML registration rate limit clears loading and explains when to retry', async () => {
+  let jsonCalls = 0, loading = false, error = '', vehicle = { make: 'Ford' };
+  const lookup = handler('handleVehicleLookup', {
+    registration: 'AB12CDE',
+    setVehicleLookupLoading: value => { loading = value; }, setVehicleLookup: value => { vehicle = value; }, setError: value => { error = value; },
+    fetch: async () => ({ ok: false, status: 429, json: async () => { jsonCalls++; throw new SyntaxError('Unexpected token <'); } }),
+  });
+  await lookup();
+  assert.equal(jsonCalls, 0); assert.equal(loading, false); assert.equal(vehicle, null);
+  assert.equal(error, 'Too many registration lookups. Please wait a minute, then try again.');
+});
+
 test('listing image URLs only allow the expected HTTPS eBay image host and path', () => {
   assert.equal(search.safeListingImage('https://i.ebayimg.com/images/g/example/s-l500.jpg'), 'https://i.ebayimg.com/images/g/example/s-l500.jpg');
   for (const value of [null, 'javascript:alert(1)', 'data:image/svg+xml,abc', 'http://i.ebayimg.com/images/a.jpg', 'https://i.ebayimg.com.evil.test/images/a.jpg', 'https://i.ebayimg.com:8443/images/a.jpg', 'https://i.ebayimg.com/not-images/a.jpg']) assert.equal(search.safeListingImage(value), null, String(value));

@@ -199,6 +199,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ registrationNumber: cleanedRegistration }),
       });
+      if (response.status === 429) throw new Error("Too many registration lookups. Please wait a minute, then try again.");
       const payload = (await response.json()) as { vehicle?: VehicleLookup; error?: string };
       if (!response.ok || !payload.vehicle) throw new Error(payload.error || "We could not identify that vehicle.");
 
@@ -258,6 +259,7 @@ export default function Home() {
       const params = new URLSearchParams({ type: search.mode, q: search.query });
       if (search.maxPrice) params.set("maxPrice", search.maxPrice);
       const response = await fetch(`/api/ebay/search?${params}`, { signal: controller.signal });
+      if (response.status === 429) throw new Error("Too many searches. Please wait a minute, then try again.");
       const payload = (await response.json()) as { items?: EbayListing[]; error?: string };
       if (controller.signal.aborted) throw new Error("Search timed out");
       if (requestId !== ebayRequest.current.id) return;
