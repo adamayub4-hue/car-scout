@@ -17,7 +17,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - Registration-first or manual parts journey
 - Original interactive vehicle-system and parts naming guide
 - Parts catalogue and direct OEM/manufacturer-number search
-- Model-family reference photographs with Wikimedia Commons attribution
+- Ten illustrated component groups, including electric-drive examples
 - Responsive mobile and desktop interface
 - Clear marketplace hand-off and compatibility guidance
 
