@@ -4,6 +4,16 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 
+const guideSource = readFileSync(new URL('../app/components/parts-guide.tsx', import.meta.url), 'utf8');
+const guideDataSource = readFileSync(new URL('../app/lib/parts-guide-data.ts', import.meta.url), 'utf8');
+const searchSource = readFileSync(new URL('../app/lib/search.ts', import.meta.url), 'utf8');
+function loadModule(source) {
+  const exports = {};
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports, URL, URLSearchParams });
+  return exports;
+}
+const searchHelpers = loadModule(searchSource);
+const guideData = loadModule(guideDataSource);
 const source = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
 const imageRouteSource = readFileSync(new URL('../app/api/vehicle-image/route.ts', import.meta.url), 'utf8');
 const nextConfigSource = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8');
@@ -49,11 +59,11 @@ test('generic visual parts locator is available without licensed vehicle-specifi
     'Combustion-engine and exhaust options are hidden for this electric vehicle.',
     'Choose a specific part to continue',
   ]) {
-    assert.match(source, new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match([source, guideSource, guideDataSource].join("\n"), new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
-  assert.doesNotMatch(source, /NEXT_PUBLIC_VEHICLE_DIAGRAMS_ENABLED/);
-  assert.doesNotMatch(source, /<g[^>]*role="button"/);
-  assert.match(source, /focus-visible:ring/);
+  assert.doesNotMatch([source, guideSource].join("\n"), /NEXT_PUBLIC_VEHICLE_DIAGRAMS_ENABLED/);
+  assert.doesNotMatch([source, guideSource].join("\n"), /<g[^>]*role="button"/);
+  assert.match([source, guideSource, guideDataSource].join("\n"), /focus-visible:ring/);
 });
 
 test('vehicle reference images allow only Wikimedia Commons thumbnail hosts and paths', () => {
@@ -90,15 +100,14 @@ function handler(name, context) {
   return vm.runInNewContext(`${code}\nrun`, context);
 }
 
-test('each visual system has one hotspot and explanation for every selectable part', () => {
-  const systems = handler('diagramSystems', {});
-  const electricCategoryOverrides = handler('electricCategoryOverrides', {});
-  const electricSystems = handler('electricDiagramOverrides', { diagramSystems: systems, electricCategoryOverrides });
-  const hints = handler('partHints', {});
-  for (const [systemName, system] of Object.entries({ ...systems, ...electricSystems })) {
+test('each visual system has one selectable reference and explanation for every part', () => {
+  const { diagramSystems, electricDiagramOverrides, partHints, systemIllustrations } = guideData;
+  for (const [systemName, system] of Object.entries({ ...diagramSystems, ...electricDiagramOverrides })) {
     assert.equal(system.parts.length, system.partPositions.length, systemName);
-    for (const part of system.parts) assert.ok(hints[part], `${systemName}: ${part}`);
+    for (const part of system.parts) assert.ok(partHints[part], `${systemName}: ${part}`);
+    assert.ok(systemIllustrations[systemName], `${systemName}: image reference`);
   }
+  for (const system of ['ElectricElectrical', 'ElectricDrivetrain']) assert.ok(systemIllustrations[system]);
 });
 
 test('diagram search requires a specific part rather than a broad system', async () => {
@@ -122,6 +131,7 @@ for (const name of ['handleCarSearch', 'handlePartsSearch', 'handlePartNumberSea
       vehicleReady: true, vehicleLabel: '2018 Audi A3', engine: '', fuel: '', bodyStyle: '',
       part: 'oil filter', partCategory: '', partNumber: '06J115403Q', partMethod: 'search',
       setError() {}, setShowResults() {}, setPartNumber() {}, setPartMethod() {}, setPartCategory() {}, setPart() {},
+      ...searchHelpers, setSubmittedSearch() {},
       trackGrowthEvent() {},
       trackActivity: (...args) => { events.push(args); return new Promise(() => {}); },
       searchEbay: (...args) => searches.push(args),
@@ -138,10 +148,13 @@ test('external marketplace opens in the click turn despite stalled analytics', a
   const pending = handler('handleCarSearch', {
     make: 'Audi', model: 'A3', year: '', price: '', postcode: '', platform: 'autotrader',
     trackGrowthEvent() {},
+    ...searchHelpers, setSubmittedSearch() {}, ebayRequest: { current: { id: 0, controller: null } }, setEbayLoading() {},
     setError() {}, setShowResults() {}, trackActivity: () => new Promise(() => {}),
-    carLinks: { autotrader: 'https://example.com/search' }, window: { open: (...args) => opened.push(args) },
+    window: { open: (...args) => opened.push(args) },
   })();
   assert.equal(opened.length, 1);
+  assert.equal(new URL(opened[0][0]).hostname, 'www.autotrader.co.uk');
+  assert.equal(new URL(opened[0][0]).searchParams.get('model'), 'A3');
   await pending;
 });
 for (const kind of ['session rejection', 'insert rejection', 'missing client', 'signed out']) {
@@ -166,9 +179,10 @@ for (const telemetry of ['stalled', 'rejected']) {
     const exports = {};
     const jsx = (type, props) => ({ type, props });
     vm.runInNewContext(code, { exports, require(name) {
-      if (name === 'react') return { useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => slots[i] = v]; } };
+      if (name === 'react') return { useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => slots[i] = v]; }, useRef(initial) { const i = cursor++; if (!(i in slots)) slots[i] = { current: initial }; return slots[i]; } };
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
       if (name === 'next/navigation') return { useRouter: () => ({ push() { throw new Error('Unexpected redirect'); } }) };
+      if (name === '../lib/saved-search') return { withRequestDeadline: request => Promise.resolve(request), getSavedSearchUrl: () => '/?restore=1&mode=cars' };
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => ({
         auth: { getUser: async () => ({ data: { user: { id: 'test' } } }) },
         from: table => ({ insert: () => table === 'saved_items' ? Promise.resolve({ error: null }) : telemetry === 'stalled' ? new Promise(() => {}) : Promise.reject(new Error('offline')) }),

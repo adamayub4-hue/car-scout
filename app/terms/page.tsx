@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/terms" },
   title: "Terms",
   description: "Terms for using the Mekivo search service.",
 };

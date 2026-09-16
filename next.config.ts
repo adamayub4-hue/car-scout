@@ -41,6 +41,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
+      { protocol: "https", hostname: "i.ebayimg.com", port: "", pathname: "/images/**" },
       {
         protocol: "https",
         hostname: "images.unsplash.com",

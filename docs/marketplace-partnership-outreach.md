@@ -1,16 +1,18 @@
 # Mekivo marketplace partnership outreach
 
-## What is already safe to launch
+## Current integration and permission scope
 
-Mekivo currently creates an outbound search and sends the user to the marketplace's own website. It does not scrape, reproduce or claim ownership of third-party listings. Ordinary text links normally do not require an API agreement, but each marketplace remains responsible for its own results, login requirements and terms.
+Mekivo displays search-result summaries from the official eBay Browse API and sends users to eBay to verify and buy. Other marketplace integrations prepare outbound searches; they do not import those marketplaces' listings. Mekivo does not scrape listings or claim ownership of marketplace content. Confirm current provider terms and account entitlements before describing any integration as an approved partnership.
 
-Written permission or a commercial agreement is needed before Mekivo:
+Request the applicable provider permission or agreement before extending Mekivo to:
 
-- imports or republishes listings;
-- uses a private or licensed search/feed API;
-- uses marketplace logos or other protected brand assets;
-- claims an official partnership;
-- receives referral or affiliate commission.
+- import or republish another provider's listings;
+- use a private or licensed search/feed API;
+- use marketplace logos or protected brand assets;
+- claim an official partnership;
+- receive referral or affiliate commission under that provider's programme.
+
+API credentials do not automatically grant unrestricted republication, caching, branding or promotional rights. For eBay, verify the production developer account's obligations and Partner Network reporting/payout status. Existing eBay affiliate link generation is implementation, not proof of a settled commission. Mekivo complements marketplace inventory while competing for the initial searcher's attention; do not promise marketplace traffic or revenue before measuring it.
 
 ## Priority contacts
 
@@ -34,7 +36,7 @@ Hello [Marketplace] Partnerships Team,
 
 My name is Adam Ayub and I operate Mekivo, an early-stage UK vehicle and car-parts search service available at https://mekivo.uk.
 
-Mekivo helps a user enter a make, model, year, budget and postcode once, then provides clearly labelled outbound routes to relevant UK marketplaces. Users are sent to the original marketplace to view and verify results; Mekivo does not currently scrape, copy or republish third-party listings.
+Mekivo helps a user enter vehicle preferences once, then provides clearly labelled routes to UK marketplaces. Supported filters differ by destination. We already display eBay result summaries through its official Browse API. For [Marketplace], the current integration sends users to your own search pages and does not scrape or republish your listings.
 
 We would like to confirm that you are comfortable with Mekivo generating clearly attributed outbound search links to [Marketplace]. We would also be interested in discussing any official search API, listings feed, affiliate/referral programme or technology partnership that could give users a better experience while complying fully with your terms and brand requirements.
 
@@ -59,3 +61,5 @@ adamayub4@gmail.com
 ## Outreach order
 
 Start with Auto Trader and MOTORS because they publish official integration routes. Contact Gumtree next because it is closely aligned with private/local vehicle search. Approach CarGurus and PistonHeads together but as separate brands. Then contact AA Cars and Car & Classic. Treat Meta as a longer-term partnership request, not as an expected public API integration.
+
+This is a prepared outreach draft. No enquiry was sent as part of the 16 September repository improvements. Recheck the listed contact routes before sending.

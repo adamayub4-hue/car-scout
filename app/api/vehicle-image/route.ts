@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withUpstreamTimeout } from "../../lib/server-upstream";
 
 type CommonsPage = {
   title?: string;
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const make = clean(url.searchParams.get("make"));
   const model = clean(url.searchParams.get("model"));
-  if (!make) return NextResponse.json({ image: null }, { status: 400 });
+  if (!make) return NextResponse.json({ image: null }, { status: 400, headers: { "Cache-Control": "no-store" } });
 
   const search = model ? `"${make} ${model}" automobile` : `${make} automobile`;
   const params = new URLSearchParams({
@@ -65,12 +66,15 @@ export async function GET(request: Request) {
   });
 
   try {
-    const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
-      headers: { "User-Agent": "Mekivo/1.0 (https://mekivo.uk)" },
-      next: { revalidate: 86400 },
-    });
-    if (!response.ok) throw new Error("Commons request failed");
-    const payload = await response.json();
+    const payload = await withUpstreamTimeout(async (signal) => {
+      const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
+        headers: { "User-Agent": "Mekivo/1.0 (https://mekivo.uk)" },
+        next: { revalidate: 86400 },
+        signal,
+      });
+      if (!response.ok) throw new Error("Commons request failed");
+      return response.json();
+    }, 5_000);
     const pages = Object.values(payload?.query?.pages || {}) as CommonsPage[];
     const normalizedMake = make.toLowerCase();
     const normalizedModel = model.toLowerCase();
@@ -86,7 +90,7 @@ export async function GET(request: Request) {
     });
     const info = page?.imageinfo?.[0];
     const imageUrl = safeCommonsUrl(info?.thumburl);
-    if (!info || !imageUrl) return NextResponse.json({ image: null });
+    if (!info || !imageUrl) return NextResponse.json({ image: null }, { headers: { "Cache-Control": "public, s-maxage=300" } });
     const pageUrl = safeExternalUrl(info.descriptionurl) || "https://commons.wikimedia.org/";
     const licenseUrl = safeExternalUrl(info.extmetadata?.LicenseUrl?.value) || pageUrl;
 
@@ -104,6 +108,6 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" } },
     );
   } catch {
-    return NextResponse.json({ image: null }, { status: 502 });
+    return NextResponse.json({ image: null }, { status: 502, headers: { "Cache-Control": "no-store" } });
   }
 }

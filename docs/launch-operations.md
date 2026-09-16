@@ -32,7 +32,7 @@ When Gumtree calls or emails, ask for permission to use attributed outbound sear
 
 ### Meta / Facebook Marketplace
 
-Meta provides personalised business support only after login. Contact it after the dedicated Mekivo Facebook/Meta business account and Page exist. Ask whether attributed outbound links to Facebook Marketplace search are permitted and whether Mekivo could qualify for any vehicle-listings partner access. Do not claim that a public Marketplace listings API exists.
+The dedicated Mekivo Meta business account and Page now exist. If marketplace-data access becomes a priority, use the signed-in business support route to ask whether attributed outbound search links are permitted and whether Mekivo could qualify for vehicle-listings partner access. A working advertising account does not itself grant Marketplace inventory API access. No such outreach was sent during the 16 September repository improvements.
 
 ## Owner monitoring routine
 
@@ -40,7 +40,10 @@ Meta provides personalised business support only after login. Contact it after t
 - Check open feedback and complaints daily during launch week, then at least weekly.
 - Move each report from **Open** to **In progress** and finally **Resolved**.
 - Review recent activity and saved-item totals for sudden drops or unexpected spikes.
+- Use Vercel visitor/event reporting for anonymous acquisition; account activity alone cannot measure the paid campaigns. Verify plan entitlement and actual event ingestion before interpreting a zero.
 - Check Vercel logs after any uptime alert or user report.
+- Follow [API operations](api-operations.md) for provider deadlines, cache bounds and the outstanding shared production quota control. The current registration throttle is per instance, not a site-wide quota.
+- Use [the current ad-test status](ad-test-2026-09.md) rather than the superseded £30 plan. Both paid campaigns were last confirmed under review, not delivering.
 - Never share owner-dashboard screenshots containing customer email addresses.
 
 ## Deferred registration work

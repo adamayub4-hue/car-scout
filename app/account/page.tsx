@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getSavedSearchUrl, safeSearchReturnUrl, withRequestDeadline } from "../lib/saved-search";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "../lib/supabase";
 
@@ -26,89 +27,131 @@ export default function AccountPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const loadAdminStatus = async (userId: string | null | undefined) => {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase || !userId) { setIsAdmin(false); return false; }
-    const { data: row, error } = await supabase.from("admins").select("user_id").eq("user_id", userId).maybeSingle();
-    const allowed = !error && Boolean(row);
-    setIsAdmin(allowed);
-    return allowed;
-  };
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [itemsError, setItemsError] = useState("");
+  const [busyAction, setBusyAction] = useState("");
+  const [returnUrl, setReturnUrl] = useState<string | null>(null);
+  const itemsRequest = useRef(0);
+  const actionRunning = useRef(false);
 
-  const loadItems = async () => {
+  const loadAdminStatus = useCallback(async (userId: string | null | undefined) => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase || !userId) { setIsAdmin(false); return; }
+    try {
+      const { data: row, error } = await withRequestDeadline(supabase.from("admins").select("user_id").eq("user_id", userId).maybeSingle());
+      setIsAdmin(!error && Boolean(row));
+    } catch { setIsAdmin(false); }
+  }, []);
+
+  const loadItems = useCallback(async () => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
-    const { data } = await supabase.from("saved_items").select("*").order("created_at", { ascending: false });
-    setItems((data as SavedItem[]) || []);
-  };
+    const request = ++itemsRequest.current;
+    setItemsLoading(true); setItemsError("");
+    try {
+      const { data, error } = await withRequestDeadline(supabase.from("saved_items").select("*").order("created_at", { ascending: false }));
+      if (error || !data) throw error || new Error("Missing saved items");
+      if (request === itemsRequest.current) setItems(data as SavedItem[]);
+    } catch {
+      if (request === itemsRequest.current) setItemsError("We could not load your saved searches. Your saved data has not been removed.");
+    } finally { if (request === itemsRequest.current) setItemsLoading(false); }
+  }, []);
 
   useEffect(() => {
+    const lifecycle = itemsRequest;
+    let active = true;
+    const requestedReturn = safeSearchReturnUrl(new URLSearchParams(window.location.search).get("returnTo"));
+    const startup = window.setTimeout(() => setReturnUrl(requestedReturn), 0);
     const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      setLoading(false);
-      if (data.user) void loadItems();
-      void loadAdminStatus(data.user?.id);
-    });
+    if (!supabase) return () => window.clearTimeout(startup);
+    const update = (nextUser: User | null) => {
+      if (!active) return;
+      setUser(nextUser); setLoading(false);
+      if (nextUser) { void loadItems(); void loadAdminStatus(nextUser.id); }
+      else { itemsRequest.current++; setItems([]); setItemsLoading(false); setItemsError(""); setIsAdmin(false); }
+    };
+    void withRequestDeadline(supabase.auth.getUser()).then(({ data, error }) => {
+      if (error && error.name !== "AuthSessionMissingError") throw error;
+      update(data.user);
+    }).catch(() => { if (active) { setLoading(false); setMessage("We could not check your session. Try signing in again."); } });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) { void loadItems(); void loadAdminStatus(session.user.id); }
-      else { setItems([]); setIsAdmin(false); }
+      // Defer database calls until the auth callback has released its session lock.
+      window.setTimeout(() => update(session?.user ?? null), 0);
     });
-    return () => listener.subscription.unsubscribe();
-  }, []);
+    return () => { active = false; lifecycle.current++; window.clearTimeout(startup); listener.subscription.unsubscribe(); };
+  }, [loadItems, loadAdminStatus]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
-    setLoading(true);
-    setMessage("");
-    const result = isSignUp
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (result.error) {
-      setMessage(result.error.message);
-    } else if (isSignUp && !result.data.session) {
-      setMessage("Check your email to confirm your account, then sign in.");
-    } else {
-      setUser(result.data.user);
-      void loadAdminStatus(result.data.user?.id);
-      setMessage(isSignUp ? "Your account is ready." : "Welcome back.");
-    }
+    if (!supabase || actionRunning.current) return;
+    actionRunning.current = true; setLoading(true); setMessage("");
+    try {
+      const confirmationUrl = `https://mekivo.uk/account${returnUrl ? `?returnTo=${encodeURIComponent(returnUrl)}` : ""}`;
+      const result = await withRequestDeadline(isSignUp
+        ? supabase.auth.signUp({ email, password, options: { emailRedirectTo: confirmationUrl } })
+        : supabase.auth.signInWithPassword({ email, password }));
+      if (result.error) setMessage(result.error.message);
+      else if (isSignUp && !result.data.session) setMessage("Check your email to confirm your account, then sign in.");
+      else {
+        setUser(result.data.user); void loadItems(); void loadAdminStatus(result.data.user?.id);
+        setMessage(isSignUp ? "Your account is ready." : "Welcome back.");
+      }
+    } catch { setMessage("Sign-in could not be confirmed. Check your connection and try again."); }
+    finally { actionRunning.current = false; setLoading(false); }
   };
 
   const remove = async (id: string) => {
     const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
-    const { error } = await supabase.from("saved_items").delete().eq("id", id);
-    if (!error) setItems((current) => current.filter((item) => item.id !== id));
+    if (!supabase || actionRunning.current) return;
+    actionRunning.current = true; setBusyAction(id); setMessage("");
+    try {
+      const { data, error } = await withRequestDeadline(supabase.from("saved_items").delete().eq("id", id).select("id"));
+      if (error || !data?.some(row => row.id === id)) throw error || new Error("Removal not confirmed");
+      setItems(current => current.filter(item => item.id !== id));
+    } catch { setMessage("We could not confirm removal. Refresh your saved searches before trying again."); }
+    finally { actionRunning.current = false; setBusyAction(""); }
   };
 
   const signOut = async () => {
-    await getSupabaseBrowserClient()?.auth.signOut();
-    setUser(null);
-    setIsAdmin(false);
+    try {
+      const result = await withRequestDeadline(getSupabaseBrowserClient()!.auth.signOut());
+      if (result.error) throw result.error;
+      itemsRequest.current++; setUser(null); setItems([]); setIsAdmin(false);
+    } catch { setMessage("We could not sign you out. Please try again."); }
   };
 
   const exportData = async () => {
-    const supabase = getSupabaseBrowserClient(); if (!supabase || !user) return;
-    const [profile, saved, complaints, activity] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", user.id),
-      supabase.from("saved_items").select("*").eq("user_id", user.id),
-      supabase.from("complaints").select("*").eq("user_id", user.id),
-      supabase.from("activity_events").select("*").eq("user_id", user.id),
-    ]);
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile: profile.data, savedItems: saved.data, complaints: complaints.data, activity: activity.data }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "mekivo-data.json"; link.click(); URL.revokeObjectURL(url);
+    const supabase = getSupabaseBrowserClient(); if (!supabase || !user || actionRunning.current) return;
+    actionRunning.current = true; setBusyAction("export"); setMessage("");
+    try {
+      const readAll = async (table: string, column: string) => {
+        const rows: Record<string, unknown>[] = [];
+        for (let offset = 0; ; offset += 500) {
+          const { data, error } = await withRequestDeadline(supabase.from(table).select("*").eq(column, user.id).order("id").range(offset, offset + 499));
+          if (error || !data) throw error || new Error("Incomplete export");
+          rows.push(...data);
+          if (data.length < 500) return rows;
+        }
+      };
+      const [profile, savedItems, complaints, activity] = await Promise.all([readAll("profiles", "id"), readAll("saved_items", "user_id"), readAll("complaints", "user_id"), readAll("activity_events", "user_id")]);
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile, savedItems, complaints, activity }, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "mekivo-data.json"; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+      setMessage("Your complete data export is ready.");
+    } catch { setMessage("We could not load all of your data, so no incomplete export was downloaded. Please try again."); }
+    finally { actionRunning.current = false; setBusyAction(""); }
   };
 
   const deleteAccount = async () => {
-    if (isAdmin || !window.confirm("Permanently delete your Mekivo account and all saved data? This cannot be undone.")) return;
-    const { error } = await getSupabaseBrowserClient()!.rpc("delete_my_account");
-    if (error) setMessage("We could not delete the account. Please contact support."); else { setUser(null); setItems([]); setMessage("Your account and stored data were deleted."); }
+    if (isAdmin || actionRunning.current || !window.confirm("Permanently delete your Mekivo account and all saved data? This cannot be undone.")) return;
+    actionRunning.current = true; setBusyAction("delete"); setMessage("");
+    try {
+      const { error } = await withRequestDeadline(getSupabaseBrowserClient()!.rpc("delete_my_account"));
+      if (error) throw error;
+      await getSupabaseBrowserClient()!.auth.signOut({ scope: "local" });
+      itemsRequest.current++; setUser(null); setItems([]); setIsAdmin(false); setMessage("Your account and stored data were deleted.");
+    } catch { setMessage("Account deletion could not be confirmed. Please contact support before retrying."); }
+    finally { actionRunning.current = false; setBusyAction(""); }
   };
 
   return (
@@ -119,11 +162,13 @@ export default function AccountPage() {
           {user && <button type="button" onClick={signOut} className="text-sm text-muted hover:text-foreground">Sign out</button>}
         </header>
 
+        {returnUrl && <div className="mt-6 rounded-2xl border border-sky-300/25 p-5 text-sm"><p>Your search is ready to resume. {user ? "Open it, then choose Save to my account." : "Sign in or create an account, then return to save it."}</p><Link href={returnUrl} className="mt-3 inline-block font-semibold text-link">Resume your search →</Link></div>}
+        {message && user && <p role="status" className="mt-6 text-sm text-link">{message}</p>}
         {!configured ? (
           <section className="mt-12 rounded-3xl border border-amber-300/25 bg-amber-300/[0.06] p-7">
             <p className="text-xs font-bold uppercase tracking-wider text-warning">Account setup in progress</p>
-            <h1 className="mt-3 text-3xl font-bold">Accounts need their database connection</h1>
-            <p className="mt-3 leading-7 text-muted">The account interface is installed, but the production Supabase URL and public key still need to be connected before customers can register.</p>
+            <h1 className="mt-3 text-3xl font-bold">Accounts are temporarily unavailable</h1>
+            <p className="mt-3 leading-7 text-muted">Accounts are temporarily unavailable. You can still search for cars and parts without signing in.</p>
           </section>
         ) : loading && !user ? (
           <p className="mt-12 text-muted">Loading your account…</p>
@@ -138,7 +183,7 @@ export default function AccountPage() {
                 <span aria-hidden="true" className="ml-4 text-2xl text-warning">→</span>
               </Link>
             )}
-            {items.length === 0 ? (
+            {itemsLoading ? <p role="status" className="mt-8 text-muted">Loading your saved searches…</p> : itemsError ? <div role="alert" className="mt-8 rounded-xl border border-rose-300/30 p-5"><p>{itemsError}</p><button type="button" onClick={() => void loadItems()} className="mt-3 font-semibold text-link">Retry saved searches</button></div> : items.length === 0 ? (
               <div className="mt-8 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-6 text-muted">Nothing saved yet. Run a car or part search, then choose “Save to my account”.</div>
             ) : (
               <div className="mt-8 space-y-3">
@@ -147,15 +192,15 @@ export default function AccountPage() {
                     <div>
                       <span className="text-xs font-bold uppercase tracking-wider text-link">{item.kind.replace("_", " ")}</span>
                       <h2 className="mt-2 font-bold">{item.title}</h2>
-                      <p className="mt-1 text-xs text-subtle">Saved {new Date(item.created_at).toLocaleDateString("en-GB")}</p>
+                      <p className="mt-1 text-xs text-subtle">Saved {new Date(item.created_at).toLocaleDateString("en-GB")}</p><Link href={getSavedSearchUrl(item)} className="mt-3 inline-block text-sm font-semibold text-link">Run this search →</Link>
                     </div>
-                    <button type="button" onClick={() => remove(item.id)} className="text-sm text-danger hover:text-danger">Remove</button>
+                    <button type="button" disabled={Boolean(busyAction)} onClick={() => remove(item.id)} className="text-sm text-danger hover:text-danger">Remove</button>
                   </article>
                 ))}
               </div>
             )}
             <Link href="/" className="mt-8 inline-flex rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950">Start a new search</Link>
-            <section className="mt-10 border-t border-outline/10 pt-7"><h2 className="text-lg font-bold">Your data</h2><p className="mt-2 text-sm text-muted">Download a copy of the information stored with your account.</p><button type="button" onClick={exportData} className="mt-4 rounded-xl border border-outline/15 px-4 py-2.5 text-sm font-semibold hover:border-sky-300/50">Download my data</button>{isAdmin ? <p className="mt-5 text-xs text-warning">The master owner account cannot be deleted from the customer interface.</p> : <div className="mt-7 border-t border-outline/10 pt-6"><h3 className="font-bold text-danger">Delete account</h3><p className="mt-2 text-sm text-muted">Permanently removes your account, saved searches, reports and activity.</p><button type="button" onClick={deleteAccount} className="mt-4 rounded-xl border border-rose-300/30 px-4 py-2.5 text-sm font-semibold text-danger hover:bg-rose-300/10">Delete my account</button></div>}</section>
+            <section className="mt-10 border-t border-outline/10 pt-7"><h2 className="text-lg font-bold">Your data</h2><p className="mt-2 text-sm text-muted">Download a copy of the information stored with your account.</p><button type="button" disabled={Boolean(busyAction)} onClick={exportData} className="mt-4 rounded-xl border border-outline/15 px-4 py-2.5 text-sm font-semibold hover:border-sky-300/50">Download my data</button>{isAdmin ? <p className="mt-5 text-xs text-warning">The master owner account cannot be deleted from the customer interface.</p> : <div className="mt-7 border-t border-outline/10 pt-6"><h3 className="font-bold text-danger">Delete account</h3><p className="mt-2 text-sm text-muted">Permanently removes your account, saved searches, reports and activity.</p><button type="button" disabled={Boolean(busyAction)} onClick={deleteAccount} className="mt-4 rounded-xl border border-rose-300/30 px-4 py-2.5 text-sm font-semibold text-danger hover:bg-rose-300/10">Delete my account</button></div>}</section>
           </section>
         ) : (
           <section className="mx-auto mt-12 max-w-md rounded-3xl border border-outline/10 bg-overlay/[0.035] p-6 sm:p-8">
