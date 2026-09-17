@@ -11,7 +11,7 @@ const code = ts.transpileModule(source, {
 const paidCampaign = '?utm_source=meta&utm_medium=paid_social&utm_campaign=september_demo&utm_content=budget_car';
 const storageKey = 'mekivo_campaign_v2';
 
-function load({ query = '', storage = new Map(), ready = true, blockedStorage = false, trackError = false, server = false } = {}) {
+function load({ query = '', storage = new Map(), ready = true, blockedStorage = false, trackError = false, server = false, audience = 'included' } = {}) {
   const events = [], timers = new Map(), exports = {};
   let now = 0, nextTimer = 0;
   const window = {
@@ -29,6 +29,7 @@ function load({ query = '', storage = new Map(), ready = true, blockedStorage = 
     setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { at: now + delay, callback }); return id; },
     clearTimeout(id) { timers.delete(id); },
     require(name) {
+      if (name === './analytics-audience') return { analyticsAudience: () => audience, initializeAnalyticsAudience() {} };
       assert.equal(name, '@vercel/analytics');
       return { track(name, properties) {
         if (trackError) throw new Error('Analytics unavailable');
@@ -37,11 +38,11 @@ function load({ query = '', storage = new Map(), ready = true, blockedStorage = 
     },
   });
   return {
-    track: exports.trackGrowthEvent, events, window, storage, timers,
+    track: exports.trackGrowthEvent, events, window, storage, timers, setAudience(value) { audience = value; },
     advance(ms) {
       const end = now + ms;
       for (let calls = 0; timers.size; calls++) {
-        assert.ok(calls < 100, 'startup retries must be bounded');
+        assert.ok(calls < 300, 'startup retries must be bounded');
         const [id, timer] = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
         if (timer.at > end) break;
         now = timer.at; timers.delete(id); timer.callback();
@@ -245,4 +246,51 @@ test('SDK failures and server execution remain optional and never throw', () => 
   assert.doesNotThrow(() => server.track('campaign_landing', { landing_mode: 'cars' }));
   assert.equal(server.events.length, 0);
   assert.equal(server.timers.size, 0);
+});
+
+test('excluded visits never emit events or retain campaign attribution', () => {
+  const app = load({ query: paidCampaign, audience: 'excluded' });
+  app.track('campaign_landing', { landing_mode: 'cars' });
+  app.track('marketplace_outbound', { marketplace: 'ebay', search_type: 'cars', destination: 'listing' });
+  assert.equal(app.events.length, 0);
+  assert.equal(app.storage.size, 0);
+  assert.equal(app.timers.size, 0);
+});
+
+test('owner resolution discards pending events even when the SDK was already loaded', () => {
+  const app = load({ audience: 'pending' });
+  app.track('campaign_landing', { landing_mode: 'cars' });
+  app.advance(3000);
+  assert.equal(app.events.length, 0);
+  app.setAudience('excluded');
+  app.advance(50);
+  app.setAudience('included');
+  app.track('search_submitted', { search_type: 'cars', marketplace: 'all' });
+  assert.deepEqual(app.events.map(event => event.name), ['search_submitted']);
+});
+
+test('customer identity resolution has a separate deadline from SDK startup', () => {
+  const app = load({ audience: 'pending', ready: false });
+  app.track('campaign_landing', { landing_mode: 'cars' });
+  app.advance(7000);
+  app.setAudience('included');
+  app.advance(1000);
+  app.window.va = () => {};
+  app.advance(50);
+  assert.deepEqual(app.events.map(event => event.name), ['campaign_landing']);
+  const uncertain = load({ audience: 'pending' });
+  uncertain.track('campaign_landing', { landing_mode: 'cars' });
+  uncertain.advance(12000);
+  assert.equal(uncertain.events.length, 0);
+  assert.equal(uncertain.timers.size, 0);
+});
+
+test('opting out clears SDK startup events instead of sending them later', () => {
+  const app = load({ ready: false });
+  app.track('campaign_landing', { landing_mode: 'cars' });
+  app.setAudience('excluded');
+  app.window.va = () => {};
+  app.advance(50);
+  assert.equal(app.events.length, 0);
+  assert.equal(app.timers.size, 0);
 });

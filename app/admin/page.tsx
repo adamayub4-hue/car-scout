@@ -97,6 +97,7 @@ export default function AdminPage() {
         <a href="https://vercel.com/adamayub4-hues-projects/car-scout/analytics" target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center justify-center rounded-xl bg-sky-300 px-5 py-3 text-sm font-bold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300">View website visitors <span aria-hidden="true" className="ml-2">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
       </div>
       <p className="mt-3 text-xs leading-5 text-subtle">Opens your private Vercel traffic report. Choose the same dates when comparing visitors with your ad results.</p>
+      <p className="mt-3 text-sm leading-6 text-muted">Signed-in owner visits are excluded automatically. Before testing on another browser or phone, <Link href="/traffic-settings" className="font-semibold text-link underline">exclude that browser from the reports</Link>. Earlier totals still include earlier testing.</p>
     </section>
     <section aria-labelledby="account-records-heading" className="mt-8">
       <h2 id="account-records-heading" className="text-xl font-bold">Account records</h2>

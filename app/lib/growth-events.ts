@@ -1,4 +1,5 @@
 import { track } from "@vercel/analytics";
+import { analyticsAudience, initializeAnalyticsAudience } from "./analytics-audience";
 
 const campaignKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_content"] as const;
 // Only approved marketing labels: never retain arbitrary query text or identifiers.
@@ -74,18 +75,25 @@ function eventContext(name: string, properties: EventProperties) {
 type GrowthEvent = { name: string; properties: { campaign: string; context: string } };
 const pendingEvents: GrowthEvent[] = [];
 const startupWaitMs = 2000;
+const audienceWaitMs = 11000;
+let audienceDeadline = 0;
 let startupDeadline = 0;
 let startupTimer: ReturnType<typeof setTimeout> | undefined;
 
 function sendEvent(event: GrowthEvent) {
+  if (analyticsAudience() !== "included") return;
   try { track(event.name, event.properties); } catch { /* Analytics never blocks a search or outbound click. */ }
 }
 
 function flushPendingEvents() {
-  const expired = Date.now() >= startupDeadline;
+  const audience = analyticsAudience();
+  if (audience === "pending" && Date.now() < audienceDeadline) return false;
+  if (audience === "included" && startupDeadline === 0) startupDeadline = Date.now() + startupWaitMs;
+  const expired = audience !== "included" || Date.now() >= startupDeadline;
   if (!expired && typeof window.va !== "function") return false;
   if (startupTimer !== undefined) clearTimeout(startupTimer);
   startupTimer = undefined;
+  startupDeadline = 0;
   const events = pendingEvents.splice(0);
   if (!expired) events.forEach(sendEvent);
   return true;
@@ -99,10 +107,13 @@ function awaitAnalytics() {
 export function trackGrowthEvent(name: string, properties: EventProperties = {}) {
   try {
     if (typeof window === "undefined") return;
+    initializeAnalyticsAudience();
+    const audience = analyticsAudience();
+    if (audience === "excluded") { flushPendingEvents(); return; }
     const context = eventContext(name, properties);
     if (context === null) return;
     const event = { name, properties: { campaign: campaignProperty(), context } };
-    if (typeof window.va === "function") {
+    if (audience === "included" && typeof window.va === "function") {
       flushPendingEvents();
       sendEvent(event);
     } else {
@@ -110,7 +121,8 @@ export function trackGrowthEvent(name: string, properties: EventProperties = {})
       // Keep only a short, bounded startup buffer; never inject another SDK/script.
       if (pendingEvents.length < 20) pendingEvents.push(event);
       if (startupTimer === undefined) {
-        startupDeadline = Date.now() + startupWaitMs;
+        audienceDeadline = Date.now() + audienceWaitMs;
+        startupDeadline = audience === "included" ? Date.now() + startupWaitMs : 0;
         startupTimer = setTimeout(awaitAnalytics, 50);
       }
     }

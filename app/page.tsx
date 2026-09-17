@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { trackGrowthEvent } from "./lib/growth-events";
+import { analyticsAudience } from "./lib/analytics-audience";
 import DiagramExplorer from "./components/parts-guide";
 import { categories, diagramSystems, electricCategoryOverrides, electricDiagramOverrides } from "./lib/parts-guide-data";
 import { parseSavedSearchParams } from "./lib/saved-search";
@@ -165,11 +166,12 @@ export default function Home() {
 
   const trackActivity = async (eventName: "car_search" | "part_search" | "part_number_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
     try {
+      if (analyticsAudience() !== "included") return;
       const client = getSupabaseBrowserClient();
       if (!client) return;
       const { data } = await client.auth.getSession();
       const user = data.session?.user;
-      if (user) await client.from("activity_events").insert({ user_id: user.id, event_name: eventName, metadata });
+      if (user && analyticsAudience() === "included") await client.from("activity_events").insert({ user_id: user.id, event_name: eventName, metadata });
     } catch { /* Optional telemetry must never interrupt the customer journey. */ }
   };
 

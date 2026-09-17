@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import { analyticsAudience } from "../lib/analytics-audience";
 import { getSavedSearchUrl, withRequestDeadline } from "../lib/saved-search";
 
 type SavedItem = {
@@ -49,7 +50,7 @@ export default function SaveButton({ item }: { item: SavedItem }) {
       setState("saved");
       setMessage("Saved to your account.");
       // The save is already confirmed; optional telemetry must not hold up success.
-      void Promise.resolve().then(() => supabase.from("activity_events").insert({ user_id: auth.user.id, event_name: "save_item", metadata: { kind: item.kind } })).catch(() => {});
+      void Promise.resolve().then(() => analyticsAudience() === "included" ? supabase.from("activity_events").insert({ user_id: auth.user.id, event_name: "save_item", metadata: { kind: item.kind } }) : undefined).catch(() => {});
     } catch {
       setState("error");
       setMessage("We could not confirm this was saved. Check your account before trying again.");

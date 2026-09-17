@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Suspense } from "react";
+import { SiteAnalytics } from "./components/site-analytics";
 import { AppearanceRuntime } from "./components/appearance";
 
 export const metadata: Metadata = {
@@ -46,7 +46,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <AppearanceRuntime />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "WebSite", name: "Mekivo", url: "https://mekivo.uk", description: "A UK car and vehicle-parts marketplace search starting point.", inLanguage: "en-GB" }) }} />
-        {children}<Analytics /><SpeedInsights />
+        {children}<Suspense fallback={null}><SiteAnalytics /></Suspense>
       </body>
     </html>
   );

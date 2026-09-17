@@ -161,6 +161,7 @@ for (const kind of ['session rejection', 'insert rejection', 'missing client', '
   test(`optional tracking handles ${kind}`, async () => {
     let inserts = 0;
     const fn = handler('trackActivity', {
+      analyticsAudience: () => 'included',
       getSupabaseBrowserClient: () => kind === 'missing client' ? null : {
         auth: { getSession: async () => { if (kind === 'session rejection') throw new Error('offline'); return { data: { session: kind === 'signed out' ? null : { user: { id: 'test' } } } }; } },
         from: () => ({ insert: async () => { inserts++; throw new Error('offline'); } }),
@@ -187,6 +188,7 @@ for (const telemetry of ['stalled', 'rejected']) {
         auth: { getUser: async () => ({ data: { user: { id: 'test' } } }) },
         from: table => ({ insert: () => table === 'saved_items' ? Promise.resolve({ error: null }) : telemetry === 'stalled' ? new Promise(() => {}) : Promise.reject(new Error('offline')) }),
       }) };
+      if (name === '../lib/analytics-audience') return { analyticsAudience: () => 'included' };
       throw new Error(name);
     } });
     const render = () => { cursor = 0; return exports.default({ item: { kind: 'car_search', title: 'Test', data: {} } }); };
@@ -195,3 +197,25 @@ for (const telemetry of ['stalled', 'rejected']) {
     assert.equal(render().props.children[0].props.children, '✓ Saved');
   });
 }
+
+for (const audience of ['excluded', 'pending']) {
+  test(`optional account activity skips ${audience} visitors`, async () => {
+    let sessionCalls = 0;
+    const fn = handler('trackActivity', { analyticsAudience: () => audience, getSupabaseBrowserClient: () => { sessionCalls++; throw new Error('Should not run'); } });
+    await fn('car_search', {});
+    assert.equal(sessionCalls, 0);
+  });
+}
+
+test('account activity rechecks exclusion after session lookup', async () => {
+  let audience = 'included', inserts = 0;
+  const fn = handler('trackActivity', {
+    analyticsAudience: () => audience,
+    getSupabaseBrowserClient: () => ({
+      auth: { getSession: async () => { audience = 'excluded'; return { data: { session: { user: { id: 'owner' } } } }; } },
+      from: () => ({ insert: async () => { inserts++; } }),
+    }),
+  });
+  await fn('car_search', {});
+  assert.equal(inserts, 0);
+});

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 const code = ts.transpileModule(readFileSync(new URL('../app/components/save-button.tsx', import.meta.url), 'utf8'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-function harness(client) {
+function harness(client, audience = 'included') {
   let cursor = 0;
   const slots = [], redirects = [], exports = {};
   const jsx = (type, props) => ({ type, props });
@@ -13,6 +13,7 @@ function harness(client) {
     if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
     if (name === 'next/navigation') return { useRouter: () => ({ push: value => redirects.push(value) }) };
     if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => client };
+    if (name === '../lib/analytics-audience') return { analyticsAudience: () => audience };
     if (name === '../lib/saved-search') return { withRequestDeadline: request => Promise.resolve(request), getSavedSearchUrl: () => '/?restore=1&mode=cars&make=Ford' };
     throw Error(name);
   } });
@@ -50,4 +51,15 @@ test('a synchronous optional tracking failure cannot undo a confirmed save', asy
   } });
   await h.button().props.onClick(); await Promise.resolve();
   assert.equal(h.button().props.children, '✓ Saved');
+});
+
+test('an excluded owner can still save without adding an activity event', async () => {
+  const tables = [];
+  const h = harness({ auth: { getUser: async () => ({ data: { user: { id: 'owner' } } }) }, from: table => {
+    tables.push(table);
+    return { insert: async () => ({ error: null }) };
+  } }, 'excluded');
+  await h.button().props.onClick(); await Promise.resolve();
+  assert.equal(h.button().props.children, '✓ Saved');
+  assert.deepEqual(tables, ['saved_items']);
 });
