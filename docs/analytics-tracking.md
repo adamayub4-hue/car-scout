@@ -4,7 +4,17 @@
 
 The owner dashboard's account cards read retained Supabase records. Registered accounts counts profiles; unresolved reports includes open and in-progress complaints; saved items counts currently retained saves; recorded account actions shows the number of retrieved events, capped at the latest 100. These cards have no date filter and refresh on page load or the Refresh dashboard button. Recorded actions are not unique visitors, and unsigned-in visitors are not included.
 
-The separate Website traffic panel links to the private Vercel report for automatic visitor/pageview counts and custom funnel events. It does not copy a snapshot into a live-looking counter or grant additional access. Compare matching periods. Historical figures include owner/testing traffic collected before the exclusion below; do not subtract a guessed number or present those totals as purely customer results.
+The separate Website traffic panel inside `/admin` reads Vercel Web Analytics through the owner-only `/api/admin/traffic` endpoint. It displays visitors, page views, searches, listing clicks and referrer sources for the last 24 hours, 7 days or 30 days. It includes eligible anonymous visitors; account records remain separate. Compare matching periods. Historical figures include owner/testing traffic collected before the exclusion below; do not subtract a guessed number or present those totals as purely customer results.
+
+### Private reporting connection
+
+Set `MEKIVO_ANALYTICS_VERCEL_TOKEN` as a server-only Production Secret in the existing Vercel project. Never put the token in a `NEXT_PUBLIC_` variable, browser storage, URL, source code or log. `MEKIVO_ANALYTICS_PROJECT_ID` and `MEKIVO_ANALYTICS_TEAM_SLUG` default to `car-scout` and `adamayub4-hues-projects`; override only for an intentional project move. Token access must be approved before creating a new credential. Set an expiry and renew it before expiration; an expired/revoked key makes the panel unavailable and does not affect search or ongoing eligible traffic collection.
+
+Every reporting request verifies the Supabase session and matching `admins` row before accessing cached data or Vercel. No service-role key is required. All responses are private/no-store; only normalized report data is briefly cached on the server. The API accepts a fixed date-range enum, not arbitrary provider queries. Failed or unconfigured reports show unavailable, never a made-up zero. Optional failed sections remain unavailable while confirmed visitor/page-view totals can still display.
+
+Period totals use one production-environment aggregate, not the sum of daily/source visitor counts. Sources are grouped by referrer hostname and bounded, with the provider’s remaining sources represented as Others. Missing referrers are Direct / unknown, including traffic from apps that hide their referrer; these are not proof of organic traffic. Custom events count `search_submitted` and `marketplace_outbound` actions, not unique people or completed sales. The panel shows its reporting interval and fetch time, and explains the five-minute cache and provider delay. It uses the existing collection and exclusion policy without adding a second tracker.
+
+API reference: [Web Analytics API](https://vercel.com/docs/analytics/web-analytics-api), [page-view aggregates](https://vercel.com/docs/rest-api/web-analytics/aggregates-page-views), [custom-event aggregates](https://vercel.com/docs/rest-api/web-analytics/aggregates-custom-events).
 
 ## Owner and testing exclusion — 17 September 2026
 
@@ -50,7 +60,7 @@ The SDK can initialize after the landing effect. Up to 20 sanitized events can w
 
 ## Vercel plan and verification
 
-On 16 September 2026, Web Analytics was enabled using the included Hobby option. A controlled homepage visit then appeared as **1 visitor / 1 pageview** in the project dashboard. This confirms basic pageview collection; it is a test visit, not evidence of an advertising conversion. The same dashboard explicitly requires Pro to access custom events. No paid plan or Analytics Plus add-on was purchased.
+On 16 September 2026, Web Analytics was initially enabled using the included Hobby option. A controlled homepage visit then appeared as **1 visitor / 1 pageview** in the project dashboard. This confirms basic pageview collection; it is a test visit, not evidence of an advertising conversion. The same dashboard required Pro to access custom events at that point. By 17 September, the owner-approved Pro plan was active and custom-event reports were readable. This embedded report uses that existing setup; it does not add an Analytics Plus purchase.
 
 As checked on 16 September 2026, Hobby includes pageviews but does not include custom events. Ordinary Pro supports custom events with two properties. Native UTM filtering requires Web Analytics Plus or Enterprise; the composite `campaign` above is a custom event property, not the native UTM dashboard. [Vercel plan limits](https://vercel.com/docs/analytics/limits-and-pricing), [custom event documentation](https://vercel.com/docs/analytics/custom-events).
 

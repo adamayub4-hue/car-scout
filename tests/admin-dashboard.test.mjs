@@ -51,6 +51,7 @@ function harness(options = {}) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
       if (name === 'next/link') return { default: 'a' };
+      if (name === '../components/owner-traffic') return { default: 'owner-traffic' };
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => options.noClient ? null : client };
       throw new Error(name);
     },

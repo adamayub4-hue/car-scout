@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import OwnerTraffic from "../components/owner-traffic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
@@ -88,17 +89,7 @@ export default function AdminPage() {
     <button type="button" disabled={savingId !== null} onClick={() => void load()} className="mt-5 rounded-lg border border-outline/20 px-4 py-2 text-sm disabled:opacity-50">Refresh dashboard</button>
     {saveError && <p role="alert" className="mt-4 rounded-xl border border-rose-300/30 p-4 text-danger">{saveError}</p>}
     {savingId && <p role="status" className="mt-4 text-muted">Saving report status…</p>}
-    <section aria-labelledby="website-traffic-heading" className="mt-7 rounded-2xl border border-sky-300/25 bg-sky-400/5 p-5 sm:p-6">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="max-w-xl">
-          <h2 id="website-traffic-heading" className="text-xl font-bold">Website traffic</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">See website visitors, page views and where people came from. This includes people who browse and search without signing in.</p>
-        </div>
-        <a href="https://vercel.com/adamayub4-hues-projects/car-scout/analytics" target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center justify-center rounded-xl bg-sky-300 px-5 py-3 text-sm font-bold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300">View website visitors <span aria-hidden="true" className="ml-2">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
-      </div>
-      <p className="mt-3 text-xs leading-5 text-subtle">Opens your private Vercel traffic report. Choose the same dates when comparing visitors with your ad results.</p>
-      <p className="mt-3 text-sm leading-6 text-muted">Signed-in owner visits are excluded automatically. Before testing on another browser or phone, <Link href="/traffic-settings" className="font-semibold text-link underline">exclude that browser from the reports</Link>. Earlier totals still include earlier testing.</p>
-    </section>
+    <OwnerTraffic />
     <section aria-labelledby="account-records-heading" className="mt-8">
       <h2 id="account-records-heading" className="text-xl font-bold">Account records</h2>
       <p className="mt-2 text-sm leading-6 text-muted">These are account totals and recorded actions, not website visitor counts. One person can make several actions, and visitors who are not signed in are not included.</p>
