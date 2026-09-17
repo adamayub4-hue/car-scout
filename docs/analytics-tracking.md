@@ -1,5 +1,13 @@
 # Mekivo campaign and funnel events
 
+## Owner dashboard versus website traffic
+
+The owner dashboard's account cards read retained Supabase records. Registered accounts counts profiles; unresolved reports includes open and in-progress complaints; saved items counts currently retained saves; recorded account actions shows the number of retrieved events, capped at the latest 100. These cards have no date filter and refresh on page load or the Refresh dashboard button. Recorded actions are not unique visitors, and unsigned-in visitors are not included.
+
+The separate Website traffic panel links to the private Vercel report for automatic visitor/pageview counts and custom funnel events. It does not copy a snapshot into a live-looking counter or grant additional access. Compare matching periods and remember that owner/testing traffic can appear in the website analytics.
+
+## Funnel events
+
 The growth-event wrapper sends exactly two custom properties so it fits ordinary Vercel Pro:
 
 - `campaign`: `source|medium|campaign|creative`, for example `meta|paid_social|september_demo|budget_car`. A visit with no campaign in the current tab is `direct`.

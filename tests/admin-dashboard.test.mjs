@@ -65,14 +65,14 @@ async function loaded(options) { const h = harness(options); assert.match(text(h
 
 test('success uses exact totals instead of list length', async () => {
   const h = await loaded({}); const output = text(h.render());
-  assert.match(output, /1234 Users/); assert.match(output, /1234 Saved items/);
-  assert.match(output, /0 Open feedback/); assert.match(output, /No feedback submitted/);
-  assert.match(output, /Recent activity \(up to 100\)/);
+  assert.match(output, /1234 Registered accounts/); assert.match(output, /1234 Saved items/);
+  assert.match(output, /0 Unresolved reports/); assert.match(output, /No feedback submitted/);
+  assert.match(output, /Recorded account actions/);
 });
 for (const table of ['profiles', 'complaints', 'activity_events', 'saved_items', 'admins']) {
   test(`${table} failure never appears as an empty dashboard`, async () => {
     const h = await loaded({ fail: table }); const output = text(h.render());
-    assert.match(output, /Dashboard unavailable/); assert.doesNotMatch(output, /No feedback submitted|0 Open feedback/);
+    assert.match(output, /Dashboard unavailable/); assert.doesNotMatch(output, /No feedback submitted|0 Unresolved reports/);
     h.options.fail = null;
     await nodes(h.render()).find(n => n.type === 'button').props.onClick(); await tick();
     assert.match(text(h.render()), /Mekivo control centre/);
@@ -95,13 +95,13 @@ test('failed status change keeps confirmed status and requires refresh', async (
   const tree = h.render(); assert.match(text(tree), /status change could not be confirmed/);
   const select = nodes(tree).find(n => n.type === 'select');
   assert.equal(select.props.value, 'open'); assert.equal(select.props.disabled, true);
-  assert.match(text(tree), /1 Open feedback/);
+  assert.match(text(tree), /1 Unresolved reports/);
 });
 test('confirmed status change updates report and open count', async () => {
   const h = await loaded({ report: true });
   await nodes(h.render()).find(n => n.type === 'select').props.onChange({ target: { value: 'resolved' } }); await tick();
   assert.equal(nodes(h.render()).find(n => n.type === 'select').props.value, 'resolved');
-  assert.match(text(h.render()), /0 Open feedback/);
+  assert.match(text(h.render()), /0 Unresolved reports/);
 });
 test('a stalled request times out and can be retried', async () => {
   const h = await loaded({ hang: 'complaints', fastDeadline: true });
