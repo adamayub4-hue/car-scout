@@ -8,7 +8,7 @@ const campaignLabels: Record<typeof campaignKeys[number], readonly string[]> = {
   utm_source: ["meta", "facebook", "instagram", "tiktok"],
   utm_medium: ["paid_social", "organic_social"],
   utm_campaign: ["september_demo", "september_validation"],
-  utm_content: ["budget_car", "part_number", "visual_guide", "wrong_part_v1", "car_search_v1", "part_number_v1"],
+  utm_content: ["budget_car", "part_number", "visual_guide", "wrong_part_v1", "car_search_v1", "part_number_v1", "car_shortlist_v1", "part_number_v2", "visual_guide_v2"],
 };
 const campaignStorageKey = "mekivo_campaign_v2";
 const segmentLimit = 48;

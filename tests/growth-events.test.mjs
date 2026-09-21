@@ -118,6 +118,45 @@ test('current paid and scheduled creative links retain each campaign label', () 
   }
 });
 
+test('new September creative labels survive landing, clean navigation, and reload attribution', () => {
+  for (const content of ['car_shortlist_v1', 'part_number_v2', 'visual_guide_v2']) {
+    for (const [source, medium] of [['meta', 'paid_social'], ['instagram', 'organic_social'], ['tiktok', 'paid_social']]) {
+      const campaign = [source, medium, 'september_validation', content].join('|');
+      const mode = content === 'car_shortlist_v1' ? 'cars' : 'parts';
+      const app = load({ query: `?${new URLSearchParams({ utm_source: source, utm_medium: medium, utm_campaign: 'september_validation', utm_content: content })}` });
+      app.track('campaign_landing', { landing_mode: mode });
+      assert.deepEqual(app.events[0].properties, { campaign, context: mode });
+      assert.equal(app.storage.get(storageKey), campaign);
+
+      app.window.location.search = '';
+      app.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
+      const reloaded = load({ storage: app.storage });
+      reloaded.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
+      const expected = { campaign, context: `${mode}:ebay:listing` };
+      assert.deepEqual(app.events.at(-1).properties, expected);
+      assert.deepEqual(reloaded.events[0].properties, expected);
+    }
+  }
+});
+
+test('approving new creatives does not accept unknown variants or new campaign, source, and medium labels', () => {
+  const approved = { utm_source: 'meta', utm_medium: 'paid_social', utm_campaign: 'september_validation', utm_content: 'car_shortlist_v1' };
+  const cases = [
+    ['utm_content', 'car_shortlist_v2', 'meta|paid_social|september_validation|unknown'],
+    ['utm_content', 'part_number_v3', 'meta|paid_social|september_validation|unknown'],
+    ['utm_content', 'visual_guide_v3', 'meta|paid_social|september_validation|unknown'],
+    ['utm_source', 'unapproved_source', 'unknown|paid_social|september_validation|car_shortlist_v1'],
+    ['utm_medium', 'unapproved_medium', 'meta|unknown|september_validation|car_shortlist_v1'],
+    ['utm_campaign', 'september_validation_v2', 'meta|paid_social|unknown|car_shortlist_v1'],
+  ];
+  for (const [key, value, campaign] of cases) {
+    const app = load({ query: `?${new URLSearchParams({ ...approved, [key]: value })}` });
+    app.track('campaign_landing', { landing_mode: 'cars' });
+    assert.deepEqual(app.events[0].properties, { campaign, context: 'cars' });
+    assert.equal(app.storage.get(storageKey), campaign);
+  }
+});
+
 test('new partial or empty UTMs replace the whole campaign rather than inheriting stale fields', () => {
   const app = load({ query: paidCampaign });
   app.track('campaign_landing', { landing_mode: 'cars' });
