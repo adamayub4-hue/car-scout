@@ -16,6 +16,8 @@ type EbayItemSummary = {
   itemWebUrl?: string;
   image?: { imageUrl?: string };
   price?: { value?: string; currency?: string };
+  buyingOptions?: string[];
+  itemEndDate?: string;
   condition?: string;
   itemLocation?: { postalCode?: string; country?: string };
 };
@@ -25,6 +27,7 @@ let pendingToken: Promise<string> | null = null;
 type PublicListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
   currency: string | null; condition: string | null; location: string | null;
+  buyingOptions: string[]; itemEndDate: string | null;
 };
 const resultsCache = new BoundedTtlCache<PublicListing[]>(100, 30_000);
 
@@ -147,6 +150,10 @@ export async function GET(request: NextRequest) {
           image: item.image?.imageUrl ?? null,
           price: item.price?.value ?? null,
           currency: item.price?.currency ?? null,
+          // price is the advertised purchase price. Never substitute the
+          // separate currentBidPrice when building a price comparison.
+          buyingOptions: Array.isArray(item.buyingOptions) ? item.buyingOptions.filter((option): option is string => typeof option === "string") : [],
+          itemEndDate: typeof item.itemEndDate === "string" ? item.itemEndDate : null,
           condition: item.condition ?? null,
           location: item.itemLocation?.postalCode ?? item.itemLocation?.country ?? null,
         }));

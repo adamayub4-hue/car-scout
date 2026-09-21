@@ -5,7 +5,7 @@ import { useState } from "react";
 import { formatListingPrice, safeListingImage, withEbayAffiliateTracking, type EbayListing, type Mode } from "../lib/search";
 import { trackGrowthEvent } from "../lib/growth-events";
 
-function ListingPhoto({ item }: { item: EbayListing }) {
+export function ListingPhoto({ item }: { item: EbayListing }) {
   const [failed, setFailed] = useState(false);
   const src = safeListingImage(item.image);
   return <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100">

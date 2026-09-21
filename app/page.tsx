@@ -9,6 +9,7 @@ import DiagramExplorer from "./components/parts-guide";
 import { categories, diagramSystems, electricCategoryOverrides, electricDiagramOverrides } from "./lib/parts-guide-data";
 import { parseSavedSearchParams } from "./lib/saved-search";
 import EbayResults from "./components/ebay-results";
+import CarRecommendations from "./components/car-recommendations";
 import { createCarSearch, createPartSearch, marketplaceFilterNote, type SubmittedSearch, type Mode, type Platform, type MarketplaceId, type EbayListing } from "./lib/search";
 import SaveButton from "./components/save-button";
 import AppearanceControl from "./components/appearance";
@@ -831,6 +832,7 @@ export default function Home() {
 
         {showResults && submittedSearch?.mode === "cars" && mode === "cars" && (
           <section ref={resultsRef} tabIndex={-1} className="mx-auto mt-6 max-w-4xl scroll-mt-5 outline-none">
+            <CarRecommendations search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError} />
             <div className="mb-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
               <p className="text-xs font-bold uppercase tracking-wider text-success">Your next step</p>
               <h2 className="mt-2 text-xl font-bold">Choose a marketplace to view live listings</h2>

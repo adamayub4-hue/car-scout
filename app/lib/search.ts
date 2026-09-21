@@ -6,11 +6,16 @@ export type Platform = "all" | "more" | MarketplaceId;
 export type VehicleFields = { make: string; model: string; year: string; engine: string; fuel: string; bodyStyle: string };
 export type PartSearchFields = VehicleFields & { part: string; partNumber: string; partCategory: string; partMethod: string };
 export type CarSearchFields = { make: string; model: string; year: string; price: string; postcode: string; platform: Platform };
+export type CarSearchCriteria = Pick<CarSearchFields, "make" | "model" | "year">;
 export type SubmittedSearch = {
   mode: Mode; title: string; query: string; fallbackUrl: string; searchMethod: string;
-  maxPrice?: string; platform: Platform; carLinks?: Record<MarketplaceId, string>; saveItem: SavedSearchItem;
+  maxPrice?: string; platform: Platform; carCriteria?: CarSearchCriteria; carLinks?: Record<MarketplaceId, string>; saveItem: SavedSearchItem;
 };
-export type EbayListing = { id: string; title: string; url: string; image: string | null; price: string | null; currency: string | null; condition: string | null; location: string | null };
+export type EbayListing = {
+  id: string; title: string; url: string; image: string | null; price: string | null;
+  currency: string | null; condition: string | null; location: string | null;
+  buyingOptions?: string[]; itemEndDate?: string | null;
+};
 
 const ebayAffiliateParams = { mkcid: "1", mkrid: "710-53481-19255-0", siteid: "3", campid: "5339201924", toolid: "10001", mkevt: "1" };
 
@@ -61,7 +66,8 @@ export function marketplaceFilterNote(id: MarketplaceId) {
 export function createCarSearch(fields: CarSearchFields): SubmittedSearch {
   const carLinks = buildCarLinks(fields);
   const title = [fields.year, fields.make, fields.model].filter(Boolean).join(" ");
-  return { mode: "cars", title, query: [fields.make, fields.model, fields.year].filter(Boolean).join(" "), fallbackUrl: carLinks.ebay, maxPrice: fields.price, platform: fields.platform, carLinks, searchMethod: "vehicle", saveItem: { kind: "car_search", title, data: { ...fields, links: carLinks } } };
+  const carCriteria = { make: fields.make, model: fields.model, year: fields.year };
+  return { mode: "cars", title, query: [fields.make, fields.model, fields.year].filter(Boolean).join(" "), fallbackUrl: carLinks.ebay, maxPrice: fields.price, platform: fields.platform, carCriteria, carLinks, searchMethod: "vehicle", saveItem: { kind: "car_search", title, data: { ...fields, links: carLinks } } };
 }
 
 export function createPartSearch(fields: PartSearchFields, numberOnly = false): SubmittedSearch {
