@@ -118,8 +118,24 @@ test('direct guide landing reveals the guide and scrolls once without vehicle de
   assert.equal(app.scrolls.filter(scroll => scroll.target === 'guide').length, 1);
 });
 
-test('ordinary parts and car landings do not open or scroll the guide', () => {
-  for (const query of ['', '?mode=parts', '?mode=cars&guide=1']) {
+test('already scheduled guide campaign links open the guide without needing their captions edited', () => {
+  for (const content of ['visual_guide', 'visual_guide_v2']) {
+    const app = page(`?mode=parts&utm_source=facebook&utm_medium=organic_social&utm_campaign=september_validation&utm_content=${content}`);
+    assert.ok(app.guide());
+    assert.equal(app.vehicle().props.open, false);
+    assert.deepEqual(app.scrolls, [{ target: 'guide', behavior: 'instant', block: 'start' }]);
+    app.guide().props.onCategory('Suspension');
+    app.render();
+    assert.equal(app.scrolls.length, 1);
+    assert.equal(app.requests.length, 0);
+  }
+});
+
+test('ordinary, unrelated and unrecognised campaign landings do not open or scroll the guide', () => {
+  for (const query of ['', '?mode=parts', '?mode=cars&guide=1',
+    '?mode=cars&utm_content=visual_guide_v2', '?mode=parts&utm_content=part_number_v2',
+    '?mode=parts&utm_content=visual_guide_v3', '?mode=parts&utm_content=Visual_Guide',
+    '?mode=parts&utm_content=other_visual_guide']) {
     const app = page(query);
     assert.equal(app.guide(), undefined);
     assert.equal(app.scrolls.length, 0);
@@ -127,14 +143,16 @@ test('ordinary parts and car landings do not open or scroll the guide', () => {
   }
 });
 
-test('saved search restoration takes precedence over the guide campaign flag', () => {
-  const direct = page('?mode=parts&guide=1&restore=1&search_method=part_number&part_number=06J115403Q');
-  assert.equal(direct.guide(), undefined);
-  assert.equal(direct.vehicle().props.open, false);
-  assert.equal(direct.scrolls.length, 0);
-  const diagram = page('?mode=parts&guide=1&restore=1&make=Ford&model=Fiesta&year=2012&part_method=diagram&category=Suspension&part=Control+Arm');
-  assert.equal(diagram.guide().props.category, 'Suspension');
-  assert.equal(diagram.guide().props.part, 'Control Arm');
-  assert.equal(diagram.vehicle().props.open, true);
-  assert.equal(diagram.scrolls.length, 0);
+test('saved search restoration takes precedence over explicit and campaign guide links', () => {
+  for (const guideQuery of ['guide=1', 'utm_content=visual_guide', 'utm_content=visual_guide_v2']) {
+    const direct = page(`?mode=parts&${guideQuery}&restore=1&search_method=part_number&part_number=06J115403Q`);
+    assert.equal(direct.guide(), undefined);
+    assert.equal(direct.vehicle().props.open, false);
+    assert.equal(direct.scrolls.length, 0);
+    const diagram = page(`?mode=parts&${guideQuery}&restore=1&make=Ford&model=Fiesta&year=2012&part_method=diagram&category=Suspension&part=Control+Arm`);
+    assert.equal(diagram.guide().props.category, 'Suspension');
+    assert.equal(diagram.guide().props.part, 'Control Arm');
+    assert.equal(diagram.vehicle().props.open, true);
+    assert.equal(diagram.scrolls.length, 0);
+  }
 });

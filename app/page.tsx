@@ -145,7 +145,8 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const saved = parseSavedSearchParams(params);
     const landingMode = saved?.mode || (params.get("mode") === "parts" ? "parts" : "cars");
-    guideLandingPending.current = !saved && landingMode === "parts" && params.get("guide") === "1";
+    const guideCampaign = ["visual_guide", "visual_guide_v2"].includes(params.get("utm_content") || "");
+    guideLandingPending.current = !saved && landingMode === "parts" && (params.get("guide") === "1" || guideCampaign);
     trackGrowthEvent("campaign_landing", { landing_mode: landingMode });
     const frame = window.requestAnimationFrame(() => {
       setMode(landingMode);
