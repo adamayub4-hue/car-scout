@@ -181,6 +181,76 @@ test('new partial or empty UTMs replace the whole campaign rather than inheritin
   assert.equal(app.events.at(-1).properties.campaign, 'unknown|unknown|unknown|unknown');
 });
 
+test('Instagram auto-tagged profile links retain honest profile attribution through navigation and reload', () => {
+  const campaign = 'instagram|organic_social|profile|profile_link';
+  const app = load({ query: paidCampaign });
+  app.track('campaign_landing', { landing_mode: 'cars' });
+  app.window.location.search = '?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=private-click-id';
+  app.track('campaign_landing', { landing_mode: 'parts' });
+  assert.deepEqual(app.events.at(-1).properties, { campaign, context: 'parts' });
+  assert.equal(app.storage.get(storageKey), campaign);
+
+  app.window.location.search = '?mode=parts';
+  app.track('search_submitted', { search_type: 'parts', search_method: 'part_number' });
+  const reloaded = load({ storage: app.storage });
+  reloaded.track('marketplace_outbound', { search_type: 'parts', marketplace: 'ebay', destination: 'listing' });
+  assert.equal(app.events.at(-1).properties.campaign, campaign);
+  assert.equal(reloaded.events[0].properties.campaign, campaign);
+  assert.ok(!JSON.stringify([...app.events, ...app.storage, ...reloaded.events]).includes('private-click-id'));
+  assert.ok(!JSON.stringify([...app.events, ...app.storage, ...reloaded.events]).includes('fbclid'));
+
+  reloaded.window.location.search = paidCampaign;
+  reloaded.track('campaign_landing', { landing_mode: 'cars' });
+  assert.equal(reloaded.events.at(-1).properties.campaign, 'meta|paid_social|september_demo|budget_car');
+});
+
+test('profile normalization requires the exact Instagram tuple with no campaign or duplicated labels', () => {
+  const base = 'utm_source=ig&utm_medium=social&utm_content=link_in_bio';
+  const rejected = [
+    base.replace('utm_source=ig', 'utm_source=IG'),
+    base.replace('utm_source=ig', 'utm_source=%20ig%20'),
+    base.replace('utm_source=ig', 'utm_source=unapproved_source'),
+    base.replace('utm_medium=social', 'utm_medium=social_other'),
+    base.replace('utm_content=link_in_bio', 'utm_content=link_in_bio_other'),
+    base.replace('utm_medium=social&', ''),
+    `${base}&utm_campaign=`,
+    `${base}&utm_campaign=private-campaign`,
+    `${base}&utm_source=ig`,
+    `${base}&utm_medium=social`,
+    `${base}&utm_content=link_in_bio`,
+  ];
+  for (const query of rejected) {
+    const app = load({ query: `?${query}` });
+    app.track('campaign_landing', { landing_mode: 'parts' });
+    assert.equal(app.events[0].properties.campaign, 'unknown|unknown|unknown|unknown', query);
+    assert.equal(app.storage.get(storageKey), 'unknown|unknown|unknown|unknown', query);
+  }
+  const explicit = load({ query: `?${base}&utm_campaign=september_validation` });
+  explicit.track('campaign_landing', { landing_mode: 'parts' });
+  assert.equal(explicit.events[0].properties.campaign, 'unknown|unknown|september_validation|unknown');
+});
+
+test('only the exact canonical profile tuple can be restored from storage', () => {
+  for (const [stored, expected] of [
+    ['instagram|organic_social|profile|profile_link', 'instagram|organic_social|profile|profile_link'],
+    ['meta|paid_social|profile|profile_link', 'meta|paid_social|unknown|unknown'],
+    ['instagram|organic_social|profile|private-click-id', 'instagram|organic_social|unknown|unknown'],
+    ['instagram|organic_social|profile_other|profile_link', 'instagram|organic_social|unknown|unknown'],
+  ]) {
+    const app = load({ storage: new Map([[storageKey, stored]]) });
+    app.track('campaign_landing', { landing_mode: 'parts' });
+    assert.equal(app.events[0].properties.campaign, expected);
+  }
+});
+
+test('excluded profile visits never retain attribution or emit events', () => {
+  const app = load({ query: '?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=private-click-id', audience: 'excluded' });
+  app.track('campaign_landing', { landing_mode: 'parts' });
+  assert.equal(app.events.length, 0);
+  assert.equal(app.storage.size, 0);
+  assert.equal(app.timers.size, 0);
+});
+
 test('the same tab retains campaign attribution across clean navigation and reload', () => {
   const app = load({ query: paidCampaign });
   app.track('campaign_landing', { landing_mode: 'cars' });

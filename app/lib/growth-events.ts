@@ -11,6 +11,7 @@ const campaignLabels: Record<typeof campaignKeys[number], readonly string[]> = {
   utm_content: ["budget_car", "part_number", "visual_guide", "wrong_part_v1", "car_search_v1", "part_number_v1", "car_shortlist_v1", "part_number_v2", "visual_guide_v2", "car_shortlist_v1_audio", "part_number_v2_audio", "visual_guide_v2_audio"],
 };
 const campaignStorageKey = "mekivo_campaign_v2";
+const instagramProfileCampaign = "instagram|organic_social|profile|profile_link";
 const segmentLimit = 48;
 let rememberedCampaign: string | null = null;
 
@@ -20,17 +21,27 @@ function campaignSegment(key: typeof campaignKeys[number], value: string | null)
   return /^[a-z][a-z0-9_-]*$/.test(normalized) && campaignLabels[key].includes(normalized) ? normalized : "unknown";
 }
 
+function isInstagramProfileLink(params: URLSearchParams) {
+  // Instagram adds these exact labels to the profile website link. This identifies
+  // the profile route, not a particular reel, paid campaign, or individual click.
+  return !params.has("utm_campaign") && [
+    ["utm_source", "ig"], ["utm_medium", "social"], ["utm_content", "link_in_bio"],
+  ].every(([key, value]) => params.getAll(key).length === 1 && params.get(key) === value);
+}
+
 function campaignProperty() {
   const params = new URLSearchParams(window.location.search);
   if (campaignKeys.some((key) => params.has(key))) {
     // A new campaign replaces the whole tuple, including missing/invalid fields.
-    rememberedCampaign = campaignKeys.map((key) => campaignSegment(key, params.get(key))).join("|");
+    rememberedCampaign = isInstagramProfileLink(params) ? instagramProfileCampaign
+      : campaignKeys.map((key) => campaignSegment(key, params.get(key))).join("|");
     try { window.sessionStorage.setItem(campaignStorageKey, rememberedCampaign); } catch { /* Attribution stays optional. */ }
   } else if (rememberedCampaign === null) {
     rememberedCampaign = "direct";
     try {
       const stored = window.sessionStorage.getItem(campaignStorageKey);
-      if (stored && stored.length <= segmentLimit * 4 + 3) {
+      if (stored === instagramProfileCampaign) rememberedCampaign = instagramProfileCampaign;
+      else if (stored && stored.length <= segmentLimit * 4 + 3) {
         const segments = stored.split("|");
         if (segments.length === campaignKeys.length) {
           rememberedCampaign = campaignKeys.map((key, index) => campaignSegment(key, segments[index])).join("|");

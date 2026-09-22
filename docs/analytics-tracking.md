@@ -56,6 +56,8 @@ Add new non-personal campaign/creative labels to that list before publishing the
 
 Any new UTM parameter replaces the complete tuple. Missing fields never inherit values from a previous campaign. The tuple is stored as one value in session storage for the current tab and validated on reload. Legacy per-field keys are ignored. If storage is blocked, attribution remains available in memory for the current page. Navigating to a new campaign starts a new tuple.
 
+Instagram's observed profile-link tags have one narrow exception: exactly one `utm_source=ig`, `utm_medium=social` and `utm_content=link_in_bio`, with no `utm_campaign`, become `instagram|organic_social|profile|profile_link`. This measures the shared profile route, not a particular reel or a paid advert. Duplicate tags, altered values and an explicitly present campaign do not use this mapping. Only that complete canonical tuple is retained on clean navigation/reload; the general campaign-label allowlist is unchanged. Other query parameters, including `fbclid`, are never copied into growth-event properties or campaign session storage. Owner/testing exclusion is unchanged.
+
 The SDK can initialize after the landing effect. Up to 20 sanitized events can wait at most 11 seconds for the bounded identity/role checks, then at most two seconds for the SDK queue; undelivered events are discarded. Exclusion drops them immediately on the next check. Searches and outbound clicks never wait for analytics. A successful wrapper call is not proof of ingestion; blockers, plan eligibility, network failures, and the service can still prevent collection.
 
 ## Vercel plan and verification
