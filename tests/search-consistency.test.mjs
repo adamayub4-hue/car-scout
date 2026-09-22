@@ -165,7 +165,7 @@ function restoreFromUrl(query) {
   const code = ts.transpileModule(`const restore = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
   const restore = vm.runInNewContext(`${code}\nrestore`, {
     URLSearchParams, parseSavedSearchParams: saved.parseSavedSearchParams, categories: guide.categories, validatedPartSelection: handler('validatedPartSelection', guide),
-    trackGrowthEvent() {}, ...setters, ebayRequest: { current: { id: 0, controller: null } },
+    trackGrowthEvent() {}, ...setters, ebayRequest: { current: { id: 0, controller: null } }, guideLandingPending: { current: false },
     window: { location: { search: query }, requestAnimationFrame: fn => { fn(); return 1; }, cancelAnimationFrame() {} },
   });
   restore()();

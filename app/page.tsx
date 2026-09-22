@@ -133,6 +133,7 @@ export default function Home() {
   const [restoredSearch, setRestoredSearch] = useState(false);
   const [vehicleDetailsOpen, setVehicleDetailsOpen] = useState(false);
   const guideRef = useRef<HTMLDivElement>(null);
+  const guideLandingPending = useRef(false);
   const ebayRequest = useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
   const vehicleFieldsRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -144,10 +145,11 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const saved = parseSavedSearchParams(params);
     const landingMode = saved?.mode || (params.get("mode") === "parts" ? "parts" : "cars");
+    guideLandingPending.current = !saved && landingMode === "parts" && params.get("guide") === "1";
     trackGrowthEvent("campaign_landing", { landing_mode: landingMode });
     const frame = window.requestAnimationFrame(() => {
       setMode(landingMode);
-      if (params.get("guide") === "1") setPartMethod("diagram");
+      if (guideLandingPending.current) setPartMethod("diagram");
       if (saved) {
         setMake(saved.make); setModel(saved.model); setYear(saved.year);
         setPrice(saved.price); setPostcode(saved.postcode); setPlatform(saved.platform as Platform);
@@ -160,6 +162,12 @@ export default function Home() {
     const request = ebayRequest.current;
     return () => { window.cancelAnimationFrame(frame); request.id += 1; request.controller?.abort(); };
   }, []);
+
+  useEffect(() => {
+    if (!guideLandingPending.current || mode !== "parts" || partMethod !== "diagram") return;
+    guideLandingPending.current = false;
+    guideRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+  }, [mode, partMethod]);
 
   useEffect(() => {
     if (showResults && submittedSearch) resultsRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
