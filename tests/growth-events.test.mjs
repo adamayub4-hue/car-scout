@@ -119,10 +119,11 @@ test('current paid and scheduled creative links retain each campaign label', () 
 });
 
 test('new September creative labels survive landing, clean navigation, and reload attribution', () => {
-  for (const content of ['car_shortlist_v1', 'part_number_v2', 'visual_guide_v2']) {
-    for (const [source, medium] of [['meta', 'paid_social'], ['instagram', 'organic_social'], ['tiktok', 'paid_social']]) {
+  for (const content of ['car_shortlist_v1', 'part_number_v2', 'visual_guide_v2',
+    'car_shortlist_v1_audio', 'part_number_v2_audio', 'visual_guide_v2_audio']) {
+    for (const [source, medium] of [['meta', 'paid_social'], ['facebook', 'organic_social'], ['instagram', 'organic_social'], ['tiktok', 'paid_social'], ['tiktok', 'organic_social']]) {
       const campaign = [source, medium, 'september_validation', content].join('|');
-      const mode = content === 'car_shortlist_v1' ? 'cars' : 'parts';
+      const mode = content.startsWith('car_shortlist') ? 'cars' : 'parts';
       const app = load({ query: `?${new URLSearchParams({ utm_source: source, utm_medium: medium, utm_campaign: 'september_validation', utm_content: content })}` });
       app.track('campaign_landing', { landing_mode: mode });
       assert.deepEqual(app.events[0].properties, { campaign, context: mode });
@@ -135,6 +136,17 @@ test('new September creative labels survive landing, clean navigation, and reloa
       const expected = { campaign, context: `${mode}:ebay:listing` };
       assert.deepEqual(app.events.at(-1).properties, expected);
       assert.deepEqual(reloaded.events[0].properties, expected);
+    }
+  }
+});
+
+test('approved audio labels normalize while unapproved audio variants remain unknown', () => {
+  for (const content of ['car_shortlist_v1_audio', 'part_number_v2_audio', 'visual_guide_v2_audio']) {
+    for (const [input, expected] of [[` ${content.toUpperCase()} `, content], [`${content}_2`, 'unknown'], [`other_${content}`, 'unknown']]) {
+      const app = load({ query: `?${new URLSearchParams({ utm_source: 'facebook', utm_medium: 'organic_social', utm_campaign: 'september_validation', utm_content: input })}` });
+      app.track('campaign_landing', { landing_mode: content.startsWith('car_shortlist') ? 'cars' : 'parts' });
+      assert.equal(app.events[0].properties.campaign, `facebook|organic_social|september_validation|${expected}`);
+      assert.equal(app.storage.get(storageKey), `facebook|organic_social|september_validation|${expected}`);
     }
   }
 });
