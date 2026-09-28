@@ -3,15 +3,16 @@ import "./globals.css";
 import { Suspense } from "react";
 import { SiteAnalytics } from "./components/site-analytics";
 import { AppearanceRuntime } from "./components/appearance";
+import { siteName, siteUrl, siteTitle, siteDescription, siteStructuredData } from "./lib/site-brand";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://mekivo.uk"),
+  metadataBase: new URL(siteUrl),
+  applicationName: siteName,
   title: {
-    default: "Mekivo — Search UK cars and parts",
+    default: siteTitle,
     template: "%s | Mekivo",
   },
-  description:
-    "Search UK car marketplaces and narrow down vehicle-parts listings from one simple starting point.",
+  description: siteDescription,
   keywords: ["UK used cars", "car parts", "vehicle parts finder", "UK car marketplaces", "Auto Trader search", "Facebook Marketplace cars", "eBay Motors", "MOTORS used cars"],
   alternates: {
     canonical: "/",
@@ -21,15 +22,18 @@ export const metadata: Metadata = {
     follow: true,
   },
   openGraph: {
-    title: "Mekivo — Search UK cars and parts",
-    description:
-      "Search UK car marketplaces and narrow down vehicle-parts listings from one simple starting point.",
+    title: siteTitle,
+    description: siteDescription,
     type: "website",
-    url: "https://mekivo.uk",
-    siteName: "Mekivo",
+    url: siteUrl,
+    siteName,
     locale: "en_GB",
   },
-  twitter: { card: "summary_large_image", title: "Mekivo — Search UK cars and parts", description: "Search UK car marketplaces and narrow down vehicle-parts listings from one simple starting point." },
+  twitter: { card: "summary_large_image", title: siteTitle, description: siteDescription },
+  icons: {
+    icon: [{ url: "/icons/mekivo-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   manifest: "/manifest.webmanifest",
 };
 
@@ -45,7 +49,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <AppearanceRuntime />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "WebSite", name: "Mekivo", url: "https://mekivo.uk", description: "A UK car and vehicle-parts marketplace search starting point.", inLanguage: "en-GB" }) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData).replace(/</g, "\\u003c") }} />
         {children}<Suspense fallback={null}><SiteAnalytics /></Suspense>
       </body>
     </html>
