@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 const guideSource = readFileSync(new URL('../app/components/parts-guide.tsx', import.meta.url), 'utf8');
+const carResultsSource = readFileSync(new URL('../app/components/car-search-results.tsx', import.meta.url), 'utf8');
 const guideDataSource = readFileSync(new URL('../app/lib/parts-guide-data.ts', import.meta.url), 'utf8');
 const searchSource = readFileSync(new URL('../app/lib/search.ts', import.meta.url), 'utf8');
 function loadModule(source) {
@@ -38,13 +39,14 @@ test('first-time guidance explains the complete car and parts journeys', () => {
   for (const message of [
     'New to Mekivo? Start here.',
     'Only the make is required.',
-    'Press Search, then choose a marketplace',
+    'Press Search to browse eBay cars here, or open another site.',
     'Use the registration, or enter the make, model and year.',
     'Open the listing and confirm fitment with the seller.',
-    'Choose a marketplace to view live listings',
   ]) {
     assert.match(source, new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+  assert.match(carResultsSource, /These sites show their listings on their own websites; live listings inside Mekivo currently come from eBay\./);
+  assert.match(carResultsSource, /Open your prepared search in a new tab\./);
 });
 
 test('generic visual parts locator is available without licensed vehicle-specific data', () => {
@@ -176,33 +178,47 @@ test('diagram search requires a specific part rather than a broad system', async
 for (const name of ['handleCarSearch', 'handlePartsSearch', 'handlePartNumberSearch']) {
   test(`${name} starts eBay without waiting for stalled analytics`, async () => {
     const searches = [], events = [];
+    let revision = 7;
     const ctx = {
       make: 'Audi', model: 'A3', year: '2018', price: '', postcode: '', platform: 'all',
       vehicleReady: true, vehicleLabel: '2018 Audi A3', engine: '', fuel: '', bodyStyle: '',
       part: 'oil filter', partCategory: '', partNumber: '06J115403Q', partMethod: 'search',
       setError() {}, setShowResults() {}, setPartNumber() {}, setPartMethod() {}, setPartCategory() {}, setPart() {},
       ...searchHelpers, setSubmittedSearch() {},
+      setCarSearchRevision(update) { revision = typeof update === 'function' ? update(revision) : update; },
       trackGrowthEvent() {},
       trackActivity: (...args) => { events.push(args); return new Promise(() => {}); },
       searchEbay: (...args) => searches.push(args),
     };
     // Side effects must happen in the click's synchronous turn, not after telemetry.
-    const pending = handler(name, ctx)();
+    const run = handler(name, ctx);
+    const pending = run();
     assert.equal(events.length, 1);
     assert.equal(searches.length, 1);
+    assert.equal(revision, name === 'handleCarSearch' ? 8 : 7, 'only a car submission resets the car results view');
     await pending;
+    if (name === 'handleCarSearch') {
+      const repeated = run();
+      assert.equal(revision, 9, 'submitting identical criteria again creates a fresh results view');
+      assert.equal(events.length, 2);
+      assert.equal(searches.length, 2);
+      await repeated;
+    }
   });
 }
 test('external marketplace opens in the click turn despite stalled analytics', async () => {
   const opened = [];
+  let revision = 20;
   const pending = handler('handleCarSearch', {
     make: 'Audi', model: 'A3', year: '', price: '', postcode: '', platform: 'autotrader',
     trackGrowthEvent() {},
     ...searchHelpers, setSubmittedSearch() {}, ebayRequest: { current: { id: 0, controller: null } }, setEbayLoading() {},
+    setCarSearchRevision(update) { revision = typeof update === 'function' ? update(revision) : update; },
     setError() {}, setShowResults() {}, trackActivity: () => new Promise(() => {}),
     window: { open: (...args) => opened.push(args) },
   })();
   assert.equal(opened.length, 1);
+  assert.equal(revision, 21, 'an external-marketplace search also resets the previous results view');
   assert.equal(new URL(opened[0][0]).hostname, 'www.autotrader.co.uk');
   assert.equal(new URL(opened[0][0]).searchParams.get('model'), 'A3');
   await pending;

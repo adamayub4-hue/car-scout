@@ -9,8 +9,8 @@ import { analyticsAudience } from "./lib/analytics-audience";
 import { categories, diagramSystems, electricCategoryOverrides, electricDiagramOverrides } from "./lib/parts-guide-data";
 import { parseSavedSearchParams } from "./lib/saved-search";
 import EbayResults from "./components/ebay-results";
-import CarRecommendations from "./components/car-recommendations";
-import { createCarSearch, createPartSearch, marketplaceFilterNote, type SubmittedSearch, type Mode, type Platform, type MarketplaceId, type EbayListing } from "./lib/search";
+import CarSearchResults from "./components/car-search-results";
+import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type EbayListing } from "./lib/search";
 import SaveButton from "./components/save-button";
 import AppearanceControl from "./components/appearance";
 import { getSupabaseBrowserClient } from "./lib/supabase";
@@ -73,20 +73,6 @@ const makes = {
   Vauxhall: ["Astra", "Corsa", "Crossland", "Grandland", "Mokka"],
 } as const;
 
-const platformCards = [
-  { id: "autotrader", name: "Auto Trader", label: "Largest UK marketplace" },
-  { id: "facebook", name: "Facebook Marketplace", label: "Local and private-sale cars" },
-  { id: "ebay", name: "eBay Motors", label: "Auctions and fixed-price cars" },
-  { id: "motors", name: "MOTORS / Cazoo", label: "Large dealer-focused marketplace" },
-  { id: "gumtree", name: "Gumtree", label: "Local and private listings" },
-  { id: "cargurus", name: "CarGurus", label: "Dealer listings and price insights" },
-  { id: "pistonheads", name: "PistonHeads", label: "Performance and enthusiast cars" },
-  { id: "aacars", name: "AA Cars", label: "Cars from a network of UK dealers" },
-  { id: "carandclassic", name: "Car & Classic", label: "Classic and collectible vehicles" },
-] as const;
-
-const moreMarketplaceIds: MarketplaceId[] = ["gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"];
-
 const platformNames: Record<Platform, string> = {
   all: "all marketplaces",
   more: "more marketplaces",
@@ -134,6 +120,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [submittedSearch, setSubmittedSearch] = useState<SubmittedSearch | null>(null);
+  const [carSearchRevision, setCarSearchRevision] = useState(0);
   const [restoredSearch, setRestoredSearch] = useState(false);
   const [vehicleDetailsOpen, setVehicleDetailsOpen] = useState(false);
   const guideRef = useRef<HTMLDivElement>(null);
@@ -141,6 +128,8 @@ export default function Home() {
   const ebayRequest = useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
   const vehicleFieldsRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const carSearchFormRef = useRef<HTMLElement>(null);
+  const carMakeRef = useRef<HTMLInputElement>(null);
   const [ebayItems, setEbayItems] = useState<EbayListing[]>([]);
   const [ebayLoading, setEbayLoading] = useState(false);
   const [ebayError, setEbayError] = useState("");
@@ -175,7 +164,10 @@ export default function Home() {
   }, [mode, partMethod]);
 
   useEffect(() => {
-    if (showResults && submittedSearch) resultsRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+    if (showResults && submittedSearch) {
+      resultsRef.current?.focus({ preventScroll: true });
+      resultsRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+    }
   }, [showResults, submittedSearch]);
 
   const trackActivity = async (eventName: "car_search" | "part_search" | "part_number_search" | "vehicle_lookup", metadata: Record<string, unknown>) => {
@@ -304,6 +296,7 @@ export default function Home() {
     }
     setError("");
     const search = createCarSearch({ make, model, year, price, postcode, platform });
+    setCarSearchRevision(revision => revision + 1);
     setSubmittedSearch(search);
     setShowResults(true);
     trackGrowthEvent("search_submitted", { search_type: "cars", marketplace: platform, has_model: Boolean(model), has_year: Boolean(year), has_price: Boolean(price), has_postcode: Boolean(postcode) });
@@ -363,7 +356,7 @@ export default function Home() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <main className="relative min-h-screen overflow-x-clip bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(14,165,233,0.18),transparent_32%),radial-gradient(circle_at_90%_15%,rgba(99,102,241,0.15),transparent_28%)]" />
       <div className="relative mx-auto w-full max-w-6xl px-4 pb-12 pt-4 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-outline/10 pb-4">
@@ -427,7 +420,7 @@ export default function Home() {
               ? [
                   ["1", "Choose where to search", "Not sure? Leave All platforms selected."],
                   ["2", "Enter what you know", "Only the make is required. Add more to narrow it down."],
-                  ["3", "Open live listings", "Press Search, then choose a marketplace from the results."],
+                  ["3", "Browse your results", "Press Search to browse eBay cars here, or open another site."],
                 ]
               : [
                   ["1", "Identify the vehicle", "Use the registration, or enter the make, model and year."],
@@ -447,7 +440,7 @@ export default function Home() {
         </div></details>
 
         {restoredSearch && <p role="status" className="mx-auto mb-3 max-w-4xl rounded-xl border border-sky-400/25 bg-sky-400/10 p-3 text-sm text-muted">Your saved search is ready. Check the details and press Search for current listings.</p>}
-        <section className="mx-auto max-w-4xl rounded-2xl border border-outline/10 bg-panel/95 p-4 shadow-xl shadow-black/15 sm:p-6">
+        <section ref={carSearchFormRef} className="mx-auto max-w-4xl scroll-mt-4 rounded-2xl border border-outline/10 bg-panel/95 p-4 shadow-xl shadow-black/15 sm:p-6">
           {mode === "cars" ? (
             <>
               <details className="mb-4 rounded-xl border border-outline/10 p-3">
@@ -480,6 +473,7 @@ export default function Home() {
                 <label className="text-sm text-muted">
                   <span className="mb-2 block">Make</span>
                   <input
+                    ref={carMakeRef}
                     list="car-make-options"
                     value={make}
                     onChange={(event) => {
@@ -540,7 +534,7 @@ export default function Home() {
               >
                 Search {platformNames[platform]}
               </button>
-              <p className="mt-3 text-center text-xs leading-5 text-muted">Your results will appear below this box. Choose a marketplace to continue on its website.</p>
+              <p className="mt-3 text-center text-xs leading-5 text-muted">Browse live eBay cars here, or open your search on another marketplace.</p>
             </>
           ) : (
             <>
@@ -844,27 +838,13 @@ export default function Home() {
         </section>
 
         {showResults && submittedSearch?.mode === "cars" && mode === "cars" && (
-          <section ref={resultsRef} tabIndex={-1} className="mx-auto mt-6 max-w-4xl scroll-mt-5 outline-none">
-            <CarRecommendations search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError} />
-            <div className="mb-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-success">Your next step</p>
-              <h2 className="mt-2 text-xl font-bold">Choose a marketplace to view live listings</h2>
-              <p className="mt-2 text-sm leading-6 text-muted">We have prepared your search. Select one of the options below and its results will open in a new tab.</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {platformCards
-                .filter((item) => submittedSearch.platform === "all" || submittedSearch.platform === item.id || (submittedSearch.platform === "more" && moreMarketplaceIds.includes(item.id)))
-                .map((item) => (
-                  <a key={item.id} href={submittedSearch.carLinks![item.id]} target="_blank" rel={item.id === "ebay" ? "sponsored noreferrer" : "noreferrer"} onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: item.id, search_type: "cars", destination: "search_results" })} className="group rounded-2xl border border-outline/10 bg-overlay/[0.045] p-5 transition hover:-translate-y-1 hover:border-sky-400/40 hover:bg-overlay/[0.07]">
-                    <span className="text-xs font-bold uppercase tracking-wider text-link">Search now</span>
-                    <h3 className="mt-3 text-lg font-bold">{item.name}</h3>
-                    <p className="mt-1 text-sm text-muted">{item.label}</p><p className="mt-3 text-xs leading-5 text-subtle">{marketplaceFilterNote(item.id)}</p>
-                    <span className="mt-5 block text-sm font-semibold text-foreground">Open results →</span>
-                  </a>
-                ))}
-            </div>
-            {(submittedSearch.platform === "all" || submittedSearch.platform === "ebay") && <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={submittedSearch.fallbackUrl} searchType="cars" onRetry={() => void searchEbay(submittedSearch)} />}
-            <SaveButton item={submittedSearch.saveItem} />
+          <section ref={resultsRef} tabIndex={-1} aria-label={`Car results for ${submittedSearch.title}`} className="mx-auto mt-6 max-w-4xl scroll-mt-3 outline-none">
+            <CarSearchResults key={carSearchRevision} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError}
+              onRetry={() => void searchEbay(submittedSearch)}
+              onEdit={() => {
+                carMakeRef.current?.focus({ preventScroll: true });
+                carSearchFormRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+              }} />
           </section>
         )}
 
