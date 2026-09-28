@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { trackGrowthEvent } from "./lib/growth-events";
 import { analyticsAudience } from "./lib/analytics-audience";
-import DiagramExplorer from "./components/parts-guide";
 import { categories, diagramSystems, electricCategoryOverrides, electricDiagramOverrides } from "./lib/parts-guide-data";
 import { parseSavedSearchParams } from "./lib/saved-search";
 import EbayResults from "./components/ebay-results";
@@ -14,6 +14,10 @@ import { createCarSearch, createPartSearch, marketplaceFilterNote, type Submitte
 import SaveButton from "./components/save-button";
 import AppearanceControl from "./components/appearance";
 import { getSupabaseBrowserClient } from "./lib/supabase";
+
+const DiagramExplorer = dynamic(() => import("./components/parts-guide"), {
+  loading: () => <p role="status" className="min-h-48 rounded-2xl border border-outline/10 p-6 text-muted">Loading the visual parts guide…</p>,
+});
 
 type PartMethod = "diagram" | "catalogue" | "search";
 
@@ -891,6 +895,24 @@ export default function Home() {
               <p className="mt-2 text-sm leading-6 text-muted">{copy}</p>
             </div>
           ))}
+        </section>
+
+        <section aria-labelledby="buying-guides" className="mx-auto mt-16 max-w-4xl">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Before you buy</p><h2 id="buying-guides" className="mt-2 text-2xl font-bold">Make your next check count</h2></div>
+            <Link href="/guides" className="font-semibold text-link hover:underline">All UK guides →</Link>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-muted">Clear checklists with GOV.UK sources for cars, paperwork and replacement parts.</p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {[
+              ["buying-a-used-car", "Buying a used car", "Check the vehicle, documents and next steps before paying."],
+              ["checking-mot-history", "Read a car’s MOT history", "Understand the official results, mileage and advisories."],
+              ["reading-car-part-numbers", "Read and record part numbers", "Keep a clear reference to discuss with the supplier."],
+              ["avoiding-used-car-scams", "Avoid used-car scams", "Check identity and paperwork before handing over money."],
+            ].map(([slug, title, copy]) => <Link key={slug} href={`/guides/${slug}`} className="rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5 transition hover:border-sky-300/40">
+              <h3 className="font-bold">{title}</h3><p className="mt-2 text-sm leading-6 text-muted">{copy}</p><span className="mt-4 block text-sm font-semibold text-link">Read guide →</span>
+            </Link>)}
+          </div>
         </section>
 
         <footer className="mt-16 border-t border-outline/10 pt-6 text-center text-xs leading-5 text-subtle">

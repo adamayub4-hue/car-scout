@@ -64,6 +64,7 @@ function page(query) {
     require(name) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return jsxRuntime;
+      if (name === 'next/dynamic') return { default: () => Guide };
       if (name === './lib/parts-guide-data') return guideData;
       if (name === './lib/saved-search') return savedSearch;
       if (name === './lib/search') return search;
