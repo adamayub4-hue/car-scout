@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 
@@ -101,13 +101,63 @@ function handler(name, context) {
 }
 
 test('each visual system has one selectable reference and explanation for every part', () => {
-  const { diagramSystems, electricDiagramOverrides, partHints, systemIllustrations } = guideData;
-  for (const [systemName, system] of Object.entries({ ...diagramSystems, ...electricDiagramOverrides })) {
-    assert.equal(system.parts.length, system.partPositions.length, systemName);
+  const { diagramSystems, electricDiagramOverrides, partHints, systemIllustrations, illustrationHotspots } = guideData;
+  const systems = [
+    ...Object.entries(diagramSystems),
+    ...Object.entries(electricDiagramOverrides).map(([name, system]) => [`Electric${name}`, system]),
+  ];
+  for (const [systemName, system] of systems) {
+    const artwork = systemIllustrations[systemName];
+    assert.ok(artwork, `${systemName}: image reference`);
+    assert.ok(existsSync(new URL(`../public/parts-guide/${artwork}.webp`, import.meta.url)), `${artwork}: image exists`);
+    assert.equal(system.parts.length, illustrationHotspots[artwork]?.length, `${systemName}: marker count`);
+    assert.equal('partPositions' in system, false, `${systemName}: obsolete coordinates removed`);
     for (const part of system.parts) assert.ok(partHints[part], `${systemName}: ${part}`);
-    assert.ok(systemIllustrations[systemName], `${systemName}: image reference`);
   }
-  for (const system of ['ElectricElectrical', 'ElectricDrivetrain']) assert.ok(systemIllustrations[system]);
+  assert.deepEqual(Object.keys(illustrationHotspots).sort(), Object.values(systemIllustrations).sort(), 'every artwork has its own reviewed anchors');
+});
+
+test('numbered part names match the reviewed artwork order, including distinct electric layouts', () => {
+  // A label change/reorder must be reviewed against the image, not silently move
+  // a number to a different component. These are the depicted parts in order.
+  const depictedParts = {
+    'engine-cooling-v1': ['Air Filter', 'Oil Filter', 'Timing Belt', 'Water Pump'],
+    'braking-system-v1': ['Brake Disc', 'Brake Pads', 'Brake Caliper', 'ABS Sensor'],
+    'suspension-v1': ['Shock Absorber', 'Coil Spring', 'Control Arm', 'Drop Link'],
+    'body-lighting-v1': ['Front Bumper', 'Headlight', 'Wing Mirror', 'Tail Light'],
+    'electrical-v1': ['Battery', 'Alternator', 'Starter Motor', 'Fuse Box'],
+    'interior-controls-v1': ['Steering Wheel', 'Dashboard', 'Front Seat', 'Gear Knob'],
+    'exhaust-emissions-v1': ['Exhaust Back Box', 'Catalytic Converter', 'DPF', 'Oxygen Sensor'],
+    'drivetrain-v1': ['Clutch Kit', 'Gearbox', 'Driveshaft', 'CV Joint'],
+    'ev-electrical-v1': ['12V Battery', 'Drive Motor', 'Power Inverter', 'Onboard Charger'],
+    'ev-drivetrain-v1': ['Reduction Gear', 'Driveshaft', 'CV Joint', 'Differential'],
+  };
+  for (const [systemName, artwork] of Object.entries(guideData.systemIllustrations)) {
+    const system = systemName.startsWith('Electric') && systemName !== 'Electrical'
+      ? guideData.electricDiagramOverrides[systemName.slice('Electric'.length)]
+      : guideData.diagramSystems[systemName];
+    assert.deepEqual(Array.from(system.parts), depictedParts[artwork], artwork);
+  }
+});
+
+test('artwork anchors keep 44px targets inside a narrow image without overlapping', () => {
+  // A 240px-wide, uncropped 3:2 plate is narrower than the normal mobile card.
+  const width = 240, height = 160, targetSize = 44;
+  for (const [artwork, positions] of Object.entries(guideData.illustrationHotspots)) {
+    const centres = positions.map((position, index) => {
+      assert.equal(position.length, 2, `${artwork} #${index + 1}: coordinate pair`);
+      for (const coordinate of position) assert.ok(Number.isFinite(coordinate) && coordinate >= 0 && coordinate <= 100, `${artwork}: percentage coordinates`);
+      const [x, y] = [position[0] * width / 100, position[1] * height / 100];
+      assert.ok(x >= targetSize / 2 && x <= width - targetSize / 2, `${artwork} #${index + 1}: horizontal clipping`);
+      assert.ok(y >= targetSize / 2 && y <= height - targetSize / 2, `${artwork} #${index + 1}: vertical clipping`);
+      return [x, y];
+    });
+    for (let i = 0; i < centres.length; i += 1) {
+      for (let j = i + 1; j < centres.length; j += 1) {
+        assert.ok(Math.abs(centres[i][0] - centres[j][0]) >= targetSize || Math.abs(centres[i][1] - centres[j][1]) >= targetSize, `${artwork}: #${i + 1} and #${j + 1} targets overlap`);
+      }
+    }
+  }
 });
 
 test('diagram search requires a specific part rather than a broad system', async () => {

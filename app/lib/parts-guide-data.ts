@@ -4,7 +4,6 @@ type DiagramSystem = {
   description: string;
   parts: readonly string[];
   hotspot: readonly [number, number];
-  partPositions: readonly (readonly [number, number])[];
 };
 
 export const categories = {
@@ -25,7 +24,6 @@ export const diagramSystems: Record<string, DiagramSystem> = {
     description: "Filters, belts, cooling and service components",
     parts: ["Air Filter", "Oil Filter", "Timing Belt", "Water Pump"],
     hotspot: [446, 166],
-    partPositions: [[145, 112], [183, 239], [367, 118], [411, 235]],
   },
   Brakes: {
     name: "Braking system",
@@ -33,7 +31,6 @@ export const diagramSystems: Record<string, DiagramSystem> = {
     description: "Pads, discs, calipers and sensors",
     parts: ["Brake Disc", "Brake Pads", "Brake Caliper", "ABS Sensor"],
     hotspot: [444, 232],
-    partPositions: [[280, 180], [370, 145], [402, 224], [154, 102]],
   },
   Suspension: {
     name: "Suspension & steering",
@@ -41,7 +38,6 @@ export const diagramSystems: Record<string, DiagramSystem> = {
     description: "Dampers, springs, arms and steering parts",
     parts: ["Shock Absorber", "Coil Spring", "Control Arm", "Drop Link"],
     hotspot: [153, 232],
-    partPositions: [[177, 185], [286, 177], [397, 222], [390, 104]],
   },
   Body: {
     name: "Body & lighting",
@@ -49,7 +45,6 @@ export const diagramSystems: Record<string, DiagramSystem> = {
     description: "Panels, lamps, mirrors and exterior trim",
     parts: ["Front Bumper", "Headlight", "Wing Mirror", "Tail Light"],
     hotspot: [530, 205],
-    partPositions: [[447, 241], [456, 141], [282, 99], [112, 160]],
   },
   Electrical: {
     name: "Electrical system",
@@ -57,7 +52,6 @@ export const diagramSystems: Record<string, DiagramSystem> = {
     description: "Battery, charging, starting and control units",
     parts: ["Battery", "Alternator", "Starter Motor", "Fuse Box"],
     hotspot: [383, 156],
-    partPositions: [[153, 183], [290, 177], [406, 205], [374, 94]],
   },
   Interior: {
     name: "Interior & controls",
@@ -65,7 +59,6 @@ export const diagramSystems: Record<string, DiagramSystem> = {
     description: "Seats, dashboard, controls and cabin trim",
     parts: ["Steering Wheel", "Dashboard", "Front Seat", "Gear Knob"],
     hotspot: [278, 139],
-    partPositions: [[180, 126], [284, 116], [383, 207], [284, 245]],
   },
   Exhaust: {
     name: "Exhaust & emissions",
@@ -73,7 +66,6 @@ export const diagramSystems: Record<string, DiagramSystem> = {
     description: "Pipes, silencers, filters and exhaust sensors",
     parts: ["Exhaust Back Box", "Catalytic Converter", "DPF", "Oxygen Sensor"],
     hotspot: [245, 267],
-    partPositions: [[430, 229], [276, 181], [157, 229], [340, 94]],
   },
   Drivetrain: {
     name: "Transmission & drivetrain",
@@ -81,7 +73,6 @@ export const diagramSystems: Record<string, DiagramSystem> = {
     description: "Clutch, gearbox, shafts and driven-wheel joints",
     parts: ["Clutch Kit", "Gearbox", "Driveshaft", "CV Joint"],
     hotspot: [352, 224],
-    partPositions: [[198, 182], [277, 182], [415, 182], [478, 182]],
   },
 };
 
@@ -151,4 +142,72 @@ export const systemIllustrations: Record<string, string> = {
   Body: "body-lighting-v1", Electrical: "electrical-v1", Interior: "interior-controls-v1",
   Exhaust: "exhaust-emissions-v1", Drivetrain: "drivetrain-v1",
   ElectricElectrical: "ev-electrical-v1", ElectricDrivetrain: "ev-drivetrain-v1",
+};
+
+// Marker centres as [x%, y%] of the complete 3:2 artwork, without cropping.
+// Each array follows the corresponding system.parts order, including EV overrides.
+// These belong to the asset version: review them whenever an illustration changes.
+// Markers sit near a component edge so identifying details remain visible; they
+// are selection aids, not vehicle-specific fitting or installation coordinates.
+export const illustrationHotspots: Record<string, readonly (readonly [number, number])[]> = {
+  "engine-cooling-v1": [
+    [12, 14], // Air Filter
+    [59, 18], // Oil Filter
+    [12, 61], // Timing Belt
+    [60, 58], // Water Pump
+  ],
+  "braking-system-v1": [
+    [11, 14], // Brake Disc
+    [56, 14], // Brake Pads
+    [11, 58], // Brake Caliper
+    [56, 62], // ABS Sensor
+  ],
+  "suspension-v1": [
+    [20, 25], // Shock Absorber
+    [63, 14], // Coil Spring
+    [13, 62], // Control Arm
+    [67, 59], // Drop Link
+  ],
+  "body-lighting-v1": [
+    [12, 14], // Front Bumper
+    [61, 14], // Headlight
+    [12, 58], // Wing Mirror
+    [59, 59], // Tail Light
+  ],
+  "electrical-v1": [
+    [11, 16], // Battery
+    [57, 15], // Alternator
+    [11, 59], // Starter Motor
+    [55, 58], // Fuse Box
+  ],
+  "interior-controls-v1": [
+    [11, 15], // Steering Wheel
+    [37, 45], // Dashboard: beside its lower-left edge, away from the instruments
+    [12, 58], // Front Seat
+    [61, 57], // Gear Knob
+  ],
+  "exhaust-emissions-v1": [
+    [11, 14], // Exhaust Back Box
+    [55, 17], // Catalytic Converter
+    [11, 59], // DPF
+    [58, 61], // Oxygen Sensor
+  ],
+  "drivetrain-v1": [
+    [12, 14], // Clutch Kit
+    [56, 14], // Gearbox
+    [13, 67], // Driveshaft
+    [60, 63], // CV Joint
+  ],
+  "ev-electrical-v1": [
+    [11, 15], // 12V Battery
+    [53, 15], // Drive Motor
+    [11, 58], // Power Inverter
+    [56, 58], // Onboard Charger
+  ],
+  "ev-drivetrain-v1": [
+    [11, 14], // Reduction Gear
+    [71, 14], // Driveshaft
+    [12, 63], // CV Joint
+    [57, 58], // Differential
+  ],
 };
