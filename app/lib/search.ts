@@ -5,12 +5,13 @@ export type MarketplaceId = "autotrader" | "facebook" | "ebay" | "motors" | "gum
 export type Platform = "all" | "more" | MarketplaceId;
 export type VehicleFields = { make: string; model: string; year: string; engine: string; fuel: string; bodyStyle: string };
 export type PartSearchFields = VehicleFields & { part: string; partNumber: string; partCategory: string; partMethod: string };
-export type CarSearchFields = { make: string; model: string; year: string; price: string; postcode: string; platform: Platform };
+export type CarSort = "best_match" | "price_asc" | "price_desc" | "newest";
+export type CarSearchFields = { make: string; model: string; year: string; price: string; postcode: string; platform: Platform; minPrice?: string; sort?: CarSort; hideUnwanted?: boolean };
 export type CarSearchCriteria = Pick<CarSearchFields, "make" | "model" | "year">;
 export type PartSearchCriteria = Pick<PartSearchFields, "make" | "model" | "part" | "partNumber">;
 export type SubmittedSearch = {
   mode: Mode; title: string; query: string; fallbackUrl: string; searchMethod: string;
-  maxPrice?: string; platform: Platform; carCriteria?: CarSearchCriteria; partCriteria?: PartSearchCriteria; carLinks?: Record<MarketplaceId, string>; saveItem: SavedSearchItem;
+  minPrice?: string; maxPrice?: string; carSort?: CarSort; hideUnwanted?: boolean; platform: Platform; carCriteria?: CarSearchCriteria; partCriteria?: PartSearchCriteria; carLinks?: Record<MarketplaceId, string>; saveItem: SavedSearchItem;
 };
 export type EbayListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
@@ -31,9 +32,9 @@ export function withEbayAffiliateTracking(url: string, customId: string) {
 }
 
 export function buildCarLinks(fields: CarSearchFields): Record<MarketplaceId, string> {
-  const { make, model, year, price, postcode } = fields;
+  const { make, model, year, price, minPrice, postcode } = fields;
   const terms = [make, model, year].filter(Boolean).join(" ");
-  const query = [terms, price ? `under £${price}` : "", postcode ? `near ${postcode}` : ""].filter(Boolean).join(" ");
+  const query = [terms || "cars", minPrice ? `from £${minPrice}` : "", price ? `under £${price}` : "", postcode ? `near ${postcode}` : ""].filter(Boolean).join(" ");
   const autoTrader = new URLSearchParams();
   if (make) autoTrader.set("make", make);
   if (model) autoTrader.set("model", model);
@@ -41,6 +42,7 @@ export function buildCarLinks(fields: CarSearchFields): Record<MarketplaceId, st
   if (price) autoTrader.set("price-to", price);
   if (postcode) autoTrader.set("postcode", postcode);
   const ebay = new URLSearchParams({ _nkw: terms, _sacat: "9801" });
+  if (minPrice) ebay.set("_udlo", minPrice);
   if (price) ebay.set("_udhi", price);
   if (postcode) ebay.set("_stpos", postcode);
   const slug = (value: string) => value.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -59,17 +61,17 @@ export function buildCarLinks(fields: CarSearchFields): Record<MarketplaceId, st
 }
 
 export function marketplaceFilterNote(id: MarketplaceId) {
-  if (id === "autotrader") return "Make, model, year and budget carried across. Check distance on Auto Trader.";
-  if (id === "ebay") return "Budget carried across; year is a search term. Set distance on eBay.";
+  if (id === "autotrader") return "Make, model, year and maximum price carried across. Check minimum price, sorting and other filters on Auto Trader.";
+  if (id === "ebay") return "Price range carried across; year is a search term. Check sorting, unwanted listings and distance on eBay.";
   if (id === "motors") return "Make and model carried across. Reapply budget, year and location on Cazoo.";
   return "Opens a keyword search. Check budget, year and location filters on the marketplace.";
 }
 
 export function createCarSearch(fields: CarSearchFields): SubmittedSearch {
   const carLinks = buildCarLinks(fields);
-  const title = [fields.year, fields.make, fields.model].filter(Boolean).join(" ");
+  const title = [fields.year, fields.make, fields.model].filter(Boolean).join(" ") || "All cars";
   const carCriteria = { make: fields.make, model: fields.model, year: fields.year };
-  return { mode: "cars", title, query: [fields.make, fields.model, fields.year].filter(Boolean).join(" "), fallbackUrl: carLinks.ebay, maxPrice: fields.price, platform: fields.platform, carCriteria, carLinks, searchMethod: "vehicle", saveItem: { kind: "car_search", title, data: { ...fields, links: carLinks } } };
+  return { mode: "cars", title, query: [fields.make, fields.model, fields.year].filter(Boolean).join(" "), fallbackUrl: carLinks.ebay, minPrice: fields.minPrice, maxPrice: fields.price, carSort: fields.sort, hideUnwanted: fields.hideUnwanted, platform: fields.platform, carCriteria, carLinks, searchMethod: "vehicle", saveItem: { kind: "car_search", title, data: { ...fields, links: carLinks } } };
 }
 
 export function createPartSearch(fields: PartSearchFields, numberOnly = false): SubmittedSearch {

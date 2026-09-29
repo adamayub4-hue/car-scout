@@ -11,6 +11,7 @@ import { parseSavedSearchParams } from "./lib/saved-search";
 import PartSearchResults from "./components/part-search-results";
 import CarSearchResults from "./components/car-search-results";
 import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type EbayListing } from "./lib/search";
+import { filterCarListings } from "./lib/car-filters";
 import AppearanceControl from "./components/appearance";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 
@@ -108,6 +109,9 @@ export default function Home() {
   const [fuel, setFuel] = useState("");
   const [bodyStyle, setBodyStyle] = useState("");
   const [price, setPrice] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [carSort, setCarSort] = useState<"best_match" | "price_asc" | "price_desc" | "newest">("price_asc");
+  const [hideUnwanted, setHideUnwanted] = useState(true);
   const [postcode, setPostcode] = useState("");
   const [registration, setRegistration] = useState("");
   const [vehicleLookup, setVehicleLookup] = useState<VehicleLookup | null>(null);
@@ -146,6 +150,7 @@ export default function Home() {
       if (saved) {
         setMake(saved.make); setModel(saved.model); setYear(saved.year);
         setPrice(saved.price); setPostcode(saved.postcode); setPlatform(saved.platform as Platform);
+        setMinPrice(saved.minPrice || ""); setCarSort(saved.sort || "best_match"); setHideUnwanted(saved.hideUnwanted ?? false);
         setEngine(saved.engine); setFuel(saved.fuel); setBodyStyle(saved.bodyStyle);
         const selection = validatedPartSelection(saved.partCategory, saved.part, saved.partMethod, saved.fuel);
         setPart(selection.part); setPartCategory(selection.category);
@@ -265,13 +270,18 @@ export default function Home() {
     try {
       const params = new URLSearchParams({ type: search.mode, q: search.query });
       if (search.maxPrice) params.set("maxPrice", search.maxPrice);
+      if (search.mode === "cars") {
+        if (search.minPrice) params.set("minPrice", search.minPrice);
+        if (search.carSort) params.set("sort", search.carSort);
+        params.set("hideUnwanted", search.hideUnwanted ? "1" : "0");
+      }
       const response = await fetch(`/api/ebay/search?${params}`, { signal: controller.signal });
       if (response.status === 429) throw new Error("Too many searches. Please wait a minute, then try again.");
       const payload = (await response.json()) as { items?: EbayListing[]; error?: string };
       if (controller.signal.aborted) throw new Error("Search timed out");
       if (requestId !== ebayRequest.current.id) return;
       if (!response.ok) throw new Error(payload.error || "Live eBay results are unavailable.");
-      const items = payload.items ?? [];
+      const items = search.mode === "cars" ? filterCarListings(payload.items ?? [], { minPrice: search.minPrice, maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted }) : payload.items ?? [];
       setEbayItems(items);
       trackGrowthEvent(items.length ? "results_shown" : "results_empty", { ...eventProperties, result_count: items.length });
     } catch (searchError) {
@@ -285,8 +295,12 @@ export default function Home() {
   };
 
   const handleCarSearch = async () => {
-    if (!make.trim()) {
-      setError("Enter a make to start your search.");
+    if ((price && (!/^\d+$/.test(price) || Number(price) <= 0 || Number(price) > 100_000_000)) || (minPrice && (!/^\d+$/.test(minPrice) || Number(minPrice) > 100_000_000))) {
+      setError("Enter a valid price in pounds.");
+      return;
+    }
+    if (price && minPrice && Number(minPrice) > Number(price)) {
+      setError("Minimum price must not be higher than your maximum price.");
       return;
     }
     if (postcode.trim() && !isValidPostcode(postcode)) {
@@ -294,7 +308,7 @@ export default function Home() {
       return;
     }
     setError("");
-    const search = createCarSearch({ make, model, year, price, postcode, platform });
+    const search = createCarSearch({ make: make.trim(), model: model.trim(), year, price, minPrice, sort: carSort, hideUnwanted, postcode, platform });
     setCarSearchRevision(revision => revision + 1);
     setSubmittedSearch(search);
     setShowResults(true);
@@ -310,6 +324,19 @@ export default function Home() {
       trackGrowthEvent("marketplace_outbound", { marketplace: platform, search_type: "cars", destination: "search_results" });
       window.open(search.carLinks![platform], "_blank", "noopener,noreferrer");
     }
+  };
+
+  const handleCarSortChange = (sort: "best_match" | "price_asc" | "price_desc" | "newest") => {
+    if (submittedSearch?.mode !== "cars") return;
+    const criteria = submittedSearch.carCriteria;
+    const search = createCarSearch({
+      make: criteria?.make || "", model: criteria?.model || "", year: criteria?.year || "",
+      price: submittedSearch.maxPrice || "", minPrice: submittedSearch.minPrice || "", sort,
+      hideUnwanted: submittedSearch.hideUnwanted,
+      postcode: String(submittedSearch.saveItem.data.postcode || ""), platform: submittedSearch.platform,
+    });
+    setCarSort(sort); setSubmittedSearch(search);
+    void searchEbay(search);
   };
 
   const handlePartsSearch = async () => {
@@ -418,7 +445,7 @@ export default function Home() {
             {(mode === "cars"
               ? [
                   ["1", "Choose where to search", "Not sure? Leave All platforms selected."],
-                  ["2", "Enter what you know", "Only the make is required. Add more to narrow it down."],
+                  ["2", "Enter what you know", "Choose a budget, or add a make and model to narrow it down."],
                   ["3", "Browse your results", "Press Search to browse eBay cars here, or open another site."],
                 ]
               : [
@@ -468,9 +495,15 @@ export default function Home() {
                   )}
                 </div>
               </details>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Quick car budgets">
+                <span className="mr-1 text-xs font-semibold text-muted">Find a car within budget</span>
+                {[2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && carSort === "price_asc"}
+                  onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }}
+                  className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5 aria-pressed:border-sky-400/60 aria-pressed:bg-sky-400/10">Under £{amount.toLocaleString("en-GB")}</button>)}
+              </div>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 <label className="text-sm text-muted">
-                  <span className="mb-2 block">Make</span>
+                  <span className="mb-2 block">Make <span className="text-subtle">(optional)</span></span>
                   <input
                     ref={carMakeRef}
                     list="car-make-options"
@@ -479,7 +512,7 @@ export default function Home() {
                       setMake(event.target.value);
                       setShowResults(false);
                     }}
-                    placeholder="e.g. BMW"
+                    placeholder="Any make"
                     className={fieldClass}
                   />
                   <datalist id="car-make-options">{Object.keys(makes).map((item) => <option key={item} value={item} />)}</datalist>
@@ -496,6 +529,10 @@ export default function Home() {
                   </select>
                 </label>
                 <label className="text-sm text-muted">
+                  <span className="mb-2 block">Minimum price</span>
+                  <input value={minPrice} onChange={event => { setMinPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="No minimum" className={fieldClass} />
+                </label>
+                <label className="text-sm text-muted">
                   <span className="mb-2 block">Maximum price</span>
                   <input
                     value={price}
@@ -504,7 +541,7 @@ export default function Home() {
                       setShowResults(false);
                     }}
                     inputMode="numeric"
-                    placeholder="£10,000"
+                    placeholder="No maximum"
                     className={fieldClass}
                   />
                 </label>
@@ -520,6 +557,20 @@ export default function Home() {
                     className={fieldClass}
                   />
                 </label>
+              </div>
+              <div className="mt-3 rounded-2xl border border-outline/10 bg-overlay/[0.025] p-4">
+                <div className="grid gap-4 sm:grid-cols-2 sm:items-center">
+                  <label className="text-sm text-muted"><span className="mb-2 block">Sort live cars</span>
+                    <select value={carSort} onChange={event => { setCarSort(event.target.value as typeof carSort); setShowResults(false); }} className={fieldClass}>
+                      <option value="price_asc">Lowest price first</option><option value="price_desc">Highest price first</option><option value="newest">Newly listed</option><option value="best_match">Best match</option>
+                    </select>
+                  </label>
+                  <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm text-muted">
+                    <input type="checkbox" checked={hideUnwanted} onChange={event => { setHideUnwanted(event.target.checked); setShowResults(false); }} className="mt-1 h-5 w-5 shrink-0 accent-sky-400" />
+                    <span><strong className="block font-semibold text-foreground">Hide parts, repair and deposit adverts</strong><span className="mt-1 block text-xs leading-5">Checks listing titles and condition. It cannot confirm a car’s history or roadworthiness.</span></span>
+                  </label>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. Other sites may need their filters set again. Postcode is passed to other sites; it does not limit distance here.</p>
               </div>
               {error && (
                 <p role="alert" className="mt-4 text-sm text-danger">
@@ -839,6 +890,7 @@ export default function Home() {
         {showResults && submittedSearch?.mode === "cars" && mode === "cars" && (
           <section ref={resultsRef} tabIndex={-1} aria-label={`Car results for ${submittedSearch.title}`} className="mx-auto mt-6 max-w-4xl scroll-mt-3 outline-none">
             <CarSearchResults key={carSearchRevision} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError}
+              onSortChange={handleCarSortChange}
               onRetry={() => void searchEbay(submittedSearch)}
               onEdit={() => {
                 carMakeRef.current?.focus({ preventScroll: true });

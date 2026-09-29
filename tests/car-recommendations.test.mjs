@@ -137,7 +137,7 @@ test('common make aliases, accents, hyphens and letter-number model spacing rema
 test('optional model and year allow an honest make-only shortlist without matching other makes', () => {
   const result = shortlist([car(1, { title: 'Ford Focus Zetec' }), car(2, { title: '2012 Ford Mondeo' }), car(3, { title: '2018 Audi A3' })], carSearch({ model: '', year: '' }));
   assert.equal(result.length, 2);
-  assert.equal(shortlist([car()], carSearch({ make: '' })).length, 0);
+  assert.equal(shortlist([car()], carSearch({ make: '' })).length, 1);
   assert.equal(shortlist([car()], carSearch({ make: 'constructor' })).length, 0);
 });
 

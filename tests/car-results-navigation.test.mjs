@@ -212,6 +212,22 @@ test('summary, saved item and outbound URLs retain the submitted criteria while 
   assert.deepEqual(app.events, []);
 });
 
+test('result sorting is reachable in the live view and reflects the submitted budget without tracking a click-out', () => {
+  const changes = [];
+  const submitted = carSearch({ minPrice: '1500', price: '5000', sort: 'price_asc', hideUnwanted: true });
+  const app = results({ search: submitted, onSortChange: value => changes.push(value) });
+  assert.match(app.text(), /£1,500–£5,000/);
+  const select = app.one(node => node.type === 'select');
+  assert.equal(select.props.value, 'price_asc');
+  assert.deepEqual(nodes(select).filter(node => node.type === 'option').map(node => node.props.value), ['price_asc', 'price_desc', 'newest', 'best_match']);
+  select.props.onChange({ target: { value: 'newest' } });
+  assert.deepEqual(changes, ['newest']);
+  assert.equal(app.props.search, submitted, 'the parent commits the requested refinement');
+  assert.deepEqual(app.events, []);
+  app.click(app.button('Other sites'));
+  assert.equal(nodes(activePanel(app)).some(node => node.type === 'select'), false, 'live-only sort is not presented as a filter for other providers');
+});
+
 test('platform selection determines available views and only exposes its prepared marketplaces', () => {
   const destinations = ['autotrader', 'facebook', 'motors', 'gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic'];
   for (const platform of ['all', 'ebay', 'more', ...destinations]) {

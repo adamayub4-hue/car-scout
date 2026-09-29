@@ -11,6 +11,7 @@ function loadModule(path) {
   return exports;
 }
 const search = loadModule('../app/lib/search.ts');
+const carFilters = loadModule('../app/lib/car-filters.ts');
 const saved = loadModule('../app/lib/saved-search.ts');
 const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
 const ast = ts.createSourceFile('page.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -56,13 +57,64 @@ test('eBay car handoff uses actual budget and category filters rather than price
   assert.equal(result.maxPrice, '5000'); assert.equal(result.saveItem.data.links.ebay, result.fallbackUrl);
 });
 
+function carSubmitHarness(overrides = {}) {
+  const requests = [], events = [];
+  const state = { error: '', submitted: null, visible: false, revision: 0 };
+  const context = {
+    make: '', model: '', year: '', price: '5000', minPrice: '1000', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all',
+    createCarSearch: search.createCarSearch,
+    setError: value => { state.error = value; }, setSubmittedSearch: value => { state.submitted = value; },
+    setShowResults: value => { state.visible = value; }, setCarSearchRevision: update => { state.revision = update(state.revision); },
+    searchEbay: value => { requests.push(value); }, trackGrowthEvent: (...args) => events.push(args), trackActivity() {},
+    ...overrides,
+  };
+  return { state, requests, events, run: handler('handleCarSearch', context) };
+}
+
+test('inverted car budgets show an error without changing results or sending a search', async () => {
+  const app = carSubmitHarness({ minPrice: '6000', price: '5000' });
+  await app.run();
+  assert.match(app.state.error, /Minimum price must not be higher/);
+  assert.equal(app.state.submitted, null); assert.equal(app.state.visible, false); assert.equal(app.state.revision, 0);
+  assert.deepEqual(app.requests, []); assert.deepEqual(app.events, []);
+});
+
+test('budget-only car search accepts any make and preserves the selected filters', async () => {
+  const app = carSubmitHarness();
+  await app.run();
+  assert.equal(app.state.error, ''); assert.equal(app.state.visible, true); assert.equal(app.requests.length, 1);
+  const submitted = app.requests[0];
+  assert.equal(submitted.title, 'All cars'); assert.equal(submitted.query, '');
+  assert.equal(submitted.minPrice, '1000'); assert.equal(submitted.maxPrice, '5000');
+  assert.equal(submitted.carSort, 'price_asc'); assert.equal(submitted.hideUnwanted, true);
+  assert.equal(app.state.submitted, submitted);
+  assert.deepEqual(app.events.map(([name]) => name), ['search_submitted']);
+});
+
+test('changing result sort uses the submitted search snapshot, preserving its budget and saved state', () => {
+  const submitted = search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '2018', price: '5000', minPrice: '1000', sort: 'price_asc', hideUnwanted: true, postcode: 'SW1A 1AA', platform: 'all' });
+  const before = JSON.stringify(submitted), calls = [];
+  let selectedSort, nextSearch;
+  const change = handler('handleCarSortChange', {
+    submittedSearch: submitted, createCarSearch: search.createCarSearch,
+    make: 'Audi', model: 'A3', year: '2025', price: '30000', minPrice: '', postcode: 'B1 1AA', platform: 'autotrader', hideUnwanted: false,
+    setCarSort: value => { selectedSort = value; }, setSubmittedSearch: value => { nextSearch = value; }, searchEbay: value => calls.push(value),
+  });
+  change('newest');
+  assert.equal(selectedSort, 'newest'); assert.equal(calls.length, 1); assert.equal(calls[0], nextSearch);
+  assert.equal(nextSearch.query, submitted.query); assert.equal(nextSearch.minPrice, '1000'); assert.equal(nextSearch.maxPrice, '5000');
+  assert.equal(nextSearch.hideUnwanted, true); assert.equal(nextSearch.platform, 'all'); assert.equal(nextSearch.saveItem.data.postcode, 'SW1A 1AA');
+  assert.equal(nextSearch.saveItem.data.sort, 'newest'); assert.equal(JSON.stringify(submitted), before);
+  assert.equal(new URL(nextSearch.carLinks.autotrader).searchParams.get('make'), 'Ford');
+});
+
 function requestsHarness() {
   const requests = [], events = [], timers = new Map();
   const state = { items: [], loading: false, error: '', mode: 'cars' };
   const ref = { current: { id: 0, controller: null } };
   let timerId = 0;
   const context = {
-    ebayRequest: ref, setEbayLoading: value => { state.loading = value; }, setEbayError: value => { state.error = value; }, setEbayItems: value => { state.items = value; },
+    filterCarListings: carFilters.filterCarListings, ebayRequest: ref, setEbayLoading: value => { state.loading = value; }, setEbayError: value => { state.error = value; }, setEbayItems: value => { state.items = value; },
     setMode: value => { state.mode = value; }, setShowResults() {}, setError() {},
     trackGrowthEvent: (...args) => events.push(args),
     setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id),
@@ -74,6 +126,24 @@ function requestsHarness() {
 const oldSearch = search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '', price: '', postcode: '', platform: 'all' });
 const newSearch = search.createPartSearch(fields, true);
 const response = title => ({ ok: true, json: async () => ({ items: [{ id: title, title }] }) });
+
+test('live car request sends selected filters and counts only the filtered visible response', async () => {
+  const app = requestsHarness();
+  const submitted = search.createCarSearch({ make: '', model: '', year: '', price: '5000', minPrice: '1000', sort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all' });
+  const pending = app.run(submitted);
+  const params = new URL(app.requests[0].url, 'https://local.test').searchParams;
+  assert.equal(params.get('type'), 'cars'); assert.equal(params.get('q'), '');
+  assert.equal(params.get('minPrice'), '1000'); assert.equal(params.get('maxPrice'), '5000');
+  assert.equal(params.get('sort'), 'price_asc'); assert.equal(params.get('hideUnwanted'), '1');
+  const item = (id, title, price) => ({ id, title, price, currency: 'GBP', condition: 'Used', buyingOptions: ['FIXED_PRICE'] });
+  app.requests[0].resolve({ ok: true, json: async () => ({ items: [
+    item('a', 'Ford Fiesta', '4000'), item('b', 'Audi A3 deposit only', '1500'), item('c', 'Vauxhall Corsa', '2000'), item('d', 'Expensive car', '6000'),
+  ] }) });
+  await pending;
+  assert.deepEqual(Array.from(app.state.items, item => item.id), ['c', 'a']);
+  assert.equal(app.events.length, 1); assert.equal(app.events[0][0], 'results_shown'); assert.equal(app.events[0][1].result_count, 2);
+  assert.equal(app.state.error, ''); assert.equal(app.state.loading, false);
+});
 
 test('an old response cannot replace results or stop the newer search loading', async () => {
   const h = requestsHarness();
@@ -161,7 +231,7 @@ function restoreFromUrl(query) {
   visit(ast);
   assert.ok(expression);
   const state = {};
-  const setters = Object.fromEntries(['Mode', 'PartMethod', 'Make', 'Model', 'Year', 'Price', 'Postcode', 'Platform', 'Engine', 'Fuel', 'BodyStyle', 'Part', 'PartCategory', 'PartNumber', 'VehicleDetailsOpen', 'RestoredSearch'].map(key => [`set${key}`, value => { state[key] = value; }]));
+  const setters = Object.fromEntries(['Mode', 'PartMethod', 'Make', 'Model', 'Year', 'Price', 'MinPrice', 'CarSort', 'HideUnwanted', 'Postcode', 'Platform', 'Engine', 'Fuel', 'BodyStyle', 'Part', 'PartCategory', 'PartNumber', 'VehicleDetailsOpen', 'RestoredSearch'].map(key => [`set${key}`, value => { state[key] = value; }]));
   const code = ts.transpileModule(`const restore = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
   const restore = vm.runInNewContext(`${code}\nrestore`, {
     URLSearchParams, parseSavedSearchParams: saved.parseSavedSearchParams, categories: guide.categories, validatedPartSelection: handler('validatedPartSelection', guide),
@@ -176,6 +246,16 @@ test('saved search restoration prefills the selected vehicle and part without su
   const result = search.createPartSearch({ ...fields, partNumber: '' });
   const state = restoreFromUrl(new URL(saved.getSavedSearchUrl(result.saveItem), 'https://mekivo.uk').search);
   assert.equal(state.Mode, 'parts'); assert.equal(state.Make, 'Ford'); assert.equal(state.Part, 'Brake Pads'); assert.equal(state.PartCategory, 'Brakes'); assert.equal(state.PartMethod, 'diagram'); assert.equal(state.RestoredSearch, true);
+});
+
+test('saved car filters restore without a request, and old saved searches retain their original broad behaviour', () => {
+  const result = search.createCarSearch({ make: '', model: '', year: '', price: '5000', minPrice: '1500', sort: 'price_desc', hideUnwanted: true, postcode: '', platform: 'all' });
+  const state = restoreFromUrl(new URL(saved.getSavedSearchUrl(result.saveItem), 'https://mekivo.uk').search);
+  assert.equal(state.Make, ''); assert.equal(state.Price, '5000'); assert.equal(state.MinPrice, '1500');
+  assert.equal(state.CarSort, 'price_desc'); assert.equal(state.HideUnwanted, true); assert.equal(state.RestoredSearch, true);
+  const old = restoreFromUrl('?restore=1&mode=cars&make=Audi&price=12000');
+  assert.equal(old.Make, 'Audi'); assert.equal(old.Price, '12000'); assert.equal(old.MinPrice, '');
+  assert.equal(old.CarSort, 'best_match'); assert.equal(old.HideUnwanted, false);
 });
 
 test('restoration rejects inherited category keys and unknown platform or method values', () => {

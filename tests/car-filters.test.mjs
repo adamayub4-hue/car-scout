@@ -1,0 +1,110 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
+import ts from 'typescript';
+
+const repo = fileURLToPath(new URL('../', import.meta.url));
+function load(path) {
+  const file = resolve(repo, path.endsWith('.ts') ? path : `${path}.ts`);
+  const exports = {};
+  vm.runInNewContext(ts.transpileModule(readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText, { exports, URL, URLSearchParams, require: name => load(resolve(dirname(file), name)) });
+  return exports;
+}
+const { filterCarListings } = load('app/lib/car-filters.ts');
+const { createCarSearch } = load('app/lib/search.ts');
+const { getSavedSearchUrl, parseSavedSearchParams, safeSearchReturnUrl } = load('app/lib/saved-search.ts');
+const { getCarRecommendations } = load('app/lib/car-recommendations.ts');
+const fields = { make: '', model: '', year: '', price: '5000', postcode: '', platform: 'all' };
+const car = (id, changes = {}) => ({ id: String(id), title: '2018 Ford Fiesta', url: `https://www.ebay.co.uk/itm/12345678900${id}`, image: null, price: '2500', currency: 'GBP', condition: 'Used', location: 'UK', buyingOptions: ['FIXED_PRICE'], ...changes });
+const ids = rows => Array.from(rows, row => row.id);
+
+test('budget browsing can search all makes and persist explicit filter choices', () => {
+  for (const hideUnwanted of [true, false]) {
+    const search = createCarSearch({ ...fields, minPrice: '1000', sort: 'price_asc', hideUnwanted });
+    assert.equal(search.title, 'All cars');
+    assert.equal(search.query, '');
+    assert.equal(search.minPrice, '1000');
+    assert.equal(search.carSort, 'price_asc');
+    assert.equal(search.hideUnwanted, hideUnwanted);
+    const url = getSavedSearchUrl(search.saveItem);
+    const restored = parseSavedSearchParams(new URL(url, 'https://mekivo.uk').searchParams);
+    assert.equal(restored.make, '');
+    assert.equal(restored.minPrice, '1000');
+    assert.equal(restored.price, '5000');
+    assert.equal(restored.sort, 'price_asc');
+    assert.equal(restored.hideUnwanted, hideUnwanted);
+    assert.equal(safeSearchReturnUrl(url), url);
+  }
+});
+
+test('legacy saved searches do not silently enable a new filter or change their URL', () => {
+  const original = '/?restore=1&mode=cars&make=Ford&model=Fiesta&price=5000&platform=all';
+  const restored = parseSavedSearchParams(new URL(original, 'https://mekivo.uk').searchParams);
+  assert.equal(restored.minPrice, undefined);
+  assert.equal(restored.sort, undefined);
+  assert.equal(restored.hideUnwanted, undefined);
+  assert.equal(safeSearchReturnUrl(original), original);
+  const search = createCarSearch({ ...fields, make: 'Ford' });
+  assert.equal(search.hideUnwanted, undefined);
+});
+
+test('untrusted restored filters cannot invent a sort, turn a negative minimum positive or leak into parts', () => {
+  for (const query of ['mode=cars&min_price=-500&sort=constructor&hide_unwanted=yes', 'mode=parts&min_price=500&sort=price_asc&hide_unwanted=1']) {
+    const restored = parseSavedSearchParams(new URLSearchParams(`restore=1&${query}`));
+    assert.equal(restored.minPrice, undefined);
+    assert.equal(restored.sort, undefined);
+    assert.equal(restored.hideUnwanted, undefined);
+  }
+});
+
+test('eBay handoff preserves the price range while unsupported marketplace filters remain honest', () => {
+  const search = createCarSearch({ ...fields, minPrice: '1000', sort: 'price_asc', hideUnwanted: true });
+  const ebay = new URL(search.fallbackUrl);
+  assert.equal(ebay.searchParams.get('_udlo'), '1000');
+  assert.equal(ebay.searchParams.get('_udhi'), '5000');
+  assert.equal(ebay.searchParams.get('_sacat'), '9801');
+  assert.equal(ebay.searchParams.get('campid'), '5339201924');
+  assert.equal(ebay.searchParams.get('_nkw'), '');
+});
+
+test('minimum and maximum asking-price filters are inclusive and reject unpriced or non-GBP rows', () => {
+  const items = [car(1, { price: '999.99' }), car(2, { price: '1000' }), car(3, { price: '5000' }), car(4, { price: '5000.01' }), car(5, { price: null }), car(6, { currency: 'EUR' })];
+  assert.deepEqual(ids(filterCarListings(items, { minPrice: '1000', maxPrice: '5000' })), ['2', '3']);
+  for (const filters of [{ minPrice: '6000', maxPrice: '5000' }, { minPrice: '-1' }, { maxPrice: 'bad' }]) assert.equal(filterCarListings(items, filters).length, 0);
+  assert.equal(filterCarListings([car(1)], { minPrice: '0' }).length, 1);
+});
+
+test('price sorting compares positive purchase prices, never bids, and does not mutate provider data', () => {
+  const items = [car(1, { price: '5000' }), car(2, { price: '999.99' }), car(3, { price: '2500' }), car(4, { price: '10', buyingOptions: ['AUCTION'] }), car(5, { price: '0' }), car(6, { currency: 'USD' }), car(7, { price: null })];
+  const before = structuredClone(items);
+  assert.deepEqual(ids(filterCarListings(items, { sort: 'price_asc' })), ['2', '3', '1']);
+  assert.deepEqual(ids(filterCarListings(items, { sort: 'price_desc' })), ['1', '3', '2']);
+  assert.deepEqual(items, before);
+  assert.equal(filterCarListings([car(8, { buyingOptions: ['AUCTION', 'FIXED_PRICE'] })], { sort: 'price_asc' }).length, 1);
+});
+
+test('best match and newest preserve provider order and allow missing prices unless a budget is set', () => {
+  const items = [car(1, { price: null }), car(2, { price: '100' }), car(3, { price: '50' })];
+  for (const sort of [undefined, 'best_match', 'newest']) assert.deepEqual(ids(filterCarListings(items, { sort })), ['1', '2', '3']);
+});
+
+test('unwanted toggle removes identifiable misleading offers while keeping normal dealer wording', () => {
+  const titles = ['spares or repairs', 'breaking', 'salvage', 'deposit £100', 'finance only', '£99 pcm', 'engine only', 'bumper', 'auction only', 'CAT N'];
+  const unwanted = titles.map((suffix, i) => car(i, { title: `Ford Fiesta ${suffix}` }));
+  unwanted.push(car(11, { buyingOptions: ['AUCTION'] }), car(12, { condition: 'For parts or not working' }));
+  assert.equal(filterCarListings(unwanted, { hideUnwanted: true }).length, 0);
+  assert.equal(filterCarListings(unwanted, { hideUnwanted: false }).length, unwanted.length);
+  const legitimate = [car(1, { title: 'Ford Fiesta finance available' }), car(2, { title: 'Ford Fiesta part exchange welcome' })];
+  assert.equal(filterCarListings(legitimate, { hideUnwanted: true }).length, 2);
+});
+
+test('all-car price picks honour minimum budget and retain stricter recommendation safeguards', () => {
+  const search = createCarSearch({ ...fields, minPrice: '2000' });
+  const result = getCarRecommendations([car(1, { price: '1900' }), car(2, { title: '2016 Audi A3', price: '3000' }), car(3, { price: '4500' }), car(4, { title: 'Ford Fiesta breaking' })], search);
+  assert.deepEqual(Array.from(result, row => row.item.id), ['2', '3']);
+});

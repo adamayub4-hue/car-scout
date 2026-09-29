@@ -21,9 +21,10 @@ const marketplaces = [
 const moreMarketplaceIds: MarketplaceId[] = ["gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"];
 type View = "live" | "prices" | "marketplaces";
 
-export default function CarSearchResults({ search, items, loading, error, onRetry, onEdit }: {
+export default function CarSearchResults({ search, items, loading, error, onRetry, onEdit, onSortChange }: {
   search: SubmittedSearch; items: EbayListing[]; loading: boolean; error: string;
   onRetry: () => void; onEdit: () => void;
+  onSortChange?: (sort: "best_match" | "price_asc" | "price_desc" | "newest") => void;
 }) {
   const hasLiveListings = search.platform === "all" || search.platform === "ebay";
   const [view, setView] = useState<View>(hasLiveListings ? "live" : "marketplaces");
@@ -34,7 +35,8 @@ export default function CarSearchResults({ search, items, loading, error, onRetr
     ...(search.platform !== "ebay" ? [{ id: "marketplaces" as const, label: "Other sites" }] : []),
   ];
   const selectedMarketplaces = marketplaces.filter(item => search.platform === "all" || search.platform === item.id || (search.platform === "more" && moreMarketplaceIds.includes(item.id)));
-  const budget = search.maxPrice ? `Up to £${Number(search.maxPrice).toLocaleString("en-GB")}` : "Any budget";
+  const money = (value: string) => `£${Number(value).toLocaleString("en-GB")}`;
+  const budget = search.minPrice && search.maxPrice ? `${money(search.minPrice)}–${money(search.maxPrice)}` : search.maxPrice ? `Up to ${money(search.maxPrice)}` : search.minPrice ? `From ${money(search.minPrice)}` : "Any budget";
   const postcode = typeof search.saveItem.data.postcode === "string" ? search.saveItem.data.postcode : "";
 
   const changeView = (next: View) => {
@@ -71,7 +73,19 @@ export default function CarSearchResults({ search, items, loading, error, onRetr
       </div>
     </div>
     {tabs.map(tab => <div key={tab.id} id={`car-panel-${tab.id}`} role="tabpanel" aria-labelledby={`car-tab-${tab.id}`} tabIndex={0} hidden={view !== tab.id} className="rounded-xl outline-offset-4 focus-visible:outline-2 focus-visible:outline-sky-400">
-      {tab.id === "live" && <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="cars" onRetry={onRetry} />}
+      {tab.id === "live" && <>
+        {onSortChange && <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-sm font-semibold text-muted">Sort live results
+            <select value={search.carSort || "best_match"} onChange={event => onSortChange(event.target.value as Parameters<NonNullable<typeof onSortChange>>[0])} className="min-h-11 rounded-xl border border-outline/15 bg-panel px-3 py-2 text-foreground">
+              <option value="price_asc">Lowest price first</option><option value="price_desc">Highest price first</option><option value="newest">Newly listed</option><option value="best_match">Best match</option>
+            </select>
+          </label>
+          {search.hideUnwanted && <p className="text-xs text-muted">Parts, repair and deposit adverts hidden</p>}
+        </div>}
+        {!loading && !error && items.length === 0 && <p className="mt-4 text-sm text-muted">No cars remain in this batch with your filters. Try a different budget or make, choose Best match, or use Edit search to include repair adverts.</p>}
+        <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="cars" onRetry={onRetry} />
+        <p className="mt-3 text-xs leading-5 text-subtle">Up to 48 eBay listings checked per search. Price sorts use advertised purchase prices, not auction bids; delivery and fees may be extra. This does not compare every UK marketplace.</p>
+      </>}
       {tab.id === "prices" && <div className="pt-4"><CarRecommendations search={search} items={items} loading={loading} error={error} compact /></div>}
       {tab.id === "marketplaces" && <section aria-labelledby="other-car-sites-heading" className="pt-5">
         <h3 id="other-car-sites-heading" className="font-bold">Compare on other car sites</h3>

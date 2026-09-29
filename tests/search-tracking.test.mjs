@@ -38,7 +38,7 @@ function routeFunction(name) {
 test('first-time guidance explains the complete car and parts journeys', () => {
   for (const message of [
     'New to Mekivo? Start here.',
-    'Only the make is required.',
+    'Choose a budget, or add a make and model to narrow it down.',
     'Press Search to browse eBay cars here, or open another site.',
     'Use the registration, or enter the make, model and year.',
     'Open the listing and confirm fitment with the seller.',
@@ -180,7 +180,7 @@ for (const name of ['handleCarSearch', 'handlePartsSearch', 'handlePartNumberSea
     const searches = [], events = [];
     let revision = 7;
     const ctx = {
-      make: 'Audi', model: 'A3', year: '2018', price: '', postcode: '', platform: 'all',
+      make: 'Audi', model: 'A3', year: '2018', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all',
       vehicleReady: true, vehicleLabel: '2018 Audi A3', engine: '', fuel: '', bodyStyle: '',
       part: 'oil filter', partCategory: '', partNumber: '06J115403Q', partMethod: 'search',
       setError() {}, setShowResults() {}, setPartNumber() {}, setPartMethod() {}, setPartCategory() {}, setPart() {},
@@ -210,7 +210,7 @@ test('external marketplace opens in the click turn despite stalled analytics', a
   const opened = [];
   let revision = 20;
   const pending = handler('handleCarSearch', {
-    make: 'Audi', model: 'A3', year: '', price: '', postcode: '', platform: 'autotrader',
+    make: 'Audi', model: 'A3', year: '', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'autotrader',
     trackGrowthEvent() {},
     ...searchHelpers, setSubmittedSearch() {}, ebayRequest: { current: { id: 0, controller: null } }, setEbayLoading() {},
     setCarSearchRevision(update) { revision = typeof update === 'function' ? update(revision) : update; },

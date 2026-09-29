@@ -1,4 +1,5 @@
 import type { EbayListing, SubmittedSearch } from "./search";
+import { carPriceInPence, filterCarListings, isUnwantedCarListing } from "./car-filters";
 
 export type CarRecommendation = {
   item: EbayListing;
@@ -7,12 +8,6 @@ export type CarRecommendation = {
   belowBudgetPence: number | null;
   purchaseFormat: "Fixed price" | "Classified ad";
 };
-
-// Title checks are deliberately conservative; they are not a vehicle inspection
-// or a guarantee of the seller's full cash price, history or availability.
-const EXCLUDED_OFFER = /\b(?:deposit|down\s*payment|pcm|p\s*\/\s*m|(?:per|a|each)\s+(?:calendar\s+)?month|monthly|weekly|(?:per|a|each)\s+week|lease|leasing|finance\s+(?:only|from|deal|offer)|instalments?|installments?|spares?|repairs?|salvage|breaking|breakers?|dismantling|scrap|damaged|non[ -]?runner|not\s+running|does\s+not\s+start|won'?t\s+start|project\s+car|restoration\s+project|write[ -]?off|category[\s-]*[abcdnsu]|cat[\s-]*[abcdnsu]|mot\s+fail(?:ure)?|no\s+mot|mot\s+expired)\b|\b\d+(?:\.\d+)?\s*pm\b/i;
-const EXCLUDED_PART = /\b(?:parts?|accessories|bumper|bonnet|tailgate|headlights?|tail\s*lights?|wing\s+mirror|door\s+mirror|brake\s+(?:pads?|discs?|calipers?)|oil\s+filter|air\s+filter|spark\s+plugs?|injectors?|turbocharger|alternator|starter\s+motor|ecu|wiring\s+loom|key\s+fob|roof\s+rack|seat\s+covers?|floor\s+mats?|owners?\s+manual|workshop\s+manual|scale\s+model|diecast|die\s+cast|toy\s+car|shell\s+only)\b|\b(?:engine|gearbox|clutch|wheels?|doors?|seats?)\s+(?:only|for|assembly|unit|replacement|removed|tested|bare|complete)\b|\b1\s*[:/]\s*\d{1,3}\s*(?:scale|model)\b/i;
-const EXCLUDED_CONDITION = /\b(?:parts?|not\s+working|damaged|salvage|repair)\b/i;
 
 function normalized(value: string) {
   return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
@@ -36,13 +31,6 @@ function makeMatches(title: string, make: string) {
   return names.some(name => containsPhrase(title, name));
 }
 
-function priceInPence(value: string | undefined | null) {
-  if (typeof value !== "string" || !/^\d+(?:\.\d{1,2})?$/.test(value.trim())) return null;
-  const [pounds, pence = ""] = value.trim().split(".");
-  const amount = Number(pounds) * 100 + Number(pence.padEnd(2, "0"));
-  return Number.isSafeInteger(amount) && amount > 0 ? amount : null;
-}
-
 export function safeEbayListingUrl(value: string): string | null {
   try {
     const url = new URL(value);
@@ -56,15 +44,14 @@ export function safeEbayListingUrl(value: string): string | null {
 export function getCarRecommendations(items: readonly EbayListing[], search: SubmittedSearch, now = Date.now()): CarRecommendation[] {
   if (search.mode !== "cars" || !search.carCriteria || (search.platform !== "all" && search.platform !== "ebay")) return [];
   const { make, model, year } = search.carCriteria;
-  if (!normalized(make)) return [];
-  const maximum = priceInPence(search.maxPrice);
+  const maximum = carPriceInPence(search.maxPrice);
   if (search.maxPrice?.trim() && maximum === null) return [];
   const seen = new Set<string>();
   const candidates: CarRecommendation[] = [];
 
-  for (const item of items) {
+  for (const item of filterCarListings(items, { minPrice: search.minPrice, maxPrice: search.maxPrice })) {
     if (typeof item.title !== "string" || item.currency !== "GBP") continue;
-    const pricePence = priceInPence(item.price);
+    const pricePence = carPriceInPence(item.price);
     if (pricePence === null || (maximum !== null && pricePence > maximum)) continue;
     const options = Array.isArray(item.buyingOptions) ? item.buyingOptions : [];
     const purchaseFormat = options.includes("FIXED_PRICE") ? "Fixed price" : options.includes("CLASSIFIED_AD") ? "Classified ad" : null;
@@ -74,7 +61,7 @@ export function getCarRecommendations(items: readonly EbayListing[], search: Sub
       if (!Number.isFinite(end) || end <= now) continue;
     }
     const title = normalized(item.title);
-    if (!makeMatches(title, make) || (model.trim() && !containsPhrase(title, model))) continue;
+    if ((make.trim() && !makeMatches(title, make)) || (model.trim() && !containsPhrase(title, model))) continue;
     if (year.trim()) {
       // The first full year in a car title is the strongest available summary
       // signal. A later MOT/service date must not stand in for the vehicle year.
@@ -82,9 +69,7 @@ export function getCarRecommendations(items: readonly EbayListing[], search: Sub
       if (firstYear !== year.trim()) continue;
     }
     if (/\b(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)\d{2}\b/.test(item.title)) continue;
-    // "Part exchange welcome" is normal full-car wording, not a parts advert.
-    const offerTitle = item.title.replace(/\bpart\s+exchange\b/gi, "");
-    if (EXCLUDED_OFFER.test(offerTitle) || EXCLUDED_PART.test(offerTitle) || EXCLUDED_CONDITION.test(item.condition || "")) continue;
+    if (isUnwantedCarListing(item)) continue;
     const url = safeEbayListingUrl(item.url);
     if (!url) continue;
     const legacyId = new URL(url).pathname.match(/\/(\d+)\/?$/)![1];

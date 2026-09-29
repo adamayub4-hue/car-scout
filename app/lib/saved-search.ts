@@ -1,3 +1,5 @@
+import type { CarSort } from "./search";
+
 export type SavedSearchItem = {
   kind: "car_search" | "part_search" | "vehicle";
   title: string;
@@ -6,6 +8,7 @@ export type SavedSearchItem = {
 
 const platforms = ["all", "more", "autotrader", "facebook", "ebay", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"];
 const text = (value: unknown, max = 80) => typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max) : "";
+const carSorts = ["best_match", "price_asc", "price_desc", "newest"];
 
 export function parseSavedSearchParams(params: URLSearchParams) {
   if (params.get("restore") !== "1") return null;
@@ -14,9 +17,15 @@ export function parseSavedSearchParams(params: URLSearchParams) {
   const vehicle = (key: string) => direct ? "" : text(params.get(key));
   const platform = text(params.get("platform"));
   const method = text(params.get("part_method"));
+  const rawMinimum = text(params.get("min_price"), 10);
+  const sort = text(params.get("sort"));
+  const hideUnwanted = params.get("hide_unwanted");
   return {
     mode, make: vehicle("make"), model: vehicle("model"), year: /^\d{4}$/.test(vehicle("year")) ? vehicle("year") : "",
     price: text(params.get("price"), 10).replace(/[^0-9]/g, ""), postcode: text(params.get("postcode"), 10),
+    minPrice: mode === "cars" && /^\d{1,8}$/.test(rawMinimum) ? rawMinimum : undefined,
+    sort: mode === "cars" && carSorts.includes(sort) ? sort as CarSort : undefined,
+    hideUnwanted: mode === "cars" && (hideUnwanted === "1" || hideUnwanted === "0") ? hideUnwanted === "1" : undefined,
     platform: platforms.includes(platform) ? platform : "all",
     engine: vehicle("engine"), fuel: vehicle("fuel"), bodyStyle: vehicle("body_style"),
     part: direct ? "" : text(params.get("part")), partCategory: direct ? "" : text(params.get("category")),
@@ -31,11 +40,11 @@ export function getSavedSearchUrl(item: SavedSearchItem) {
   const mode = item.kind === "car_search" ? "cars" : "parts";
   const direct = data.searchMethod === "part_number" || (Boolean(data.partNumber) && !data.make && !data.model && !data.year);
   const params = new URLSearchParams({ restore: "1", mode });
-  const fields: Record<string, unknown> = { make: data.make, model: data.model, year: data.year, price: data.price, postcode: data.postcode, platform: data.platform, engine: data.engine, fuel: data.fuel, body_style: data.bodyStyle, part: data.part, category: data.partCategory, part_number: data.partNumber, part_method: data.partMethod, search_method: direct ? "part_number" : "vehicle" };
+  const fields: Record<string, unknown> = { make: data.make, model: data.model, year: data.year, price: data.price, min_price: data.minPrice, sort: data.sort, hide_unwanted: typeof data.hideUnwanted === "boolean" ? data.hideUnwanted ? "1" : "0" : undefined, postcode: data.postcode, platform: data.platform, engine: data.engine, fuel: data.fuel, body_style: data.bodyStyle, part: data.part, category: data.partCategory, part_number: data.partNumber, part_method: data.partMethod, search_method: direct ? "part_number" : "vehicle" };
   for (const [key, value] of Object.entries(fields)) if (text(value)) params.set(key, text(value));
   const clean = parseSavedSearchParams(params)!;
   const safe = new URLSearchParams({ restore: "1", mode: clean.mode });
-  const values = { make: clean.make, model: clean.model, year: clean.year, price: clean.mode === "cars" ? clean.price : "", postcode: clean.mode === "cars" ? clean.postcode : "", platform: clean.mode === "cars" ? clean.platform : "", engine: clean.engine, fuel: clean.fuel, body_style: clean.bodyStyle, part: clean.part, category: clean.partCategory, part_number: clean.partNumber, part_method: clean.mode === "parts" ? clean.partMethod : "", search_method: clean.mode === "parts" ? clean.searchMethod : "" };
+  const values = { make: clean.make, model: clean.model, year: clean.year, price: clean.mode === "cars" ? clean.price : "", min_price: clean.minPrice, sort: clean.sort, hide_unwanted: clean.hideUnwanted === undefined ? "" : clean.hideUnwanted ? "1" : "0", postcode: clean.mode === "cars" ? clean.postcode : "", platform: clean.mode === "cars" ? clean.platform : "", engine: clean.engine, fuel: clean.fuel, body_style: clean.bodyStyle, part: clean.part, category: clean.partCategory, part_number: clean.partNumber, part_method: clean.mode === "parts" ? clean.partMethod : "", search_method: clean.mode === "parts" ? clean.searchMethod : "" };
   for (const [key, value] of Object.entries(values)) if (value) safe.set(key, value);
   return `/?${safe}`;
 }
