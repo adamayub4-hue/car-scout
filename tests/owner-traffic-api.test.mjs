@@ -32,10 +32,10 @@ function fixture(url) {
       { eventName: 'marketplace_outbound', count: 11, visitors: 8 },
     ] };
     case 'eventData/context': return { data: [
-      { eventData: 'cars:ebay:listing', count: 4 },
-      { eventData: 'parts:ebay:all_results', count: 2 },
-      { eventData: 'cars:autotrader:search_results', count: 3 },
-      { eventData: null, count: 2 },
+      { 'eventData/context': 'cars:ebay:listing', count: 4 },
+      { 'eventData/context': 'parts:ebay:all_results', count: 2 },
+      { 'eventData/context': 'cars:autotrader:search_results', count: 3 },
+      { 'eventData/context': null, count: 2 },
     ] };
     default: throw new Error('Unexpected analytics grouping');
   }
@@ -533,7 +533,7 @@ test('failed, malformed or unreconciled click breakdowns are unavailable and ret
 });
 
 
-test('destination diagnostics reveal only safe failure category, HTTP status or schema, never counts or values', async () => {
+test('destination diagnostics reveal only a safe failure category and HTTP status, never schema or values', async () => {
   const samples = [
     [() => new Response('secret raw provider body', { status: 400 }), 'http_error'],
     [() => new Response('secret invalid JSON'), 'invalid_json'],
@@ -554,9 +554,35 @@ test('destination diagnostics reveal only safe failure category, HTTP status or 
     const log = JSON.stringify(h.diagnostics);
     for (const sensitive of ['private-context-value', 'private-schema-key', 'secret', '115', 'owner-session-token', 'private-vercel-test-token', 'api.vercel.com', 'cars:ebay:listing']) assert.ok(!log.includes(sensitive), sensitive);
     if (expected === 'http_error') assert.equal(detail.status, 400);
-    if (expected === 'invalid_context') {
-      if (detail.contextType === 'object') assert.deepEqual(Array.from(detail.contextKeys), ['context']);
-      else { assert.ok(['context', 'other_key'].includes(detail.rowKeys[0])); assert.equal(detail.rowKeys[1], 'count'); assert.equal(detail.contextType, 'undefined'); }
-    }
+    assert.deepEqual(Object.keys(detail).sort(), expected === 'http_error' ? ['reason', 'status'] : ['reason']);
+  }
+});
+
+
+test('observed literal eventData/context rows and documented eventData rows both retain correct classification', async () => {
+  // Counts are synthetic; the literal response column was observed in the
+  // authenticated production provider diagnostic on 29 September 2026.
+  for (const row of [
+    { 'eventData/context': 'parts:ebay:listing', count: 11, visitors: 8 },
+    { eventData: 'parts:ebay:listing', count: 11, visitors: 8 },
+    { 'eventData/context': 'parts:ebay:listing', eventData: 'parts:ebay:listing', count: 11 },
+  ]) {
+    const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context' ? { data: [row] } : fixture(url)) });
+    const report = await (await h.get()).json();
+    assert.deepEqual(report.clicksByDestination, { ebayCars: 0, ebayParts: 11, otherMarketplaces: 0, unclassified: 0 });
+    assert.equal(report.partial, false); assert.deepEqual(h.diagnostics, []);
+  }
+});
+
+test('conflicting grouping aliases and duplicate contexts across response formats cannot produce misleading numbers', async () => {
+  for (const data of [
+    [{ 'eventData/context': 'cars:ebay:listing', eventData: 'parts:ebay:listing', count: 11 }],
+    [{ 'eventData/context': null, eventData: 'parts:ebay:listing', count: 11 }],
+    [{ 'eventData/context': 'cars:ebay:listing', count: 5 }, { eventData: 'cars:ebay:listing', count: 6 }],
+  ]) {
+    const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context' ? { data } : fixture(url)) });
+    const report = await (await h.get()).json();
+    assert.equal(report.outboundClicks, 11); assert.equal(report.clicksByDestination, null); assert.equal(report.partial, true);
+    assert.ok(['conflicting_context', 'duplicate_context'].includes(h.diagnostics[0][1].reason));
   }
 });

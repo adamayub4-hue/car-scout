@@ -74,31 +74,19 @@ function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-type AnalyticsSchema = { rowKeys: string[]; contextType: string; countType: string; contextKeys?: string[] };
 class AnalyticsQueryError extends Error {
-  constructor(public readonly category: string, public readonly status?: number, public readonly schema?: AnalyticsSchema) {
+  constructor(public readonly category: string, public readonly status?: number) {
     super("Analytics query failed");
   }
 }
 
-function rowSchema(row: Record<string, unknown>): AnalyticsSchema {
-  const valueType = (value: unknown) => value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
-  const schemaNames = new Set(["eventData", "eventData/context", "eventData.context", "context", "count", "visitors", "key", "value", "timestamp", "others", "Others", "isOther", "total", "environment", "eventName", "eventDataKey", "eventDataValue"]);
-  const keys = (value: Record<string, unknown>) => Object.keys(value).slice(0, 12).map(key => schemaNames.has(key) ? key : "other_key");
-  return {
-    rowKeys: keys(row),
-    contextType: valueType(row.eventData), countType: valueType(row.count),
-    ...(record(row.eventData) ? { contextKeys: keys(row.eventData) } : {}),
-  };
-}
-
-function parseFailure(error: unknown, row?: Record<string, unknown>) {
+function parseFailure(error: unknown) {
   const categories: Record<string, string> = {
     "Invalid analytics response": "invalid_rows", "Invalid analytics context": "invalid_context",
-    "Duplicate analytics context": "duplicate_context", "Invalid analytics count": "invalid_count",
+    "Duplicate analytics context": "duplicate_context", "Conflicting analytics context": "conflicting_context", "Invalid analytics count": "invalid_count",
   };
   const message = error instanceof Error ? error.message : "";
-  return new AnalyticsQueryError(Object.hasOwn(categories, message) ? categories[message] : "invalid_response", undefined, row ? rowSchema(row) : undefined);
+  return new AnalyticsQueryError(Object.hasOwn(categories, message) ? categories[message] : "invalid_response");
 }
 
 function rows(payload: unknown, maxRows: number): Record<string, unknown>[] {
@@ -156,11 +144,14 @@ function parseEvents(payload: unknown) {
 function parseDestinations(payload: unknown): OwnerTrafficClicks {
   const result = { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 };
   const seen = new Set<string | null>();
-  // Vercel documents a keyed JSON grouping as { eventData: "value", count }.
+  // Production returns a literal "eventData/context" column. Vercel's guide
+  // instead documents "eventData". Accept both, but never conflicting values.
   // The top-100 response may contain one additional "Others" row.
   for (const row of rows(payload, 101)) {
     try {
-      const context = row.eventData;
+      const hasLiteralKey = Object.hasOwn(row, "eventData/context");
+      if (hasLiteralKey && Object.hasOwn(row, "eventData") && row["eventData/context"] !== row.eventData) throw new Error("Conflicting analytics context");
+      const context = hasLiteralKey ? row["eventData/context"] : row.eventData;
       if (context !== null && (typeof context !== "string" || context.length > 255 || /[\u0000-\u001f\u007f]/.test(context))) throw new Error("Invalid analytics context");
       if (seen.has(context as string | null)) throw new Error("Duplicate analytics context");
       seen.add(context as string | null);
@@ -170,7 +161,7 @@ function parseDestinations(payload: unknown): OwnerTrafficClicks {
       const group = known && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : "ebayParts")
         : known && ["autotrader", "facebook", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"].includes(marketplace) ? "otherMarketplaces" : "unclassified";
       result[group] = count(result[group] + count(row.count));
-    } catch (error) { throw parseFailure(error, row); }
+    } catch (error) { throw parseFailure(error); }
   }
   return result;
 }
@@ -234,10 +225,10 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
   if (destinations.status === "rejected") {
     const failure = destinations.reason;
     // Server-only diagnostics are deliberately limited to error categories,
-    // HTTP status and schema keys/types. Never log values, counts, tokens,
+    // and HTTP status. Never log schema, values, counts, tokens,
     // request URLs, filters or the provider response body.
     console.warn("Owner traffic destination breakdown unavailable", failure instanceof AnalyticsQueryError
-      ? { reason: failure.category, ...(failure.status ? { status: failure.status } : {}), ...failure.schema }
+      ? { reason: failure.category, ...(failure.status ? { status: failure.status } : {}) }
       : { reason: failure instanceof UpstreamTimeoutError ? "timeout" : "network_failure" });
   } else if (events.status === "fulfilled" && clicksByDestination === null) {
     console.warn("Owner traffic destination breakdown unavailable", { reason: "totals_mismatch" });
