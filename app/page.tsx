@@ -8,10 +8,9 @@ import { trackGrowthEvent } from "./lib/growth-events";
 import { analyticsAudience } from "./lib/analytics-audience";
 import { categories, diagramSystems, electricCategoryOverrides, electricDiagramOverrides } from "./lib/parts-guide-data";
 import { parseSavedSearchParams } from "./lib/saved-search";
-import EbayResults from "./components/ebay-results";
+import PartSearchResults from "./components/part-search-results";
 import CarSearchResults from "./components/car-search-results";
 import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type EbayListing } from "./lib/search";
-import SaveButton from "./components/save-button";
 import AppearanceControl from "./components/appearance";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 
@@ -440,7 +439,7 @@ export default function Home() {
         </div></details>
 
         {restoredSearch && <p role="status" className="mx-auto mb-3 max-w-4xl rounded-xl border border-sky-400/25 bg-sky-400/10 p-3 text-sm text-muted">Your saved search is ready. Check the details and press Search for current listings.</p>}
-        <section ref={carSearchFormRef} className="mx-auto max-w-4xl scroll-mt-4 rounded-2xl border border-outline/10 bg-panel/95 p-4 shadow-xl shadow-black/15 sm:p-6">
+        <section ref={carSearchFormRef} tabIndex={-1} className="mx-auto max-w-4xl scroll-mt-4 rounded-2xl border border-outline/10 bg-panel/95 p-4 shadow-xl shadow-black/15 sm:p-6">
           {mode === "cars" ? (
             <>
               <details className="mb-4 rounded-xl border border-outline/10 p-3">
@@ -849,18 +848,14 @@ export default function Home() {
         )}
 
         {showResults && submittedSearch?.mode === "parts" && mode === "parts" && (
-          <div ref={resultsRef} tabIndex={-1} className="mx-auto mt-6 max-w-4xl scroll-mt-5 outline-none">
-            <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 sm:flex sm:items-center sm:justify-between sm:gap-5">
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wider text-success">Search ready</p>
-                <h3 className="mt-2 text-lg font-bold">{submittedSearch.title}</h3>
-                <p className="mt-1 text-sm text-muted">Check the listing&apos;s compatibility details before purchasing.</p>
-                <SaveButton item={submittedSearch.saveItem} />
-              </div>
-              <a href={submittedSearch.fallbackUrl} target="_blank" rel="sponsored noreferrer" onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: "parts", destination: "all_results" })} className="mt-4 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-bold text-emerald-950 sm:mt-0">View all on eBay</a>
-            </section>
-            <EbayResults items={ebayItems} loading={ebayLoading} error={ebayError} fallbackUrl={submittedSearch.fallbackUrl} searchType="parts" onRetry={() => void searchEbay(submittedSearch)} />
-          </div>
+          <section ref={resultsRef} tabIndex={-1} aria-label={`Parts results for ${submittedSearch.title}`} className="mx-auto mt-6 max-w-4xl scroll-mt-3 outline-none">
+            <PartSearchResults key={submittedSearch.query} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError}
+              onRetry={() => void searchEbay(submittedSearch)}
+              onEdit={() => {
+                carSearchFormRef.current?.focus({ preventScroll: true });
+                carSearchFormRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+              }} />
+          </section>
         )}
 
         <section className="mx-auto mt-16 grid max-w-4xl gap-4 sm:grid-cols-3">

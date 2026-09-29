@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import type { OwnerTrafficRange, OwnerTrafficReport, OwnerTrafficSource } from "./owner-traffic";
+import { ownerTrafficDateWindow, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks } from "./owner-traffic";
 import { BoundedTtlCache } from "./server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "./server-upstream";
 
 const reports = new BoundedTtlCache<OwnerTrafficReport>(12, 5 * 60_000);
-const RANGE_MS: Record<OwnerTrafficRange, number> = {
+const RANGE_MS: Record<Exclude<OwnerTrafficRange, "custom">, number> = {
   "24h": 24 * 60 * 60_000,
   "7d": 7 * 24 * 60 * 60_000,
   "30d": 30 * 24 * 60 * 60_000,
@@ -126,8 +126,28 @@ function parseEvents(payload: unknown) {
   return counts;
 }
 
+function parseDestinations(payload: unknown): OwnerTrafficClicks {
+  const result = { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 };
+  const seen = new Set<string | null>();
+  // Vercel documents a keyed JSON grouping as { eventData: "value", count }.
+  // The top-100 response may contain one additional "Others" row.
+  for (const row of rows(payload, 101)) {
+    const context = row.eventData;
+    if (context !== null && (typeof context !== "string" || context.length > 255 || /[\u0000-\u001f\u007f]/.test(context))) throw new Error("Invalid analytics context");
+    if (seen.has(context as string | null)) throw new Error("Duplicate analytics context");
+    seen.add(context as string | null);
+    const parts = typeof context === "string" ? context.split(":") : [];
+    const [type, marketplace, destination] = parts;
+    const known = parts.length === 3 && ["cars", "parts"].includes(type) && ["listing", "search_results", "all_results"].includes(destination);
+    const group = known && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : "ebayParts")
+      : known && ["autotrader", "facebook", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"].includes(marketplace) ? "otherMarketplaces" : "unclassified";
+    result[group] = count(result[group] + count(row.count));
+  }
+  return result;
+}
+
 // Call only after authorizeTrafficOwner. All configuration stays on the server.
-export async function getOwnerTraffic(range: OwnerTrafficRange): Promise<OwnerTrafficReport> {
+export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTrafficDates): Promise<OwnerTrafficReport> {
   const token = process.env.MEKIVO_ANALYTICS_VERCEL_TOKEN?.trim();
   if (!token) {
     throw new OwnerTrafficError(503, "not_configured", "Website traffic reporting is not connected yet.");
@@ -136,13 +156,15 @@ export async function getOwnerTraffic(range: OwnerTrafficRange): Promise<OwnerTr
   const slug = process.env.MEKIVO_ANALYTICS_TEAM_SLUG?.trim() || "adamayub4-hues-projects";
   // Rotating credentials or changing the configured project cannot reuse an old
   // snapshot; the key contains a hash rather than retaining another raw token.
-  const cacheKey = JSON.stringify([projectId, slug, createHash("sha256").update(token).digest("hex"), range]);
+  const customWindow = range === "custom" && dates ? ownerTrafficDateWindow(dates) : null;
+  if (range === "custom" && !customWindow) throw new OwnerTrafficError(400, "invalid_range", "Choose valid UK dates, up to 31 days inclusive, ending no later than today.");
+  const cacheKey = JSON.stringify([projectId, slug, createHash("sha256").update(token).digest("hex"), range, dates?.from, dates?.to]);
   const cached = reports.get(cacheKey);
   if (cached) return cached;
 
   const now = Date.now();
-  const since = new Date(now - RANGE_MS[range]).toISOString();
-  const until = new Date(now).toISOString();
+  const since = customWindow?.since ?? new Date(now - RANGE_MS[range as Exclude<OwnerTrafficRange, "custom">]).toISOString();
+  const until = customWindow?.until ?? new Date(now).toISOString();
   async function query<T>(dataset: "visits" | "events", by: string, filter: string, limit: number, parse: (payload: unknown) => T) {
     const url = new URL(`https://api.vercel.com/v1/query/web-analytics/${dataset}/aggregate`);
     url.search = new URLSearchParams({ projectId, slug, since, until, by, filter, limit: String(limit) }).toString();
@@ -158,10 +180,11 @@ export async function getOwnerTraffic(range: OwnerTrafficRange): Promise<OwnerTr
     });
   }
 
-  const [totals, sources, events] = await Promise.allSettled([
+  const [totals, sources, events, destinations] = await Promise.allSettled([
     query("visits", "environment", PRODUCTION_FILTER, 1, parseTotals),
     query("visits", "referrerHostname", PRODUCTION_FILTER, 8, parseSources),
     query("events", "eventName", EVENT_FILTER, 10, parseEvents),
+    query("events", "eventData/context", `${PRODUCTION_FILTER} and eventName eq 'marketplace_outbound'`, 100, parseDestinations),
   ]);
   if (totals.status === "rejected") {
     const timedOut = totals.reason instanceof UpstreamTimeoutError;
@@ -171,12 +194,19 @@ export async function getOwnerTraffic(range: OwnerTrafficRange): Promise<OwnerTr
   const warnings: string[] = [];
   if (sources.status === "rejected") warnings.push("Traffic sources are temporarily unavailable.");
   if (events.status === "rejected") warnings.push("Search and outbound-click totals are temporarily unavailable.");
+  // Queries can settle at different ingestion moments. Never present a split
+  // that does not add up to the confirmed total, or fill a failed split with 0.
+  const clicksByDestination = destinations.status === "fulfilled" && events.status === "fulfilled"
+    && Object.values(destinations.value).reduce((sum, value) => sum + value, 0) === events.value.outboundClicks ? destinations.value : null;
+  if (clicksByDestination === null && events.status === "fulfilled") warnings.push("The outbound-click breakdown is temporarily unavailable.");
   const report: OwnerTrafficReport = {
     range, since, until, fetchedAt: new Date(Date.now()).toISOString(),
     ...totals.value,
     sources: sources.status === "fulfilled" ? sources.value : null,
     searches: events.status === "fulfilled" ? events.value.searches : null,
     outboundClicks: events.status === "fulfilled" ? events.value.outboundClicks : null,
+    clicksByDestination,
+    ...(range === "custom" && dates ? { calendarDates: dates } : {}),
     partial: warnings.length > 0, warnings,
   };
   // Let Retry recover optional sections immediately rather than caching errors.

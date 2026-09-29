@@ -2,25 +2,27 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { OwnerTrafficRange, OwnerTrafficReport } from "../lib/owner-traffic";
+import { ownerTrafficDateWindow, ownerTrafficUKDate, type OwnerTrafficDates, type OwnerTrafficRange, type OwnerTrafficReport } from "../lib/owner-traffic";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
 const RANGE_LABELS: Record<OwnerTrafficRange, string> = {
-  "24h": "Last 24 hours", "7d": "Last 7 days", "30d": "Last 30 days",
+  "24h": "Last 24 hours", "7d": "Last 7 days", "30d": "Last 30 days", custom: "Choose dates (UK time)",
 };
 const number = new Intl.NumberFormat("en-GB");
 const date = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London",
+  day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London",
 });
 
 type TrafficState = { report: OwnerTrafficReport | null; loading: boolean; error: string | null };
 
 // Kept separate from loading so the real dashboard layout can be reviewed locally.
-export function OwnerTrafficView({ range, state, onRangeChange, onRefresh }: {
+export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCustomDates, hasCustomDates = false }: {
   range: OwnerTrafficRange;
   state: TrafficState;
   onRangeChange: (range: OwnerTrafficRange) => void;
   onRefresh: () => void;
+  onCustomDates?: (dates: OwnerTrafficDates) => void;
+  hasCustomDates?: boolean;
 }) {
   const { report, loading, error } = state;
   return <section aria-labelledby="website-traffic-heading" className="mt-7 rounded-2xl border border-sky-300/25 bg-sky-400/5 p-5 sm:p-6">
@@ -36,9 +38,21 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh }: {
             {Object.entries(RANGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
-        <button type="button" disabled={loading} onClick={onRefresh} className="rounded-lg bg-sky-300 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-50">{loading ? "Loading…" : "Refresh traffic"}</button>
+        <button type="button" disabled={loading || (range === "custom" && !hasCustomDates)} onClick={onRefresh} className="rounded-lg bg-sky-300 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-50">{loading ? "Loading…" : "Refresh traffic"}</button>
       </div>
     </div>
+    {range === "custom" && <form className="mt-5 rounded-xl border border-outline/10 bg-panel p-4" onSubmit={event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      onCustomDates?.({ from: (form.elements.namedItem("from") as HTMLInputElement).value, to: (form.elements.namedItem("to") as HTMLInputElement).value });
+    }}>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs font-semibold text-muted">From (UK date)<input name="from" type="date" required max={ownerTrafficUKDate()} defaultValue={report?.calendarDates?.from} className="mt-1 block rounded-lg border border-outline/20 bg-background px-3 py-2 text-sm text-foreground" /></label>
+        <label className="text-xs font-semibold text-muted">To (UK date, included)<input name="to" type="date" required max={ownerTrafficUKDate()} defaultValue={report?.calendarDates?.to} className="mt-1 block rounded-lg border border-outline/20 bg-background px-3 py-2 text-sm text-foreground" /></label>
+        <button type="submit" disabled={loading} className="rounded-lg bg-sky-300 px-4 py-2 text-sm font-bold text-slate-950 disabled:opacity-50">Apply dates</button>
+      </div>
+      <p className="mt-3 text-xs leading-5 text-subtle">Up to 31 calendar days, including both dates. Europe/London time, with UK clock changes applied. Today is counted only up to the report time. Match the dates and timezone in your eBay report before comparing.</p>
+    </form>}
     {loading && <p role="status" className="mt-6 rounded-xl border border-outline/10 p-5 text-sm text-muted">Loading your visitor report…</p>}
     {error && <div role="alert" className="mt-6 rounded-xl border border-amber-300/30 bg-amber-300/5 p-5"><p className="font-semibold">Visitor figures unavailable</p><p className="mt-2 text-sm leading-6 text-muted">{error}</p></div>}
     {report && !loading && !error && <>
@@ -52,6 +66,16 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh }: {
         ].map(({ label, value, detail }) => <div key={label} className="rounded-xl border border-outline/10 bg-panel p-4 sm:p-5"><p className="text-sm font-semibold text-muted">{label}</p><p className={`mt-2 font-bold ${value === null ? "text-base" : "text-3xl sm:text-4xl"}`}>{value === null ? "Unavailable" : number.format(value)}</p><p className="mt-2 text-xs leading-5 text-subtle">{detail}</p></div>)}
       </div>
       {report.partial && <p role="status" className="mt-4 text-sm text-warning">Some sections could not be loaded. The available figures are shown; try refreshing in a few minutes.</p>}
+      <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
+        <h3 className="font-bold">Where listing clicks went</h3>
+        {report.clicksByDestination == null ? <p className="mt-3 text-sm text-muted">The outbound-click breakdown is temporarily unavailable.</p> : <dl className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {([
+            ["eBay cars", report.clicksByDestination.ebayCars], ["eBay parts", report.clicksByDestination.ebayParts],
+            ["Other marketplaces", report.clicksByDestination.otherMarketplaces], ["Unclassified", report.clicksByDestination.unclassified],
+          ] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-outline/10 p-3"><dt className="text-xs font-semibold text-muted">{label}</dt><dd className="mt-2 text-2xl font-bold tabular-nums">{number.format(value)}</dd></div>)}
+        </dl>}
+        <p className="mt-3 text-xs leading-5 text-subtle">Same reporting period as the totals above. Includes links to individual listings and marketplace search results; repeated clicks are counted. Unclassified means older or unknown labels could not identify the destination. Website actions are not eBay-credited clicks or sales, and the two services can count differently.</p>
+      </div>
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
         <h3 className="font-bold">Where visitors came from</h3>
         {report.sources === null ? <p className="mt-3 text-sm text-muted">Traffic sources are temporarily unavailable.</p> : report.sources.length === 0 ? <p className="mt-3 text-sm text-muted">No traffic sources recorded for this period.</p> : <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-xs text-subtle"><th scope="col" className="py-2 pr-3 font-medium">Source</th><th scope="col" className="py-2 text-right font-medium">Visitors</th><th scope="col" className="py-2 pl-3 text-right font-medium">Page views</th></tr></thead><tbody>{report.sources.map((source, index) => <tr key={`${source.source}-${index}`} className="border-t border-outline/10"><th scope="row" className="max-w-48 break-words py-3 pr-3 font-medium">{source.source}</th><td className="py-3 text-right tabular-nums">{number.format(source.visitors)}</td><td className="py-3 pl-3 text-right tabular-nums">{number.format(source.pageviews)}</td></tr>)}</tbody></table></div>}
@@ -70,8 +94,10 @@ export default function OwnerTraffic() {
   const [range, setRange] = useState<OwnerTrafficRange>("7d");
   const [refresh, setRefresh] = useState(0);
   const [state, setState] = useState<TrafficState>({ report: null, loading: true, error: null });
+  const [customDates, setCustomDates] = useState<OwnerTrafficDates | null>(null);
 
   useEffect(() => {
+    if (range === "custom" && !customDates) return;
     const client = getSupabaseBrowserClient();
     const controller = new AbortController();
     let active = true;
@@ -93,7 +119,8 @@ export default function OwnerTraffic() {
           if (observedUserId !== undefined && observedUserId !== data.session.user.id) throw new Error("Please sign in to your owner account again to view this report.");
           loadedUserId = data.session.user.id;
           if (!active || controller.signal.aborted) throw new Error("Request cancelled");
-          const response = await fetch(`/api/admin/traffic?range=${range}`, {
+          const query = new URLSearchParams({ range, ...(range === "custom" && customDates ? customDates : {}) });
+          const response = await fetch(`/api/admin/traffic?${query}`, {
             headers: { Authorization: `Bearer ${data.session.access_token}` },
             cache: "no-store", signal: controller.signal,
           });
@@ -120,7 +147,13 @@ export default function OwnerTraffic() {
       }
     });
     return () => { active = false; clearTimeout(start); clearTimeout(timer); controller.abort(); subscription?.data.subscription.unsubscribe(); };
-  }, [range, refresh]);
+  }, [range, refresh, customDates]);
 
-  return <OwnerTrafficView range={range} state={state} onRangeChange={value => { setState({ report: null, loading: true, error: null }); setRange(value); }} onRefresh={() => { setState({ report: null, loading: true, error: null }); setRefresh(value => value + 1); }} />;
+  return <OwnerTrafficView range={range} state={state} hasCustomDates={customDates !== null}
+    onRangeChange={value => { setState({ report: null, loading: value !== "custom" || customDates !== null, error: null }); setRange(value); }}
+    onCustomDates={dates => {
+      if (!ownerTrafficDateWindow(dates)) { setState({ report: null, loading: false, error: "Choose valid UK dates, up to 31 days inclusive, ending no later than today." }); return; }
+      setState({ report: null, loading: true, error: null }); setCustomDates(dates);
+    }}
+    onRefresh={() => { setState({ report: null, loading: true, error: null }); setRefresh(value => value + 1); }} />;
 }

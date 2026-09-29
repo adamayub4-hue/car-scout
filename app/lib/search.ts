@@ -7,14 +7,16 @@ export type VehicleFields = { make: string; model: string; year: string; engine:
 export type PartSearchFields = VehicleFields & { part: string; partNumber: string; partCategory: string; partMethod: string };
 export type CarSearchFields = { make: string; model: string; year: string; price: string; postcode: string; platform: Platform };
 export type CarSearchCriteria = Pick<CarSearchFields, "make" | "model" | "year">;
+export type PartSearchCriteria = Pick<PartSearchFields, "make" | "model" | "part" | "partNumber">;
 export type SubmittedSearch = {
   mode: Mode; title: string; query: string; fallbackUrl: string; searchMethod: string;
-  maxPrice?: string; platform: Platform; carCriteria?: CarSearchCriteria; carLinks?: Record<MarketplaceId, string>; saveItem: SavedSearchItem;
+  maxPrice?: string; platform: Platform; carCriteria?: CarSearchCriteria; partCriteria?: PartSearchCriteria; carLinks?: Record<MarketplaceId, string>; saveItem: SavedSearchItem;
 };
 export type EbayListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
   currency: string | null; condition: string | null; location: string | null;
   buyingOptions?: string[]; itemEndDate?: string | null;
+  postage?: { price: string; currency: string } | null;
 };
 
 const ebayAffiliateParams = { mkcid: "1", mkrid: "710-53481-19255-0", siteid: "3", campid: "5339201924", toolid: "10001", mkevt: "1" };
@@ -79,7 +81,8 @@ export function createPartSearch(fields: PartSearchFields, numberOnly = false): 
   const title = [vehicleLabel, data.part || data.partNumber || data.partCategory].filter(Boolean).join(" · ");
   const query = [vehicleLabel, data.partCategory, data.part, data.partNumber].filter(Boolean).join(" ");
   const fallbackUrl = withEbayAffiliateTracking(`https://www.ebay.co.uk/sch/i.html?${new URLSearchParams({ _nkw: query, _sacat: "6030" })}`, "mekivo-parts-search");
-  return { mode: "parts", title, query, fallbackUrl, platform: "ebay", searchMethod: numberOnly ? "part_number" : fields.partMethod, saveItem: { kind: "part_search", title, data: { ...data, vehicleLabel, link: fallbackUrl } } };
+  const partCriteria = { make: data.make, model: data.model, part: data.part, partNumber: data.partNumber };
+  return { mode: "parts", title, query, fallbackUrl, platform: "ebay", partCriteria, searchMethod: numberOnly ? "part_number" : fields.partMethod, saveItem: { kind: "part_search", title, data: { ...data, vehicleLabel, link: fallbackUrl } } };
 }
 
 export function safeListingImage(value: string | null) {

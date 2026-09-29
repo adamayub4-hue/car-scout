@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { OWNER_TRAFFIC_RANGES, type OwnerTrafficRange } from "../../../lib/owner-traffic";
+import { OWNER_TRAFFIC_RANGES, ownerTrafficDateWindow, type OwnerTrafficRange } from "../../../lib/owner-traffic";
 import { authorizeTrafficOwner, getOwnerTraffic, OwnerTrafficError } from "../../../lib/server-traffic";
 
 export const runtime = "nodejs";
@@ -11,10 +11,12 @@ export async function GET(request: Request) {
     await authorizeTrafficOwner(request.headers.get("authorization"));
     const params = new URL(request.url).searchParams;
     const range = params.get("range") ?? "7d";
-    if (params.getAll("range").length > 1 || !OWNER_TRAFFIC_RANGES.includes(range as OwnerTrafficRange)) {
-      return NextResponse.json({ code: "invalid_range", error: "Choose the last 24 hours, 7 days or 30 days." }, { status: 400, headers });
+    const dates = range === "custom" ? { from: params.get("from") || "", to: params.get("to") || "" } : undefined;
+    if (["range", "from", "to"].some(key => params.getAll(key).length > 1) || !OWNER_TRAFFIC_RANGES.includes(range as OwnerTrafficRange)
+      || (range !== "custom" && (params.has("from") || params.has("to"))) || (dates && !ownerTrafficDateWindow(dates))) {
+      return NextResponse.json({ code: "invalid_range", error: "Choose a reporting period or valid UK dates, up to 31 days inclusive, ending no later than today." }, { status: 400, headers });
     }
-    return NextResponse.json(await getOwnerTraffic(range as OwnerTrafficRange), { headers });
+    return NextResponse.json(await getOwnerTraffic(range as OwnerTrafficRange, dates), { headers });
   } catch (error) {
     if (error instanceof OwnerTrafficError) {
       return NextResponse.json({ code: error.code, error: error.message }, { status: error.status, headers });

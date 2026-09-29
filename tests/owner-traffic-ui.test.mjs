@@ -10,12 +10,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 const code = ts.transpileModule(readFileSync(new URL('../app/components/owner-traffic.tsx', import.meta.url), 'utf8'), {
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
+const trafficHelpers = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/owner-traffic.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: trafficHelpers });
 const session = { access_token: 'owner-test-token', user: { id: 'owner' } };
 const sessionResult = value => ({ data: { session: value }, error: null });
 const report = changes => ({
   range: '7d', since: '2026-09-10T12:00:00.000Z', until: '2026-09-17T12:00:00.000Z',
   fetchedAt: '2026-09-17T12:01:00.000Z', visitors: 1234, pageviews: 2345,
-  searches: 21, outboundClicks: 16, partial: false,
+  searches: 21, outboundClicks: 16, partial: false, clicksByDestination: { ebayCars: 6, ebayParts: 4, otherMarketplaces: 5, unclassified: 1 },
   sources: [{ source: 'facebook.com', visitors: 43, pageviews: 55 }], ...changes,
 });
 function deferred() {
@@ -71,12 +73,13 @@ function harness(options = {}) {
   };
   const exports = {};
   vm.runInNewContext(code, {
-    exports, Error, AbortController, setTimeout: setTimer, clearTimeout: clearTimer,
+    exports, Error, AbortController, URLSearchParams, setTimeout: setTimer, clearTimeout: clearTimer,
     fetch(url, init) { const request = { url, init, ...deferred() }; requests.push(request); return request.promise; },
     require(name) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return jsxRuntime;
       if (name === 'next/link') return { default: props => React.createElement('a', props) };
+      if (name === '../lib/owner-traffic') return trafficHelpers;
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => options.noClient ? null : client };
       throw new Error(`Unexpected import: ${name}`);
     },
@@ -96,6 +99,7 @@ function harness(options = {}) {
     calls, requests, timers, writes, render, flush,
     html() { return renderToStaticMarkup(render()); },
     view(state) { return renderToStaticMarkup(React.createElement(exports.OwnerTrafficView, { range: '7d', state, onRangeChange() {}, onRefresh() {} })); },
+    dates(value) { render().props.onCustomDates(value); render(); },
     changeRange(value) { render().props.onRangeChange(value); render(); },
     refresh() { render().props.onRefresh(); render(); },
     auth(event, value) { currentSession = value; for (const listener of listeners) listener(event, value); },
@@ -300,4 +304,34 @@ test('the matching initial auth event does not cancel a valid owner session look
   assert.equal(h.requests.length, 1);
   h.respond(0, report()); await h.flush();
   assert.equal(card(h.html(), 'Visitors'), '1,234');
+});
+
+
+test('the click split distinguishes eBay parts, cars and other destinations without implying credited earnings', async () => {
+  const h = await loaded();
+  for (const [label, value] of [['eBay cars', 6], ['eBay parts', 4], ['Other marketplaces', 5], ['Unclassified', 1]]) assert.match(h.html(), new RegExp(`>${label}</dt><dd[^>]*>${value}</dd>`));
+  assert.match(h.html(), /Same reporting period as the totals above/);
+  assert.match(h.html(), /not eBay-credited clicks or sales/);
+  const missing = h.view({ report: report({ clicksByDestination: null, partial: true }), loading: false, error: null });
+  assert.match(missing, /outbound-click breakdown is temporarily unavailable/);
+  assert.doesNotMatch(missing, /eBay parts<\/dt>/);
+  const zero = h.view({ report: report({ clicksByDestination: { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 } }), loading: false, error: null });
+  assert.match(zero, />eBay parts<\/dt><dd[^>]*>0<\/dd>/);
+});
+
+test('custom dates wait for Apply, validate before fetching, and ignore older period responses', async () => {
+  const h = await loaded();
+  h.changeRange('custom'); await h.advance(0);
+  assertNoFigures(h.html()); assert.equal(h.requests.length, 1);
+  assert.match(h.html(), /From \(UK date\)/); assert.match(h.html(), /Europe\/London/);
+  h.dates({ from: '2026-09-14', to: '2026-09-01' }); await h.advance(0);
+  assert.equal(h.requests.length, 1); assert.match(h.html(), /Choose valid UK dates/);
+  h.dates({ from: '2025-09-14', to: '2025-09-27' }); await h.advance(0);
+  assert.equal(h.requests[1].url, '/api/admin/traffic?range=custom&from=2025-09-14&to=2025-09-27');
+  assertNoFigures(h.html());
+  h.changeRange('7d'); await h.advance(0);
+  assert.equal(h.requests[1].init.signal.aborted, true);
+  h.respond(2, report({ visitors: 55 })); await h.flush();
+  h.respond(1, report({ range: 'custom', visitors: 999 })); await h.flush();
+  assert.equal(card(h.html(), 'Visitors'), '55');
 });

@@ -13,6 +13,7 @@ vm.runInNewContext(compile('../app/lib/search.ts'), { exports: searchHelpers, UR
 const Save = () => null;
 const LiveListings = () => null;
 const PricePicks = () => null;
+const PartPricePicks = () => null;
 
 function nodes(node, found = []) {
   if (Array.isArray(node)) node.forEach(child => nodes(child, found));
@@ -64,6 +65,8 @@ function component(path, initialProps) {
       if (name === './save-button') return { default: Save };
       if (name === './ebay-results') return { default: LiveListings };
       if (name === './car-recommendations') return { default: PricePicks };
+      if (name === './part-recommendations') return { default: PartPricePicks };
+      if (name === '../lib/part-recommendations') return { partPostageLabel: () => 'Postage: check on eBay' };
       throw Error(`Unexpected result-view dependency: ${name}`);
     },
   });
@@ -330,11 +333,46 @@ test('loading, failure and empty responses hide old cards and paging but retain 
   assert.deepEqual(app.events, []);
 });
 
-test('parts keep their six-card preview without car pagination', () => {
-  const app = listings({ searchType: 'parts' });
-  assert.equal(listingLinks(app).length, 6);
-  assert.equal(app.nodes().filter(node => node.type === 'nav').length, 0);
+test('parts pagination reaches all returned listings and keeps parts affiliate attribution', () => {
+  const app = listings({ searchType: 'parts' }), seen = [];
+  for (let page = 0; page < 4; page++) {
+    seen.push(...shownTitles(app));
+    assert.equal(listingLinks(app).length, 3);
+    assert.equal(app.one(node => node.type === 'nav').props['aria-label'], 'Parts listings pages');
+    assert.equal(app.button('Next →').props.disabled, page === 3);
+    if (page < 3) app.click(app.button('Next →'));
+  }
+  assert.deepEqual(seen, app.props.items.map(item => item.title));
   assert.match(app.text(), /compatibility on eBay/);
+  assert.match(app.text(), /Postage: check on eBay/);
+  assert.deepEqual(app.events, []);
+  const link = listingLinks(app)[0];
+  assert.equal(new URL(link.props.href).searchParams.get('customid'), 'mekivo-parts-live');
+  app.click(link);
+  assert.equal(app.events[0][1].search_type, 'parts');
+});
+
+test('parts view tabs work by keyboard, keep submitted criteria, and preserve retry/save/edit', () => {
+  const search = searchHelpers.createPartSearch({ make: 'Ford', model: 'Fiesta', year: '2018', engine: '', fuel: '', bodyStyle: '', part: 'Brake Disc', partNumber: '', partCategory: 'Brakes', partMethod: 'diagram' });
+  let edits = 0, retries = 0;
+  const app = component('../app/components/part-search-results.tsx', { search, items: cars(4), loading: false, error: '', onEdit() { edits++; }, onRetry() { retries++; } });
+  assert.deepEqual(tabs(app).map(text), ['Live parts', 'Price picks']);
+  assertTabWiring(app, 'Live parts');
+  assert.equal(app.key(selectedTab(app), 'ArrowRight'), true);
+  assertTabWiring(app, 'Price picks');
+  assert.equal(app.focus.at(-1).label, 'Price picks');
+  assert.equal(nodes(activePanel(app)).find(node => node.type === PartPricePicks).props.search, search);
+  app.key(selectedTab(app), 'ArrowRight');
+  assertTabWiring(app, 'Live parts');
+  app.key(selectedTab(app), 'End');
+  assertTabWiring(app, 'Price picks');
+  app.key(selectedTab(app), 'Home');
+  assertTabWiring(app, 'Live parts');
+  assert.equal(app.key(selectedTab(app), 'Tab'), false);
+  app.one(node => node.type === LiveListings).props.onRetry();
+  app.click(app.button('Edit search'));
+  assert.equal(edits, 1); assert.equal(retries, 1);
+  assert.equal(app.one(node => node.type === Save).props.item, search.saveItem);
   assert.deepEqual(app.events, []);
 });
 

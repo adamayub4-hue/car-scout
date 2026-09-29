@@ -31,6 +31,12 @@ function fixture(url) {
       { eventName: 'search_submitted', count: 29, visitors: 15 },
       { eventName: 'marketplace_outbound', count: 11, visitors: 8 },
     ] };
+    case 'eventData/context': return { data: [
+      { eventData: 'cars:ebay:listing', count: 4 },
+      { eventData: 'parts:ebay:all_results', count: 2 },
+      { eventData: 'cars:autotrader:search_results', count: 3 },
+      { eventData: null, count: 2 },
+    ] };
     default: throw new Error('Unexpected analytics grouping');
   }
 }
@@ -117,6 +123,7 @@ test('owner traffic verifies the bearer with Supabase and queries only the verif
   assert.equal(body.pageviews, 124);
   assert.equal(body.searches, 29);
   assert.equal(body.outboundClicks, 11);
+  assert.deepEqual(body.clicksByDestination, { ebayCars: 4, ebayParts: 2, otherMarketplaces: 3, unclassified: 2 });
   assert.equal(body.sources[0].source, 'Direct / unknown');
   assert.equal(body.partial, false);
   assert.deepEqual(body.warnings, []);
@@ -145,7 +152,7 @@ test('Vercel requests use fixed production groups and no caller-supplied project
   const h = harness();
   const response = await h.get('projectId=attacker&slug=other&filter=anything&token=leak');
   assert.equal(response.status, 200);
-  assert.equal(h.providerCalls().length, 3);
+  assert.equal(h.providerCalls().length, 4);
   for (const { url, headers, options } of h.providerCalls()) {
     const query = new URL(url);
     assert.equal(query.origin, 'https://api.vercel.com');
@@ -159,6 +166,10 @@ test('Vercel requests use fixed production groups and no caller-supplied project
     if (query.searchParams.get('by') === 'eventName') {
       assert.equal(query.pathname, '/v1/query/web-analytics/events/aggregate');
       assert.equal(query.searchParams.get('filter'), "environment eq 'production' and (eventName eq 'search_submitted' or eventName eq 'marketplace_outbound')");
+    } else if (query.searchParams.get('by') === 'eventData/context') {
+      assert.equal(query.pathname, '/v1/query/web-analytics/events/aggregate');
+      assert.equal(query.searchParams.get('filter'), "environment eq 'production' and eventName eq 'marketplace_outbound'");
+      assert.equal(query.searchParams.get('limit'), '100');
     } else {
       assert.equal(query.pathname, '/v1/query/web-analytics/visits/aggregate');
       assert.equal(query.searchParams.get('filter'), "environment eq 'production'");
@@ -195,7 +206,7 @@ test('cached reports never bypass a fresh session or admin check', async () => {
   assert.equal((await h.get()).status, 403);
   h.state.adminId = customerId;
   assert.equal((await h.get()).status, 403);
-  assert.equal(h.providerCalls().length, 3);
+  assert.equal(h.providerCalls().length, 4);
 });
 
 test('auth and membership failures fail closed without exposing upstream details', async () => {
@@ -219,7 +230,7 @@ test('missing analytics configuration is explicit and cannot expose a cached sna
   assert.equal(response.status, 503);
   assert.equal((await response.json()).code, 'not_configured');
   assertPrivate(response);
-  assert.equal(h.providerCalls().length, 3);
+  assert.equal(h.providerCalls().length, 4);
 });
 
 test('missing authentication configuration fails closed', async () => {
@@ -231,7 +242,7 @@ test('missing authentication configuration fails closed', async () => {
   assert.equal(h.calls.length, 0);
 });
 
-test('only fixed rolling ranges are accepted, with an independent cached snapshot for each', async () => {
+test('rolling ranges retain independent cached snapshots and reject unknown or duplicate periods', async () => {
   const h = harness();
   for (const [range, days] of [['24h', 1], ['7d', 7], ['30d', 30]]) {
     const response = await h.get(`range=${range}`);
@@ -240,13 +251,13 @@ test('only fixed rolling ranges are accepted, with an independent cached snapsho
     assert.equal(Date.parse(report.until) - Date.parse(report.since), days * 86400_000);
     await h.get(`range=${range}`);
   }
-  assert.equal(h.providerCalls().length, 9);
+  assert.equal(h.providerCalls().length, 12);
   for (const query of ['range=', 'range=all', 'range=__proto__', 'range=365d', 'range=7d&range=30d']) {
     const response = await h.get(query);
     assert.equal(response.status, 400);
     assertPrivate(response);
   }
-  assert.equal(h.providerCalls().length, 9);
+  assert.equal(h.providerCalls().length, 12);
 });
 
 test('snapshot cache expires at five minutes without extending expiry on reads', async () => {
@@ -255,11 +266,11 @@ test('snapshot cache expires at five minutes without extending expiry on reads',
   h.advance(299_999);
   const cached = await (await h.get()).json();
   assert.deepEqual(cached, first);
-  assert.equal(h.providerCalls().length, 3);
+  assert.equal(h.providerCalls().length, 4);
   h.advance(1);
   const refreshed = await (await h.get()).json();
   assert.notEqual(refreshed.fetchedAt, first.fetchedAt);
-  assert.equal(h.providerCalls().length, 6);
+  assert.equal(h.providerCalls().length, 8);
   assert.equal(h.authCalls().length, 3);
 });
 
@@ -276,7 +287,7 @@ test('changing project, team or token invalidates the cached snapshot', async ()
     const response = await h.get();
     assert.equal(response.status, 200);
     assert.ok(!(await response.text()).includes(value));
-    assert.equal(h.providerCalls().length - before, 3);
+    assert.equal(h.providerCalls().length - before, 4);
   }
 });
 
@@ -289,7 +300,7 @@ test('the snapshot cache stays bounded when server configuration changes', async
   h.env.MEKIVO_ANALYTICS_PROJECT_ID = 'project-0';
   assert.equal((await h.get()).status, 200);
   // The thirteenth distinct snapshot evicted the oldest from the 12-entry cache.
-  assert.equal(h.providerCalls().length, 14 * 3);
+  assert.equal(h.providerCalls().length, 14 * 4);
 });
 
 test('an empty valid provider dataset means zero, including missing event groups', async () => {
@@ -330,7 +341,7 @@ test('malformed core totals never become zeros or get cached', async () => {
     assert.equal((await response.json()).code, 'provider_unavailable');
     failed = false;
     assert.equal((await h.get()).status, 200);
-    assert.equal(h.providerCalls().length, 6);
+    assert.equal(h.providerCalls().length, 8);
   }
 });
 
@@ -373,7 +384,7 @@ test('failed optional sections remain null with warnings and Retry immediately r
     }
     failing = false;
     assert.equal((await (await h.get()).json()).partial, false);
-    assert.equal(h.providerCalls().length, 6);
+    assert.equal(h.providerCalls().length, 8);
   }
 });
 
@@ -423,7 +434,7 @@ for (const phase of ['headers', 'body']) {
     const response = await h.get();
     assert.equal(response.status, 504);
     assert.equal((await response.json()).code, 'provider_timeout');
-    assert.equal(signals.length, 3);
+    assert.equal(signals.length, 4);
     assert.ok(signals.every(signal => signal.aborted));
     assertPrivate(response);
   });
@@ -439,4 +450,83 @@ test('optional provider timeout preserves core traffic and reports missing event
   assert.equal(report.searches, null);
   assert.equal(report.outboundClicks, null);
   assert.equal(report.partial, true);
+});
+
+
+test('custom dates are inclusive UK calendar days, capped at 31 days with independent cache keys', async () => {
+  const h = harness(); h.advance(12 * 86400_000);
+  const report = await (await h.get('range=custom&from=2026-09-14&to=2026-09-27')).json();
+  assert.equal(report.range, 'custom');
+  assert.deepEqual(report.calendarDates, { from: '2026-09-14', to: '2026-09-27' });
+  assert.equal(report.since, '2026-09-13T23:00:00.000Z');
+  assert.equal(report.until, '2026-09-27T22:59:59.999Z');
+  for (const call of h.providerCalls()) {
+    const query = new URL(call.url).searchParams;
+    assert.equal(query.get('since'), report.since); assert.equal(query.get('until'), report.until);
+  }
+  await h.get('range=custom&from=2026-09-14&to=2026-09-27');
+  assert.equal(h.providerCalls().length, 4);
+  await h.get('range=custom&from=2026-09-15&to=2026-09-27');
+  assert.equal(h.providerCalls().length, 8);
+  const today = await (await h.get('range=custom&from=2026-09-29&to=2026-09-29')).json();
+  assert.equal(today.until, today.fetchedAt, 'today stops at the report time');
+  assert.equal((await h.get('range=custom&from=2026-08-30&to=2026-09-29')).status, 200);
+  const before = h.providerCalls().length;
+  for (const query of [
+    'range=custom', 'range=custom&from=2026-09-01',
+    'range=custom&from=2026-09-27&to=2026-09-14',
+    'range=custom&from=2026-08-29&to=2026-09-29',
+    'range=custom&from=2026-09-01&to=2026-09-30',
+    'range=custom&from=2026-02-30&to=2026-03-01',
+    'range=custom&from=2026-09-14T00:00:00Z&to=2026-09-27',
+    'range=custom&from=2026-09-14&from=2026-09-15&to=2026-09-27',
+    'range=custom&from=2026-09-14&to=2026-09-27&to=2026-09-28',
+    'range=7d&from=2026-09-14&to=2026-09-27',
+  ]) assert.equal((await h.get(query)).status, 400, query);
+  assert.equal(h.providerCalls().length, before, 'invalid dates never query the provider');
+});
+
+test('UK calendar boundaries handle spring-forward, autumn-back and leap years without fixed 24-hour assumptions', async () => {
+  for (const [from, to, since, until, hours] of [
+    ['2025-03-30', '2025-03-30', '2025-03-30T00:00:00.000Z', '2025-03-30T22:59:59.999Z', 23],
+    ['2025-10-26', '2025-10-26', '2025-10-25T23:00:00.000Z', '2025-10-26T23:59:59.999Z', 25],
+    ['2024-02-29', '2024-02-29', '2024-02-29T00:00:00.000Z', '2024-02-29T23:59:59.999Z', 24],
+  ]) {
+    const response = await harness().get(`range=custom&from=${from}&to=${to}`);
+    assert.equal(response.status, 200);
+    const report = await response.json();
+    assert.equal(report.since, since); assert.equal(report.until, until);
+    assert.equal(Date.parse(report.until) - Date.parse(report.since) + 1, hours * 3600_000);
+  }
+  assert.equal((await harness().get('range=custom&from=2025-02-29&to=2025-03-01')).status, 400);
+});
+
+test('documented context rows classify only complete known labels; old or grouped values stay unclassified', async () => {
+  const contexts = ['cars:ebay:listing', 'cars:ebay:all_results', 'parts:ebay:listing', 'parts:ebay:search_results', 'parts:gumtree:search_results', 'cars:facebook:search_results', null, '', 'Others', 'cars:ebay:unknown', 'unknown:ebay:listing'];
+  const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context' ? { data: contexts.map(eventData => ({ eventData, count: 1 })) } : fixture(url)) });
+  const report = await (await h.get()).json();
+  assert.deepEqual(report.clicksByDestination, { ebayCars: 2, ebayParts: 2, otherMarketplaces: 2, unclassified: 5 });
+  assert.equal(report.partial, false);
+});
+
+test('failed, malformed or unreconciled click breakdowns are unavailable and retryable, never fabricated zeros', async () => {
+  for (const payload of [
+    { data: [{ eventData: 'cars:ebay:listing', count: '11' }] },
+    { data: [{ context: 'cars:ebay:listing', count: 11 }] },
+    { data: [{ eventData: { context: 'cars:ebay:listing' }, count: 11 }] },
+    { data: [{ eventData: 'cars:ebay:listing', count: -1 }] },
+    { data: [{ eventData: 'cars:ebay:listing', count: 5 }, { eventData: 'cars:ebay:listing', count: 6 }] },
+    { data: [{ eventData: 'cars:ebay:listing', count: 12 }] }, { data: [] },
+    { data: Array.from({ length: 102 }, (_, i) => ({ eventData: String(i), count: 0 })) },
+  ]) {
+    let failing = true;
+    const h = harness({ upstream: url => Response.json(failing && url.searchParams.get('by') === 'eventData/context' ? payload : fixture(url)) });
+    const report = await (await h.get()).json();
+    assert.equal(report.outboundClicks, 11); assert.equal(report.clicksByDestination, null); assert.equal(report.partial, true);
+    failing = false;
+    assert.equal((await (await h.get()).json()).partial, false);
+    assert.equal(h.providerCalls().length, 8);
+  }
+  const h = harness({ upstream: url => url.searchParams.get('by') === 'eventData/context' ? new Response('fail', { status: 503 }) : Response.json(fixture(url)) });
+  assert.equal((await (await h.get()).json()).clicksByDestination, null);
 });

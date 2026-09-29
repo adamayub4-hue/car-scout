@@ -20,6 +20,7 @@ type EbayItemSummary = {
   itemEndDate?: string;
   condition?: string;
   itemLocation?: { postalCode?: string; country?: string };
+  shippingOptions?: { shippingCostType?: string; shippingCost?: { value?: string; currency?: string } }[];
 };
 
 let cachedToken: CachedToken | null = null;
@@ -28,6 +29,7 @@ type PublicListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
   currency: string | null; condition: string | null; location: string | null;
   buyingOptions: string[]; itemEndDate: string | null;
+  postage: { price: string; currency: string } | null;
 };
 const resultsCache = new BoundedTtlCache<PublicListing[]>(100, 30_000);
 
@@ -156,6 +158,9 @@ export async function GET(request: NextRequest) {
           itemEndDate: typeof item.itemEndDate === "string" ? item.itemEndDate : null,
           condition: item.condition ?? null,
           location: item.itemLocation?.postalCode ?? item.itemLocation?.country ?? null,
+          // Search summaries are not a quote for the customer's address. Only
+          // expose an explicitly fixed amount; absent/calculated is unknown.
+          postage: fixedPostage(item.shippingOptions),
         }));
     });
 
@@ -172,4 +177,12 @@ export async function GET(request: NextRequest) {
     console.error("eBay integration error", /^EBAY_[A-Z_0-9]+$/.test(message) ? message : "UPSTREAM_FAILURE");
     return json({ error: "eBay search is temporarily unavailable." }, 502);
   }
+}
+
+function fixedPostage(options: EbayItemSummary["shippingOptions"]): PublicListing["postage"] {
+  if (!Array.isArray(options) || !options.length) return null;
+  const option = options[0];
+  const value = option?.shippingCost?.value, currency = option?.shippingCost?.currency;
+  if (option?.shippingCostType !== "FIXED" || typeof value !== "string" || !/^\d+(?:\.\d{1,2})?$/.test(value) || typeof currency !== "string") return null;
+  return { price: value, currency };
 }
