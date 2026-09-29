@@ -52,7 +52,7 @@ test('car price range accepts zero, decimal bounds and one-sided budgets', async
     ['minPrice=500&maxPrice=500', 'price:[500..500],priceCurrency:GBP'],
   ]) {
     assert.equal((await h.get(`type=cars&q=Ford+Fiesta&${input}`)).status, 200, input);
-    assert.equal(h.calls.at(-1).searchParams.get('filter'), expected);
+    assert.equal(h.calls.at(-1).searchParams.get('filter'), `itemLocationCountry:GB,${expected}`);
   }
 });
 
@@ -91,11 +91,27 @@ test('all-make cars omit q and search the car category; parts still require a qu
   assert.equal(h.calls[0].searchParams.has('q'), false);
   assert.equal(h.calls[0].searchParams.get('category_ids'), '9801');
   assert.equal(h.calls[0].searchParams.get('sort'), 'price');
+  assert.equal(h.calls[0].searchParams.get('filter'), 'itemLocationCountry:GB,price:[..3000],priceCurrency:GBP');
   assert.equal((await h.get('type=cars&q=x')).status, 400);
   assert.equal((await h.get('type=parts')).status, 400);
   assert.equal((await h.get('type=parts&q=x')).status, 400);
   assert.equal((await h.get('q=')).status, 400);
   assert.equal(h.calls.length, 1);
+});
+
+test('every car search is UK-located before provider sorting, regardless of budget or hide setting', async () => {
+  const h = harness();
+  for (const input of [
+    'type=cars',
+    'type=cars&q=Ford',
+    'type=cars&sort=price_asc&hideUnwanted=0',
+    'type=cars&sort=newest&hideUnwanted=1',
+  ]) {
+    assert.equal((await h.get(input)).status, 200, input);
+    assert.equal(h.calls.at(-1).searchParams.get('filter'), 'itemLocationCountry:GB');
+  }
+  await h.get('type=parts&q=temperature+sensor');
+  assert.equal(h.calls.at(-1).searchParams.get('filter'), null, 'parts availability stays unchanged');
 });
 
 test('normalised options reuse cache but different bounds, order and hide settings stay separate', async () => {

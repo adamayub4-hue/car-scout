@@ -275,5 +275,6 @@ test('the API maps buying options and end dates while preserving auction and par
   const searches = requests.filter(request => request.url.includes('/item_summary/search'));
   assert.equal(new URL(searches[0].url).searchParams.get('category_ids'), '9801');
   assert.equal(new URL(searches[1].url).searchParams.get('category_ids'), '6030');
-  for (const request of searches) assert.equal(new URL(request.url).searchParams.get('filter'), null);
+  assert.equal(new URL(searches[0].url).searchParams.get('filter'), 'itemLocationCountry:GB');
+  assert.equal(new URL(searches[1].url).searchParams.get('filter'), null);
 });

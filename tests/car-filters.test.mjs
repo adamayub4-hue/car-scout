@@ -108,3 +108,42 @@ test('all-car price picks honour minimum budget and retain stricter recommendati
   const result = getCarRecommendations([car(1, { price: '1900' }), car(2, { title: '2016 Audi A3', price: '3000' }), car(3, { price: '4500' }), car(4, { title: 'Ford Fiesta breaking' })], search);
   assert.deepEqual(Array.from(result, row => row.item.id), ['2', '3']);
 });
+
+test('misclassified sensors, control units and seating parts cannot become cheap-car results or price picks', () => {
+  const titles = [
+    'Bosch Temperature Sensor Sensor2464509015',
+    'Engine control unit Golf V 1K5 03G906021QJ diesel EDC16U34',
+    'Honda Accord1991-3CB3CB7FrontLeftRight Headrest',
+    'BMW E90 ABS control module 34516778478',
+    'Ford Focus front suspension strut',
+    'VW Golf rear shock absorbers pair',
+    'Radiator Ford Fiesta 1.0 petrol',
+    'Vauxhall Astra steering rack',
+    'Genuine Bosch Sensor for Audi A3',
+  ];
+  const items = titles.map((title, index) => car(index, { title, price: '80' }));
+  assert.equal(filterCarListings(items, { hideUnwanted: true, sort: 'price_asc' }).length, 0);
+  assert.equal(getCarRecommendations(items, createCarSearch(fields)).length, 0);
+  assert.equal(filterCarListings(items, { hideUnwanted: false }).length, items.length);
+});
+
+test('normal car equipment and recent clutch work do not trigger component exclusions', () => {
+  const titles = [
+    '2018 Ford Fiesta Zetec parking sensors finance available',
+    '2017 Audi A3 front and rear parking sensors',
+    '2016 VW Golf new clutch full MOT',
+    '2018 Honda Civic active headrests part-exchange welcome',
+    '2015 Ford Focus rain sensor automatic lights',
+  ];
+  const items = titles.map((title, index) => car(index, { title }));
+  assert.equal(filterCarListings(items, { hideUnwanted: true }).length, items.length);
+});
+
+test('clear registration-only offers are hidden without removing cars with an included private plate', () => {
+  for (const title of ['Private number plate AB12 ABC', 'Cherished registration ABC 123', 'DVLA personalised registration plate', 'Registration transfer ABC 123']) {
+    assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 0, title);
+  }
+  for (const title of ['2018 Ford Fiesta private plate included', 'Private plate included Ford Fiesta full MOT', '2015 BMW 320d cherished registration included']) {
+    assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 1, title);
+  }
+});

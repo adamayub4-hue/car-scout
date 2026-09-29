@@ -84,9 +84,15 @@ export async function GET(request: NextRequest) {
     url.searchParams.set("limit", String(limit));
     // eBay UK: Cars (9801) and Vehicle Parts & Accessories (6030).
     url.searchParams.set("category_ids", type === "cars" ? "9801" : "6030");
-    if (type === "cars" && (minPrice || maxPrice)) {
-      const range = maxPrice ? `${minPrice}..${maxPrice}` : minPrice;
-      url.searchParams.set("filter", `price:[${range}],priceCurrency:GBP`);
+    if (type === "cars") {
+      // Selecting the UK marketplace alone can include overseas listings.
+      // Restrict the provider's candidate set before sorting or taking a page.
+      const filters = ["itemLocationCountry:GB"];
+      if (minPrice || maxPrice) {
+        const range = maxPrice ? `${minPrice}..${maxPrice}` : minPrice;
+        filters.push(`price:[${range}]`, "priceCurrency:GBP");
+      }
+      url.searchParams.set("filter", filters.join(","));
     }
     // Sort the provider's catalogue before taking a page. eBay price order
     // includes shipping; it is not a guarantee of the cheapest complete car.

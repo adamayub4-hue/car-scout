@@ -57,7 +57,7 @@ test('eBay sends the UK category and numeric maximum price, and reuses bounded p
   assert.equal(first.status, 200);
   assert.equal((await first.json()).items[0].id, 'test-item');
   const upstream = new URL(calls[1].url);
-  assert.equal(upstream.searchParams.get('filter'), 'price:[..5000],priceCurrency:GBP');
+  assert.equal(upstream.searchParams.get('filter'), 'itemLocationCountry:GB,price:[..5000],priceCurrency:GBP');
   assert.equal(upstream.searchParams.get('category_ids'), '9801');
   assert.equal(upstream.searchParams.get('limit'), '48');
   assert.equal(calls[1].options.headers['X-EBAY-C-MARKETPLACE-ID'], 'EBAY_GB');
