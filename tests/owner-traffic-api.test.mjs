@@ -45,6 +45,7 @@ function harness({ env: overrides = {}, upstream, authFetch, timerLimit } = {}) 
   const env = { ...defaultEnv, ...overrides };
   const calls = [];
   const clients = [];
+  const diagnostics = [];
   const state = { userId: ownerId, adminId: ownerId, authStatus: 200, adminStatus: 200 };
   let now = Date.parse('2026-09-17T12:00:00.000Z');
   class ClockDate extends Date { static now() { return now; } }
@@ -82,7 +83,7 @@ function harness({ env: overrides = {}, upstream, authFetch, timerLimit } = {}) 
     }).outputText;
     vm.runInNewContext(code, {
       exports, URL, URLSearchParams, AbortController, Date: ClockDate, process: { env },
-      console: { error() {}, warn() {} }, fetch: fetchMock,
+      console: { error() {}, warn(...args) { diagnostics.push(args); } }, fetch: fetchMock,
       setTimeout: (callback, delay) => setTimeout(callback, timerLimit ? Math.min(delay, timerLimit) : delay),
       clearTimeout,
       require(name) {
@@ -97,7 +98,7 @@ function harness({ env: overrides = {}, upstream, authFetch, timerLimit } = {}) 
   }
   const api = load(resolve(repo, 'app/api/admin/traffic/route.ts'));
   return {
-    env, state, calls, clients,
+    env, state, calls, clients, diagnostics,
     advance: milliseconds => { now += milliseconds; },
     providerCalls: () => calls.filter(call => call.url.startsWith('https://api.vercel.com/')),
     authCalls: () => calls.filter(call => call.url.includes('/auth/v1/user')),
@@ -529,4 +530,33 @@ test('failed, malformed or unreconciled click breakdowns are unavailable and ret
   }
   const h = harness({ upstream: url => url.searchParams.get('by') === 'eventData/context' ? new Response('fail', { status: 503 }) : Response.json(fixture(url)) });
   assert.equal((await (await h.get()).json()).clicksByDestination, null);
+});
+
+
+test('destination diagnostics reveal only safe failure category, HTTP status or schema, never counts or values', async () => {
+  const samples = [
+    [() => new Response('secret raw provider body', { status: 400 }), 'http_error'],
+    [() => new Response('secret invalid JSON'), 'invalid_json'],
+    [() => Response.json({ data: [{ context: 'private-context-value', count: 115 }] }), 'invalid_context'],
+    [() => Response.json({ data: [{ eventData: { context: 'private-context-value' }, count: 115 }] }), 'invalid_context'],
+    [() => Response.json({ data: [{ 'private-schema-key': 'private-context-value', count: 115 }] }), 'invalid_context'],
+    [() => Response.json({ data: [{ eventData: 'private-context-value', count: '115' }] }), 'invalid_count'],
+    [() => Response.json({ data: [{ eventData: 'cars:ebay:listing', count: 115 }] }), 'totals_mismatch'],
+  ];
+  for (const [response, expected] of samples) {
+    const h = harness({ upstream: url => url.searchParams.get('by') === 'eventData/context' ? response() : Response.json(fixture(url)) });
+    const report = await (await h.get()).json();
+    assert.equal(report.clicksByDestination, null);
+    assert.equal(h.diagnostics.length, 1);
+    const [label, detail] = h.diagnostics[0];
+    assert.equal(label, 'Owner traffic destination breakdown unavailable');
+    assert.equal(detail.reason, expected);
+    const log = JSON.stringify(h.diagnostics);
+    for (const sensitive of ['private-context-value', 'private-schema-key', 'secret', '115', 'owner-session-token', 'private-vercel-test-token', 'api.vercel.com', 'cars:ebay:listing']) assert.ok(!log.includes(sensitive), sensitive);
+    if (expected === 'http_error') assert.equal(detail.status, 400);
+    if (expected === 'invalid_context') {
+      if (detail.contextType === 'object') assert.deepEqual(Array.from(detail.contextKeys), ['context']);
+      else { assert.ok(['context', 'other_key'].includes(detail.rowKeys[0])); assert.equal(detail.rowKeys[1], 'count'); assert.equal(detail.contextType, 'undefined'); }
+    }
+  }
 });

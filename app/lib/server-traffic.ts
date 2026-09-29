@@ -74,6 +74,33 @@ function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+type AnalyticsSchema = { rowKeys: string[]; contextType: string; countType: string; contextKeys?: string[] };
+class AnalyticsQueryError extends Error {
+  constructor(public readonly category: string, public readonly status?: number, public readonly schema?: AnalyticsSchema) {
+    super("Analytics query failed");
+  }
+}
+
+function rowSchema(row: Record<string, unknown>): AnalyticsSchema {
+  const valueType = (value: unknown) => value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+  const schemaNames = new Set(["eventData", "eventData/context", "eventData.context", "context", "count", "visitors", "key", "value", "timestamp", "others", "Others", "isOther", "total", "environment", "eventName", "eventDataKey", "eventDataValue"]);
+  const keys = (value: Record<string, unknown>) => Object.keys(value).slice(0, 12).map(key => schemaNames.has(key) ? key : "other_key");
+  return {
+    rowKeys: keys(row),
+    contextType: valueType(row.eventData), countType: valueType(row.count),
+    ...(record(row.eventData) ? { contextKeys: keys(row.eventData) } : {}),
+  };
+}
+
+function parseFailure(error: unknown, row?: Record<string, unknown>) {
+  const categories: Record<string, string> = {
+    "Invalid analytics response": "invalid_rows", "Invalid analytics context": "invalid_context",
+    "Duplicate analytics context": "duplicate_context", "Invalid analytics count": "invalid_count",
+  };
+  const message = error instanceof Error ? error.message : "";
+  return new AnalyticsQueryError(Object.hasOwn(categories, message) ? categories[message] : "invalid_response", undefined, row ? rowSchema(row) : undefined);
+}
+
 function rows(payload: unknown, maxRows: number): Record<string, unknown>[] {
   if (!record(payload) || !Array.isArray(payload.data) || payload.data.length > maxRows || !payload.data.every(record)) {
     throw new Error("Invalid analytics response");
@@ -132,16 +159,18 @@ function parseDestinations(payload: unknown): OwnerTrafficClicks {
   // Vercel documents a keyed JSON grouping as { eventData: "value", count }.
   // The top-100 response may contain one additional "Others" row.
   for (const row of rows(payload, 101)) {
-    const context = row.eventData;
-    if (context !== null && (typeof context !== "string" || context.length > 255 || /[\u0000-\u001f\u007f]/.test(context))) throw new Error("Invalid analytics context");
-    if (seen.has(context as string | null)) throw new Error("Duplicate analytics context");
-    seen.add(context as string | null);
-    const parts = typeof context === "string" ? context.split(":") : [];
-    const [type, marketplace, destination] = parts;
-    const known = parts.length === 3 && ["cars", "parts"].includes(type) && ["listing", "search_results", "all_results"].includes(destination);
-    const group = known && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : "ebayParts")
-      : known && ["autotrader", "facebook", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"].includes(marketplace) ? "otherMarketplaces" : "unclassified";
-    result[group] = count(result[group] + count(row.count));
+    try {
+      const context = row.eventData;
+      if (context !== null && (typeof context !== "string" || context.length > 255 || /[\u0000-\u001f\u007f]/.test(context))) throw new Error("Invalid analytics context");
+      if (seen.has(context as string | null)) throw new Error("Duplicate analytics context");
+      seen.add(context as string | null);
+      const parts = typeof context === "string" ? context.split(":") : [];
+      const [type, marketplace, destination] = parts;
+      const known = parts.length === 3 && ["cars", "parts"].includes(type) && ["listing", "search_results", "all_results"].includes(destination);
+      const group = known && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : "ebayParts")
+        : known && ["autotrader", "facebook", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"].includes(marketplace) ? "otherMarketplaces" : "unclassified";
+      result[group] = count(result[group] + count(row.count));
+    } catch (error) { throw parseFailure(error, row); }
   }
   return result;
 }
@@ -173,10 +202,14 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
         cache: "no-store", redirect: "error", signal,
       });
-      if (!response.ok) throw new Error("Analytics provider unavailable");
-      const payload: unknown = await response.json();
+      if (!response.ok) throw new AnalyticsQueryError("http_error", response.status);
+      let payload: unknown;
+      try { payload = await response.json(); } catch { throw new AnalyticsQueryError("invalid_json"); }
       if (signal.aborted) throw new UpstreamTimeoutError();
-      return parse(payload);
+      try { return parse(payload); } catch (error) {
+        if (error instanceof AnalyticsQueryError) throw error;
+        throw parseFailure(error);
+      }
     });
   }
 
@@ -198,6 +231,17 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
   // that does not add up to the confirmed total, or fill a failed split with 0.
   const clicksByDestination = destinations.status === "fulfilled" && events.status === "fulfilled"
     && Object.values(destinations.value).reduce((sum, value) => sum + value, 0) === events.value.outboundClicks ? destinations.value : null;
+  if (destinations.status === "rejected") {
+    const failure = destinations.reason;
+    // Server-only diagnostics are deliberately limited to error categories,
+    // HTTP status and schema keys/types. Never log values, counts, tokens,
+    // request URLs, filters or the provider response body.
+    console.warn("Owner traffic destination breakdown unavailable", failure instanceof AnalyticsQueryError
+      ? { reason: failure.category, ...(failure.status ? { status: failure.status } : {}), ...failure.schema }
+      : { reason: failure instanceof UpstreamTimeoutError ? "timeout" : "network_failure" });
+  } else if (events.status === "fulfilled" && clicksByDestination === null) {
+    console.warn("Owner traffic destination breakdown unavailable", { reason: "totals_mismatch" });
+  }
   if (clicksByDestination === null && events.status === "fulfilled") warnings.push("The outbound-click breakdown is temporarily unavailable.");
   const report: OwnerTrafficReport = {
     range, since, until, fetchedAt: new Date(Date.now()).toISOString(),
