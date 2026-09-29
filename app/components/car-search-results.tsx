@@ -6,6 +6,7 @@ import { trackGrowthEvent } from "../lib/growth-events";
 import CarRecommendations from "./car-recommendations";
 import EbayResults from "./ebay-results";
 import SaveButton from "./save-button";
+import { getSavedSearchUrl } from "../lib/saved-search";
 
 const marketplaces = [
   { id: "autotrader", name: "Auto Trader" },
@@ -70,7 +71,7 @@ export default function CarSearchResults({ search, items, loading, error, onRetr
       </div>
     </div>
     {tabs.map(tab => <div key={tab.id} id={`car-panel-${tab.id}`} role="tabpanel" aria-labelledby={`car-tab-${tab.id}`} tabIndex={0} hidden={view !== tab.id} className="rounded-xl outline-offset-4 focus-visible:outline-2 focus-visible:outline-sky-400">
-      {tab.id === "live" && <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchType="cars" onRetry={onRetry} />}
+      {tab.id === "live" && <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="cars" onRetry={onRetry} />}
       {tab.id === "prices" && <div className="pt-4"><CarRecommendations search={search} items={items} loading={loading} error={error} compact /></div>}
       {tab.id === "marketplaces" && <section aria-labelledby="other-car-sites-heading" className="pt-5">
         <h3 id="other-car-sites-heading" className="font-bold">Compare on other car sites</h3>
@@ -88,6 +89,6 @@ export default function CarSearchResults({ search, items, loading, error, onRetr
         </div>
       </section>}
     </div>)}
-    <SaveButton item={search.saveItem} />
+    <SaveButton item={search.saveItem} label="Save search" />
   </>;
 }

@@ -12,7 +12,7 @@ type SavedItem = {
   data: Record<string, unknown>;
 };
 
-export default function SaveButton({ item }: { item: SavedItem }) {
+export default function SaveButton({ item, label = "Save to my account" }: { item: SavedItem; label?: string }) {
   const router = useRouter();
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -65,7 +65,7 @@ export default function SaveButton({ item }: { item: SavedItem }) {
         disabled={state === "saving" || state === "saved"}
         className="rounded-xl border border-outline/15 bg-overlay/[0.06] px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-sky-300/50 hover:bg-overlay/[0.1] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {state === "saving" ? "Saving…" : state === "saved" ? "✓ Saved" : "Save to my account"}
+        {state === "saving" ? "Saving…" : state === "saved" ? "✓ Saved" : label}
       </button>
       {message && (
         <p className={`mt-2 text-xs ${state === "error" ? "text-danger" : "text-success"}`} role="status">

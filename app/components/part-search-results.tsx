@@ -5,6 +5,7 @@ import type { EbayListing, SubmittedSearch } from "../lib/search";
 import EbayResults from "./ebay-results";
 import PartRecommendations from "./part-recommendations";
 import SaveButton from "./save-button";
+import { getSavedSearchUrl } from "../lib/saved-search";
 
 const tabs = [{ id: "live", label: "Live parts" }, { id: "prices", label: "Price picks" }] as const;
 type View = typeof tabs[number]["id"];
@@ -47,9 +48,9 @@ export default function PartSearchResults({ search, items, loading, error, onRet
       </div>
     </div>
     {tabs.map(tab => <div key={tab.id} id={`part-panel-${tab.id}`} role="tabpanel" aria-labelledby={`part-tab-${tab.id}`} tabIndex={0} hidden={view !== tab.id} className="rounded-xl outline-offset-4 focus-visible:outline-2 focus-visible:outline-sky-400">
-      {tab.id === "live" ? <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchType="parts" onRetry={onRetry} />
+      {tab.id === "live" ? <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="parts" onRetry={onRetry} />
         : <PartRecommendations search={search} items={items} loading={loading} error={error} />}
     </div>)}
-    <SaveButton item={search.saveItem} />
+    <SaveButton item={search.saveItem} label="Save search" />
   </>;
 }

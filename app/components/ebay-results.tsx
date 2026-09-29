@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { formatListingPrice, safeListingImage, withEbayAffiliateTracking, type EbayListing, type Mode } from "../lib/search";
 import { partPostageLabel } from "../lib/part-recommendations";
 import { trackGrowthEvent } from "../lib/growth-events";
+import SaveListingButton from "./save-listing-button";
 
 export function ListingPhoto({ item, sizes = "(max-width: 640px) 85vw, (max-width: 1024px) 40vw, 300px" }: { item: EbayListing; sizes?: string }) {
   const [failed, setFailed] = useState(false);
@@ -15,7 +16,7 @@ export function ListingPhoto({ item, sizes = "(max-width: 640px) 85vw, (max-widt
   </div>;
 }
 
-export default function EbayResults({ items, loading, error, fallbackUrl, searchType, onRetry }: { items: EbayListing[]; loading: boolean; error: string; fallbackUrl: string; searchType: Mode; onRetry: () => void }) {
+export default function EbayResults({ items, loading, error, fallbackUrl, searchType, searchUrl, onRetry }: { items: EbayListing[]; loading: boolean; error: string; fallbackUrl: string; searchType: Mode; searchUrl?: string; onRetry: () => void }) {
   const [pagination, setPagination] = useState({ items, page: 0 });
   const headingRef = useRef<HTMLHeadingElement>(null);
   const isCars = searchType === "cars";
@@ -36,9 +37,11 @@ export default function EbayResults({ items, loading, error, fallbackUrl, search
   </div>;
   return <section className="mt-5" aria-label="Live eBay listings">
     <div className="flex items-center justify-between gap-4"><div><h3 ref={headingRef} tabIndex={-1} className="scroll-mt-44 text-sm font-bold text-link outline-none">Live eBay listings</h3><p className="mt-1 text-xs leading-5 text-subtle">Check price, availability and {isCars ? "vehicle details" : "compatibility"} on eBay. Mekivo may earn a commission.</p></div><a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" onClick={() => trackClick("all_results")} className="shrink-0 text-sm font-semibold text-link">See all →</a></div>
-    <div className="mt-3 grid gap-3 sm:grid-cols-3">{visibleItems.map(item => <a key={item.id} href={withEbayAffiliateTracking(item.url, `mekivo-${searchType}-live`)} target="_blank" rel="sponsored noreferrer" onClick={() => trackClick("listing")} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 rounded-2xl border border-outline/10 bg-overlay/[0.04] p-3 transition hover:border-sky-400/50 focus-visible:outline-2 focus-visible:outline-sky-400 sm:block">
+    <div className="mt-3 grid gap-3 sm:grid-cols-3">{visibleItems.map(item => <article key={item.id} className="flex min-w-0 flex-col rounded-2xl border border-outline/10 bg-overlay/[0.04] p-3">
+      <a href={withEbayAffiliateTracking(item.url, `mekivo-${searchType}-live`)} target="_blank" rel="sponsored noreferrer" onClick={() => trackClick("listing")} className="grid flex-1 grid-cols-[6.5rem_minmax(0,1fr)] gap-3 rounded-xl transition hover:text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400 sm:block">
       <ListingPhoto item={item} sizes="(max-width: 639px) 104px, (max-width: 1024px) 28vw, 270px" /><div><h4 className="line-clamp-3 text-sm font-bold leading-5 sm:mt-3">{item.title}</h4><p className="mt-2 text-lg font-black">{formatListingPrice(item.price, item.currency)}</p>{!isCars && <><p className="mt-1 text-xs text-subtle">Item price</p><p className="mt-1 text-xs leading-5 text-subtle">{partPostageLabel(item)}</p></>}<p className="mt-1 text-xs text-subtle">{[item.condition, item.location].filter(Boolean).join(" · ") || "View listing details"}</p><span className="mt-3 inline-block text-xs font-semibold text-link">View original listing →</span></div>
-    </a>)}</div>
+      </a><SaveListingButton item={item} searchType={searchType} searchUrl={searchUrl} />
+    </article>)}</div>
     <nav aria-label={isCars ? "Car listings pages" : "Parts listings pages"} className="mt-4 flex flex-wrap items-center justify-between gap-2">
       <button type="button" onClick={() => changePage(page - 1)} disabled={page === 0} className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-sky-400">← Previous</button>
       <p role="status" aria-live="polite" className="text-xs text-muted">{page * pageSize + 1}–{Math.min((page + 1) * pageSize, items.length)} of {items.length} returned</p>

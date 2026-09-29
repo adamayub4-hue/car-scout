@@ -21,9 +21,18 @@ insert into public.profiles (id, email) select id, email from auth.users where e
 
 create table if not exists public.saved_items (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
-  kind text not null check (kind in ('vehicle', 'car_search', 'part_search')),
+  kind text not null check (kind in ('vehicle', 'car_search', 'part_search', 'car_listing', 'part_listing')),
   title text not null check (char_length(title) between 1 and 160), data jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint saved_items_listing_data_check check (
+    kind not in ('car_listing', 'part_listing') or (
+      jsonb_typeof(data) = 'object'
+      and data->>'version' = '1'
+      and data->>'id' ~ '^[0-9]{9,15}(:[0-9]{1,20})?$'
+      and char_length(data->>'url') between 1 and 256
+      and data->>'url' ~ '^https://(www\.|m\.)?ebay\.(co\.uk|com)/itm/[0-9]{9,15}(\?var=[0-9]{1,20})?$'
+    ) is true
+  )
 );
 create table if not exists public.complaints (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
@@ -37,6 +46,7 @@ create table if not exists public.activity_events (
   event_name text not null check (event_name in ('car_search', 'part_search', 'part_number_search', 'vehicle_lookup', 'save_item')),
   metadata jsonb not null default '{}'::jsonb, created_at timestamptz not null default now()
 );
+create unique index if not exists saved_items_listing_identity_idx on public.saved_items (user_id, kind, (data->>'id')) where kind in ('car_listing', 'part_listing');
 create index if not exists saved_items_user_created_idx on public.saved_items (user_id, created_at desc);
 create index if not exists complaints_status_created_idx on public.complaints (status, created_at desc);
 create index if not exists activity_events_created_idx on public.activity_events (created_at desc);

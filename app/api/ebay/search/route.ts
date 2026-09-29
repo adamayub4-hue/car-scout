@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getApplicationToken, clearEbayApplicationToken } from "../../../lib/server-ebay-token";
 import { createHash } from "node:crypto";
 import { BoundedTtlCache } from "../../../lib/server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "../../../lib/server-upstream";
 
 export const runtime = "nodejs";
-
-type CachedToken = {
-  value: string;
-  expiresAt: number;
-};
 
 type EbayItemSummary = {
   itemId?: string;
@@ -23,8 +19,6 @@ type EbayItemSummary = {
   shippingOptions?: { shippingCostType?: string; shippingCost?: { value?: string; currency?: string } }[];
 };
 
-let cachedToken: CachedToken | null = null;
-let pendingToken: Promise<string> | null = null;
 type PublicListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
   currency: string | null; condition: string | null; location: string | null;
@@ -47,53 +41,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { "Cache-Control": "no-store" },
   });
-}
-
-async function requestApplicationToken() {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
-    return cachedToken.value;
-  }
-
-  const clientId = process.env.EBAY_CLIENT_ID;
-  const clientSecret = process.env.EBAY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error("EBAY_NOT_CONFIGURED");
-  }
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const payload = await withUpstreamTimeout(async (signal) => {
-    const response = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        grant_type: "client_credentials",
-        scope: "https://api.ebay.com/oauth/api_scope",
-      }),
-      cache: "no-store",
-      signal,
-    });
-
-    if (!response.ok) throw new Error(`EBAY_TOKEN_${response.status}`);
-    return await response.json() as { access_token?: string; expires_in?: number };
-  });
-
-  if (typeof payload?.access_token !== "string" || !payload.access_token) throw new Error("EBAY_TOKEN_MISSING");
-
-  cachedToken = {
-    value: payload.access_token,
-    expiresAt: Date.now() + Math.max(60, payload.expires_in ?? 7_200) * 1_000,
-  };
-  return cachedToken.value;
-}
-
-function getApplicationToken() {
-  if (!pendingToken) {
-    pendingToken = requestApplicationToken().finally(() => { pendingToken = null; });
-  }
-  return pendingToken;
 }
 
 export async function GET(request: NextRequest) {
@@ -135,7 +82,7 @@ export async function GET(request: NextRequest) {
       });
 
       if (!response.ok) {
-        if (response.status === 401) cachedToken = null;
+        if (response.status === 401) clearEbayApplicationToken();
         // Log only provider status, never a caller's search or identifier.
         throw new Error(`EBAY_SEARCH_${response.status}`);
       }

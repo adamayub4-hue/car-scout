@@ -33,6 +33,7 @@ function harness({ fetch: fetchMock } = {}) {
       require(name) {
         if (name === 'react') return React;
         if (name === 'react/jsx-runtime') return jsxRuntime;
+        if (name === './save-listing-button') return { default: () => null };
         if (name === 'next/image') return { default: ({ src, alt }) => React.createElement('img', { src, alt }) };
         if (name === 'next/server') return { NextResponse: { json: (body, init) => Response.json(body, init) } };
         if (name.endsWith('/growth-events')) return { trackGrowthEvent: (...args) => events.push(args) };

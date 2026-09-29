@@ -4,6 +4,8 @@ import { getCarRecommendations } from "../lib/car-recommendations";
 import { trackGrowthEvent } from "../lib/growth-events";
 import { withEbayAffiliateTracking, type EbayListing, type SubmittedSearch } from "../lib/search";
 import { ListingPhoto } from "./ebay-results";
+import SaveListingButton from "./save-listing-button";
+import { getSavedSearchUrl } from "../lib/saved-search";
 
 const pounds = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 2 });
 
@@ -24,11 +26,11 @@ export default function CarRecommendations({ search, items, loading, error, comp
           : recommendations.length === 0 ? <p role="status" className="mt-4 text-sm leading-6 text-muted">We couldn’t identify a matching full-car listing with a clear GBP asking price in these results. {compact ? "Choose Live cars to browse all returned listings, or edit your search." : "Try another year or budget, or compare the marketplaces below."}</p>
             : <>
               <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recommendations.map(({ item, url, pricePence, belowBudgetPence, purchaseFormat }, index) => <a
-                  key={item.id} href={withEbayAffiliateTracking(url, "mekivo-cars-shortlist")}
+                {recommendations.map(({ item, url, pricePence, belowBudgetPence, purchaseFormat }, index) => <article key={item.id} className="flex min-w-0 flex-col rounded-2xl border border-outline/15 bg-panel p-3">
+                  <a href={withEbayAffiliateTracking(url, "mekivo-cars-shortlist")}
                   target="_blank" rel="sponsored noreferrer"
                   onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: "cars", destination: "listing" })}
-                  className={`${compact ? "grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-3 sm:flex sm:flex-col" : "flex flex-col"} min-w-0 rounded-2xl border border-outline/15 bg-panel p-3 transition hover:border-sky-400/60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400`}
+                  className={`${compact ? "grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-3 sm:flex sm:flex-col" : "flex flex-col"} min-w-0 flex-1 rounded-xl transition hover:text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400`}
                 >
                   <div className="w-full"><ListingPhoto item={item} sizes={compact ? "(max-width: 639px) 88px, (max-width: 1024px) 38vw, 240px" : undefined} /></div>
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -40,7 +42,8 @@ export default function CarRecommendations({ search, items, loading, error, comp
                   <p className="mt-2 text-xs leading-5 text-subtle">{[item.condition, item.location].filter(Boolean).join(" · ") || "Confirm condition and location with the seller"}</p>
                   <span className="mt-auto pt-4 text-sm font-bold text-link">View original eBay listing →</span>
                   </div>
-                </a>)}
+                  </a><SaveListingButton item={item} searchType="cars" searchUrl={getSavedSearchUrl(search.saveItem)} />
+                </article>)}
               </div>
               <p className="mt-4 text-xs leading-5 text-subtle">Up to 3 title matches from {items.length} returned eBay listings, ordered by advertised price. Delivery and extra fees are not included. Check the full asking price, mileage, history and availability with the seller. Mekivo may earn a commission.</p>
             </>}

@@ -10,6 +10,8 @@ const compile = path => ts.transpileModule(readFileSync(new URL(path, import.met
 }).outputText;
 const searchHelpers = {};
 vm.runInNewContext(compile('../app/lib/search.ts'), { exports: searchHelpers, URL, URLSearchParams });
+const savedSearchHelpers = {};
+vm.runInNewContext(compile('../app/lib/saved-search.ts'), { exports: savedSearchHelpers, URL, URLSearchParams });
 const Save = () => null;
 const LiveListings = () => null;
 const PricePicks = () => null;
@@ -61,9 +63,11 @@ function component(path, initialProps) {
       if (name === 'react/jsx-runtime') return jsxRuntime;
       if (name === 'next/image') return { default: 'img' };
       if (name === '../lib/search') return searchHelpers;
+      if (name === '../lib/saved-search') return savedSearchHelpers;
       if (name === '../lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
       if (name === './save-button') return { default: Save };
       if (name === './ebay-results') return { default: LiveListings };
+      if (name === './save-listing-button') return { default: () => null };
       if (name === './car-recommendations') return { default: PricePicks };
       if (name === './part-recommendations') return { default: PartPricePicks };
       if (name === '../lib/part-recommendations') return { partPostageLabel: () => 'Postage: check on eBay' };
