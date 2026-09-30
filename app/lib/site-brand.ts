@@ -7,7 +7,7 @@ export const siteDescription = "Search UK used cars and car parts across marketp
 // on other networks must not be linked without confirming ownership.
 export const officialProfiles = [
   "https://www.instagram.com/mekivo.uk/",
-  "https://www.tiktok.com/@mekivo0",
+  "https://www.tiktok.com/@mekivo.uk",
 ];
 
 export const siteStructuredData = {

@@ -32,3 +32,15 @@ The published site and the cached Google result are separate states. Google choo
 - [Google site-name guidance](https://developers.google.com/search/docs/appearance/site-names)
 - [Organization identity and logo guidance](https://developers.google.com/search/docs/appearance/structured-data/organization)
 - [Requesting a fresh crawl](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl)
+
+## Follow-up verification — 30 September 2026
+
+The user's new Google screenshot shows the updated title and description, but still shows the previous triangle favicon and the domain as the site name. The separate miniature-model YouTube/Facebook results are independent websites, not profiles linked by Mekivo's structured data.
+
+Direct HTTP checks found the production homepage and icon files returning HTTP 200. `/favicon.ico`, `/icons/mekivo-192.png` and `/icon.svg` exactly match the branded repository assets. The homepage advertises the stable PNG and declares `Mekivo` in its single linked WebSite/Organization graph. Robots rules allow crawling these files. These checks did not run browser analytics.
+
+Search Console's URL Inspection reports the homepage indexed, fetched successfully by Googlebot smartphone on **28 September 2026 at 19:55:51** (time shown by the interface), with crawling and indexing allowed and the inspected URL selected as canonical. Its **View crawled page** panel already includes the updated title, `og:site_name` set to `Mekivo`, the branded favicon hash and `/icons/mekivo-192.png`. Therefore a successful crawl has occurred, but the search-result icon/site name have not visibly converged with the supplied branding. Do not describe the Google appearance as fully corrected, replace the icon again, or promise an immediate result.
+
+The remaining website identity correction is TikTok's current owned handle: `https://www.tiktok.com/@mekivo.uk`, replacing `@mekivo0` in `sameAs`. The authenticated publishing records from 28 and 29 September identify this account and record Mekivo's published/scheduled video URLs under it. The existing verified-profile regression expectation is updated accordingly. This does not grant control over Google's favicon choice or other sites' search results.
+
+Validation for that correction: lint passed, all 334 Node tests passed, and the production build passed. Built homepage HTML includes the current TikTok URL, the `Mekivo` site name and the existing stable PNG favicon.

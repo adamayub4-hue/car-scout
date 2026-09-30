@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 const root = new URL('../', import.meta.url);
 const svg = readFileSync(new URL('app/icon.svg', root));
 const canonicalUrl = 'https://mekivo.uk/';
-const verifiedProfiles = ['https://www.instagram.com/mekivo.uk/', 'https://www.tiktok.com/@mekivo0'];
+const verifiedProfiles = ['https://www.instagram.com/mekivo.uk/', 'https://www.tiktok.com/@mekivo.uk'];
 
 function load(path, overrides = {}) {
   const exports = {};
