@@ -9,6 +9,8 @@ const displayDate = (date: string) => new Intl.DateTimeFormat("en-GB", {
 
 export default function GuideArticle({ guide }: { guide: Guide }) {
   const related = guides.filter((entry) => guide.relatedSlugs.includes(entry.slug));
+  const isPartsGuide = guide.category === "parts";
+  const searchHref = isPartsGuide ? "/?mode=parts" : "/?mode=cars";
   return (
     <main className="min-h-screen bg-background px-4 py-10 text-foreground">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeStructuredData(guideStructuredData(guide)) }} />
@@ -26,6 +28,17 @@ export default function GuideArticle({ guide }: { guide: Guide }) {
           <p className="mt-5 text-sm text-subtle">By Mekivo · Updated <time dateTime={guide.updatedAt}>{displayDate(guide.updatedAt)}</time></p>
           {guide.intro.map((paragraph) => <p key={paragraph} className="mt-5 text-lg leading-8 text-muted">{paragraph}</p>)}
         </header>
+        <section aria-labelledby="guide-search-title" className="mt-8 rounded-2xl border border-sky-400/30 bg-sky-400/[0.06] p-5">
+          <h2 id="guide-search-title" className="text-lg font-bold">{isPartsGuide ? "Ready to look for a part?" : "Find cars within your budget"}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">{isPartsGuide
+            ? "Use an OEM or manufacturer number to search live eBay parts on Mekivo. Check compatibility with the seller before buying."
+            : "Choose your budget to browse live eBay cars, or open your search on other UK marketplaces."}</p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link href={searchHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-400 px-5 py-3 text-center font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">{isPartsGuide ? "Search by part number" : "Search UK cars"}</Link>
+            {isPartsGuide && <Link href="/?mode=parts&guide=1" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-400/30 px-4 py-3 text-center font-semibold text-link transition hover:bg-sky-400/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">Find a part by picture</Link>}
+          </div>
+          {isPartsGuide && <p className="mt-3 text-xs leading-5 text-subtle">The picture guide helps with part names; it does not confirm fitment.</p>}
+        </section>
         <nav aria-label="On this page" className="mt-8 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5">
           <h2 className="font-bold">In this guide</h2>
           <ol className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -49,7 +62,7 @@ export default function GuideArticle({ guide }: { guide: Guide }) {
           <p className="mt-3 text-sm leading-6 text-muted">Government information checked on {displayDate(guide.updatedAt)}. Mekivo&apos;s checklists explain how to use these sources; GOV.UK does not endorse Mekivo or verify marketplace listings. Follow the linked guidance for its scope and any later changes.</p>
           <ul className="mt-4 space-y-2">{guide.sources.map((source) => <li key={source.id}><a href={source.url} className="text-sm leading-6 text-link underline underline-offset-2">{source.title}</a></li>)}</ul>
         </section>
-        <Link href={guide.category === "parts" ? "/?mode=parts" : "/?mode=cars"} className="mt-8 inline-flex rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950">{guide.category === "parts" ? "Open the parts finder" : "Search for a car"}</Link>
+        <Link href={searchHref} className="mt-8 inline-flex rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950">{isPartsGuide ? "Open the parts finder" : "Search for a car"}</Link>
         {related.length > 0 && <aside aria-labelledby="related-guides" className="mt-12 border-t border-outline/10 pt-6">
           <h2 id="related-guides" className="text-xl font-bold">Related guides</h2>
           <ul className="mt-4 space-y-3">{related.map((entry) => <li key={entry.slug}><Link href={`/guides/${entry.slug}`} className="font-semibold text-link hover:underline">{entry.title} →</Link></li>)}</ul>
