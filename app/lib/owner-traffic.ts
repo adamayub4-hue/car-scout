@@ -3,6 +3,26 @@ export const OWNER_TRAFFIC_RANGES = ["24h", "7d", "30d", "custom"] as const;
 export type OwnerTrafficRange = (typeof OWNER_TRAFFIC_RANGES)[number];
 export type OwnerTrafficDates = { from: string; to: string };
 export type OwnerTrafficClicks = { ebayCars: number; ebayParts: number; otherMarketplaces: number; unclassified: number };
+export const OWNER_TRAFFIC_MARKETPLACES = ["ebay", "autotrader", "facebook", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"] as const;
+export type OwnerTrafficMarketplace = (typeof OWNER_TRAFFIC_MARKETPLACES)[number] | "unclassified";
+export const OWNER_TRAFFIC_MARKETPLACE_LABELS: Record<OwnerTrafficMarketplace, string> = {
+  ebay: "eBay",
+  autotrader: "Auto Trader",
+  facebook: "Facebook Marketplace",
+  motors: "MOTORS",
+  gumtree: "Gumtree",
+  cargurus: "CarGurus",
+  pistonheads: "PistonHeads",
+  aacars: "AA Cars",
+  carandclassic: "Car & Classic",
+  unclassified: "Unidentified destination",
+};
+export type OwnerTrafficMarketplaceRow = {
+  marketplace: OwnerTrafficMarketplace;
+  cars: number | null;
+  parts: number | null;
+  clicks: number;
+};
 
 const DAY_MS = 86_400_000;
 const ukDateFormatter = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" });
@@ -48,6 +68,7 @@ export type OwnerTrafficReport = {
   searches: number | null;
   outboundClicks: number | null;
   clicksByDestination: OwnerTrafficClicks | null;
+  marketplaceClicks: OwnerTrafficMarketplaceRow[] | null;
   calendarDates?: OwnerTrafficDates;
   sources: OwnerTrafficSource[] | null;
   partial: boolean;

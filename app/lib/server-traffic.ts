@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { ownerTrafficDateWindow, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks } from "./owner-traffic";
+import { OWNER_TRAFFIC_MARKETPLACES, ownerTrafficDateWindow, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks, type OwnerTrafficMarketplaceRow } from "./owner-traffic";
 import { BoundedTtlCache } from "./server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "./server-upstream";
 
@@ -141,8 +141,11 @@ function parseEvents(payload: unknown) {
   return counts;
 }
 
-function parseDestinations(payload: unknown): OwnerTrafficClicks {
-  const result = { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 };
+function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; marketplaces: OwnerTrafficMarketplaceRow[]; total: number } {
+  const summary = { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 };
+  const marketplaces = OWNER_TRAFFIC_MARKETPLACES.map(marketplace => ({ marketplace, cars: 0, parts: 0, clicks: 0 }));
+  const marketplaceRows = new Map<string, (typeof marketplaces)[number]>(marketplaces.map(row => [row.marketplace, row]));
+  let total = 0;
   const seen = new Set<string | null>();
   // Production returns a literal "eventData/context" column. Vercel's guide
   // instead documents "eventData". Accept both, but never conflicting values.
@@ -158,12 +161,23 @@ function parseDestinations(payload: unknown): OwnerTrafficClicks {
       const parts = typeof context === "string" ? context.split(":") : [];
       const [type, marketplace, destination] = parts;
       const known = parts.length === 3 && ["cars", "parts"].includes(type) && ["listing", "search_results", "all_results"].includes(destination);
-      const group = known && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : "ebayParts")
-        : known && ["autotrader", "facebook", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"].includes(marketplace) ? "otherMarketplaces" : "unclassified";
-      result[group] = count(result[group] + count(row.count));
+      const clicks = count(row.count);
+      total = count(total + clicks);
+      const marketplaceRow = known ? marketplaceRows.get(marketplace) : undefined;
+      const group = marketplaceRow && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : "ebayParts")
+        : marketplaceRow ? "otherMarketplaces" : "unclassified";
+      summary[group] = count(summary[group] + clicks);
+      if (marketplaceRow) {
+        marketplaceRow[type as "cars" | "parts"] = count(marketplaceRow[type as "cars" | "parts"] + clicks);
+        marketplaceRow.clicks = count(marketplaceRow.clicks + clicks);
+      }
     } catch (error) { throw parseFailure(error); }
   }
-  return result;
+  return {
+    summary,
+    marketplaces: [...marketplaces, { marketplace: "unclassified", cars: null, parts: null, clicks: summary.unclassified }],
+    total,
+  };
 }
 
 // Call only after authorizeTrafficOwner. All configuration stays on the server.
@@ -220,8 +234,10 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
   if (events.status === "rejected") warnings.push("Search and outbound-click totals are temporarily unavailable.");
   // Queries can settle at different ingestion moments. Never present a split
   // that does not add up to the confirmed total, or fill a failed split with 0.
-  const clicksByDestination = destinations.status === "fulfilled" && events.status === "fulfilled"
-    && Object.values(destinations.value).reduce((sum, value) => sum + value, 0) === events.value.outboundClicks ? destinations.value : null;
+  const confirmedDestinations = destinations.status === "fulfilled" && events.status === "fulfilled"
+    && destinations.value.total === events.value.outboundClicks ? destinations.value : null;
+  const clicksByDestination = confirmedDestinations?.summary ?? null;
+  const marketplaceClicks = confirmedDestinations?.marketplaces ?? null;
   if (destinations.status === "rejected") {
     const failure = destinations.reason;
     // Server-only diagnostics are deliberately limited to error categories,
@@ -240,7 +256,7 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
     sources: sources.status === "fulfilled" ? sources.value : null,
     searches: events.status === "fulfilled" ? events.value.searches : null,
     outboundClicks: events.status === "fulfilled" ? events.value.outboundClicks : null,
-    clicksByDestination,
+    clicksByDestination, marketplaceClicks,
     ...(range === "custom" && dates ? { calendarDates: dates } : {}),
     partial: warnings.length > 0, warnings,
   };

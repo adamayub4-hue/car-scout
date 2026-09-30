@@ -125,6 +125,12 @@ test('owner traffic verifies the bearer with Supabase and queries only the verif
   assert.equal(body.searches, 29);
   assert.equal(body.outboundClicks, 11);
   assert.deepEqual(body.clicksByDestination, { ebayCars: 4, ebayParts: 2, otherMarketplaces: 3, unclassified: 2 });
+  assert.deepEqual(body.marketplaceClicks, [
+    { marketplace: 'ebay', cars: 4, parts: 2, clicks: 6 },
+    { marketplace: 'autotrader', cars: 3, parts: 0, clicks: 3 },
+    ...['facebook', 'motors', 'gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic'].map(marketplace => ({ marketplace, cars: 0, parts: 0, clicks: 0 })),
+    { marketplace: 'unclassified', cars: null, parts: null, clicks: 2 },
+  ]);
   assert.equal(body.sources[0].source, 'Direct / unknown');
   assert.equal(body.partial, false);
   assert.deepEqual(body.warnings, []);
@@ -311,6 +317,10 @@ test('an empty valid provider dataset means zero, including missing event groups
   assert.equal(report.pageviews, 0);
   assert.equal(report.searches, 0);
   assert.equal(report.outboundClicks, 0);
+  assert.deepEqual(report.clicksByDestination, { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 });
+  assert.equal(report.marketplaceClicks.length, 10);
+  assert.ok(report.marketplaceClicks.every(row => row.clicks === 0));
+  assert.ok(report.marketplaceClicks.filter(row => row.marketplace !== 'unclassified').every(row => row.cars === 0 && row.parts === 0));
   assert.deepEqual(report.sources, []);
   assert.equal(report.partial, false);
 });
@@ -378,6 +388,8 @@ test('failed optional sections remain null with warnings and Retry immediately r
     if (failedGroup === 'eventName') {
       assert.equal(report.searches, null);
       assert.equal(report.outboundClicks, null);
+      assert.equal(report.clicksByDestination, null);
+      assert.equal(report.marketplaceClicks, null);
       assert.equal(report.sources.length, 2);
     } else {
       assert.equal(report.sources, null);
@@ -450,6 +462,8 @@ test('optional provider timeout preserves core traffic and reports missing event
   assert.equal(report.visitors, 75);
   assert.equal(report.searches, null);
   assert.equal(report.outboundClicks, null);
+  assert.equal(report.clicksByDestination, null);
+  assert.equal(report.marketplaceClicks, null);
   assert.equal(report.partial, true);
 });
 
@@ -507,7 +521,51 @@ test('documented context rows classify only complete known labels; old or groupe
   const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context' ? { data: contexts.map(eventData => ({ eventData, count: 1 })) } : fixture(url)) });
   const report = await (await h.get()).json();
   assert.deepEqual(report.clicksByDestination, { ebayCars: 2, ebayParts: 2, otherMarketplaces: 2, unclassified: 5 });
+  assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'unclassified'), { marketplace: 'unclassified', cars: null, parts: null, clicks: 5 });
+  assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'gumtree'), { marketplace: 'gumtree', cars: 0, parts: 1, clicks: 1 });
   assert.equal(report.partial, false);
+});
+
+test('named marketplaces combine destination contexts while keeping car and parts clicks separate', async () => {
+  const contexts = [
+    ['cars:ebay:listing', 4], ['cars:ebay:all_results', 3], ['cars:ebay:search_results', 2],
+    ['parts:ebay:listing', 5], ['parts:ebay:all_results', 6], ['parts:ebay:search_results', 1],
+    ['cars:autotrader:search_results', 2], ['cars:facebook:search_results', 3], ['cars:motors:search_results', 4],
+    ['cars:gumtree:search_results', 5], ['parts:gumtree:search_results', 6], ['cars:cargurus:search_results', 7],
+    ['cars:pistonheads:search_results', 8], ['cars:aacars:search_results', 9], ['cars:carandclassic:search_results', 10],
+    [null, 11], ['facebook', 12], ['Others', 13], ['cars:new-marketplace:listing', 14], ['parts:gumtree:unknown', 15],
+  ];
+  const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context'
+    ? { data: contexts.map(([context, count]) => ({ 'eventData/context': context, count })) }
+    : url.searchParams.get('by') === 'eventName' ? { data: [{ eventName: 'marketplace_outbound', count: 140 }] } : fixture(url)) });
+  const report = await (await h.get()).json();
+  assert.deepEqual(report.marketplaceClicks, [
+    { marketplace: 'ebay', cars: 9, parts: 12, clicks: 21 },
+    { marketplace: 'autotrader', cars: 2, parts: 0, clicks: 2 },
+    { marketplace: 'facebook', cars: 3, parts: 0, clicks: 3 },
+    { marketplace: 'motors', cars: 4, parts: 0, clicks: 4 },
+    { marketplace: 'gumtree', cars: 5, parts: 6, clicks: 11 },
+    { marketplace: 'cargurus', cars: 7, parts: 0, clicks: 7 },
+    { marketplace: 'pistonheads', cars: 8, parts: 0, clicks: 8 },
+    { marketplace: 'aacars', cars: 9, parts: 0, clicks: 9 },
+    { marketplace: 'carandclassic', cars: 10, parts: 0, clicks: 10 },
+    { marketplace: 'unclassified', cars: null, parts: null, clicks: 65 },
+  ]);
+  assert.deepEqual(report.clicksByDestination, { ebayCars: 9, ebayParts: 12, otherMarketplaces: 54, unclassified: 65 });
+  assert.equal(report.marketplaceClicks.reduce((sum, row) => sum + row.clicks, 0), report.outboundClicks);
+  assert.equal(report.partial, false);
+  assert.equal(h.providerCalls().length, 4, 'named breakdown reuses the existing context query');
+});
+
+test('top-100 contexts plus the provider Others row retain all clicks as unclassified', async () => {
+  const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context'
+    ? { data: [...Array.from({ length: 100 }, (_, i) => ({ eventData: `legacy-${i}`, count: 1 })), { eventData: 'Others', count: 7 }] }
+    : url.searchParams.get('by') === 'eventName' ? { data: [{ eventName: 'marketplace_outbound', count: 107 }] } : fixture(url)) });
+  const report = await (await h.get()).json();
+  assert.equal(report.partial, false);
+  assert.equal(report.marketplaceClicks.length, 10);
+  assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'unclassified'), { marketplace: 'unclassified', cars: null, parts: null, clicks: 107 });
+  assert.equal(report.marketplaceClicks.reduce((sum, row) => sum + row.clicks, 0), report.outboundClicks);
 });
 
 test('failed, malformed or unreconciled click breakdowns are unavailable and retryable, never fabricated zeros', async () => {
@@ -516,6 +574,9 @@ test('failed, malformed or unreconciled click breakdowns are unavailable and ret
     { data: [{ context: 'cars:ebay:listing', count: 11 }] },
     { data: [{ eventData: { context: 'cars:ebay:listing' }, count: 11 }] },
     { data: [{ eventData: 'cars:ebay:listing', count: -1 }] },
+    { data: [{ eventData: 'cars:ebay:listing', count: 1.5 }] },
+    { data: [{ eventData: 'cars:ebay:listing', count: Number.MAX_SAFE_INTEGER + 1 }] },
+    { data: [{ eventData: 'cars:ebay:listing', count: Number.MAX_SAFE_INTEGER }, { eventData: 'parts:gumtree:search_results', count: 1 }] },
     { data: [{ eventData: 'cars:ebay:listing', count: 5 }, { eventData: 'cars:ebay:listing', count: 6 }] },
     { data: [{ eventData: 'cars:ebay:listing', count: 12 }] }, { data: [] },
     { data: Array.from({ length: 102 }, (_, i) => ({ eventData: String(i), count: 0 })) },
@@ -524,12 +585,15 @@ test('failed, malformed or unreconciled click breakdowns are unavailable and ret
     const h = harness({ upstream: url => Response.json(failing && url.searchParams.get('by') === 'eventData/context' ? payload : fixture(url)) });
     const report = await (await h.get()).json();
     assert.equal(report.outboundClicks, 11); assert.equal(report.clicksByDestination, null); assert.equal(report.partial, true);
+    assert.equal(report.marketplaceClicks, null);
     failing = false;
     assert.equal((await (await h.get()).json()).partial, false);
     assert.equal(h.providerCalls().length, 8);
   }
   const h = harness({ upstream: url => url.searchParams.get('by') === 'eventData/context' ? new Response('fail', { status: 503 }) : Response.json(fixture(url)) });
-  assert.equal((await (await h.get()).json()).clicksByDestination, null);
+  const report = await (await h.get()).json();
+  assert.equal(report.clicksByDestination, null);
+  assert.equal(report.marketplaceClicks, null);
 });
 
 
@@ -547,6 +611,7 @@ test('destination diagnostics reveal only a safe failure category and HTTP statu
     const h = harness({ upstream: url => url.searchParams.get('by') === 'eventData/context' ? response() : Response.json(fixture(url)) });
     const report = await (await h.get()).json();
     assert.equal(report.clicksByDestination, null);
+    assert.equal(report.marketplaceClicks, null);
     assert.equal(h.diagnostics.length, 1);
     const [label, detail] = h.diagnostics[0];
     assert.equal(label, 'Owner traffic destination breakdown unavailable');
@@ -570,6 +635,7 @@ test('observed literal eventData/context rows and documented eventData rows both
     const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context' ? { data: [row] } : fixture(url)) });
     const report = await (await h.get()).json();
     assert.deepEqual(report.clicksByDestination, { ebayCars: 0, ebayParts: 11, otherMarketplaces: 0, unclassified: 0 });
+    assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'ebay'), { marketplace: 'ebay', cars: 0, parts: 11, clicks: 11 });
     assert.equal(report.partial, false); assert.deepEqual(h.diagnostics, []);
   }
 });
@@ -583,6 +649,7 @@ test('conflicting grouping aliases and duplicate contexts across response format
     const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context' ? { data } : fixture(url)) });
     const report = await (await h.get()).json();
     assert.equal(report.outboundClicks, 11); assert.equal(report.clicksByDestination, null); assert.equal(report.partial, true);
+    assert.equal(report.marketplaceClicks, null);
     assert.ok(['conflicting_context', 'duplicate_context'].includes(h.diagnostics[0][1].reason));
   }
 });

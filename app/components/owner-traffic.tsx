@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ownerTrafficDateWindow, ownerTrafficUKDate, type OwnerTrafficDates, type OwnerTrafficRange, type OwnerTrafficReport } from "../lib/owner-traffic";
+import { OWNER_TRAFFIC_MARKETPLACE_LABELS, ownerTrafficDateWindow, ownerTrafficUKDate, type OwnerTrafficDates, type OwnerTrafficMarketplaceRow, type OwnerTrafficRange, type OwnerTrafficReport } from "../lib/owner-traffic";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
 const RANGE_LABELS: Record<OwnerTrafficRange, string> = {
@@ -14,6 +14,53 @@ const date = new Intl.DateTimeFormat("en-GB", {
 });
 
 type TrafficState = { report: OwnerTrafficReport | null; loading: boolean; error: string | null };
+
+function trafficSourceName(source: string) {
+  const value = source.trim().toLowerCase();
+  const known = [
+    { name: "Facebook", domains: ["facebook.com", "facebook"] },
+    { name: "Instagram", domains: ["instagram.com", "instagram"] },
+    { name: "TikTok", domains: ["tiktok.com", "tiktok"] },
+    { name: "Google", domains: ["google.com", "google.co.uk", "google"] },
+    { name: "Bing", domains: ["bing.com", "bing"] },
+    { name: "YouTube", domains: ["youtube.com", "youtu.be", "youtube"] },
+    { name: "Reddit", domains: ["reddit.com", "reddit"] },
+    { name: "DuckDuckGo", domains: ["duckduckgo.com", "duckduckgo"] },
+  ];
+  return known.find(({ domains }) => domains.some(domain => value === domain || (domain.includes(".") && value.endsWith(`.${domain}`))))?.name ?? source;
+}
+
+function MarketplaceClicksTable({ rows, caption }: { rows: OwnerTrafficMarketplaceRow[]; caption: string }) {
+  return <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm">
+    <caption className="sr-only">{caption}</caption>
+    <thead><tr className="text-xs text-subtle">
+      <th scope="col" className="py-2 pr-3 font-medium">Marketplace</th>
+      <th scope="col" className="px-2 py-2 text-right font-medium">Car clicks</th>
+      <th scope="col" className="px-2 py-2 text-right font-medium">Part clicks</th>
+      <th scope="col" className="py-2 pl-3 text-right font-medium">Total</th>
+    </tr></thead>
+    <tbody>{rows.map(row => <tr key={row.marketplace} className="border-t border-outline/10">
+      <th scope="row" className="py-2.5 pr-3 font-medium">{OWNER_TRAFFIC_MARKETPLACE_LABELS[row.marketplace]}</th>
+      <td className="px-2 py-2.5 text-right tabular-nums">{row.cars === null ? <span aria-label="Not known">—</span> : number.format(row.cars)}</td>
+      <td className="px-2 py-2.5 text-right tabular-nums">{row.parts === null ? <span aria-label="Not known">—</span> : number.format(row.parts)}</td>
+      <td className="py-2.5 pl-3 text-right font-semibold tabular-nums">{number.format(row.clicks)}</td>
+    </tr>)}</tbody>
+  </table></div>;
+}
+
+function MarketplaceClicks({ rows }: { rows: OwnerTrafficMarketplaceRow[] | null | undefined }) {
+  if (rows == null) return <p className="mt-3 text-sm text-muted">The marketplace breakdown is temporarily unavailable. This does not mean there were no clicks.</p>;
+  const sorted = [...rows].sort((a, b) => b.clicks - a.clicks || OWNER_TRAFFIC_MARKETPLACE_LABELS[a.marketplace].localeCompare(OWNER_TRAFFIC_MARKETPLACE_LABELS[b.marketplace], "en-GB"));
+  const active = sorted.filter(row => row.clicks > 0);
+  const zero = sorted.filter(row => row.clicks === 0 && row.marketplace !== "unclassified");
+  return <>
+    {active.length ? <MarketplaceClicksTable rows={active} caption="Marketplace clicks, highest total first" /> : <p className="mt-3 text-sm text-muted">No marketplace clicks recorded for this period.</p>}
+    {zero.length > 0 && <details className="mt-3 border-t border-outline/10 pt-3">
+      <summary className="cursor-pointer text-sm font-medium text-link">Show {zero.length} marketplaces with no clicks</summary>
+      <MarketplaceClicksTable rows={zero} caption="Marketplaces with no clicks this period" />
+    </details>}
+  </>;
+}
 
 // Kept separate from loading so the real dashboard layout can be reviewed locally.
 export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCustomDates, hasCustomDates = false }: {
@@ -68,17 +115,15 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCus
       {report.partial && <p role="status" className="mt-4 text-sm text-warning">Some sections could not be loaded. The available figures are shown; try refreshing in a few minutes.</p>}
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
         <h3 className="font-bold">Where listing clicks went</h3>
-        {report.clicksByDestination == null ? <p className="mt-3 text-sm text-muted">The outbound-click breakdown is temporarily unavailable.</p> : <dl className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {([
-            ["eBay cars", report.clicksByDestination.ebayCars], ["eBay parts", report.clicksByDestination.ebayParts],
-            ["Other marketplaces", report.clicksByDestination.otherMarketplaces], ["Unclassified", report.clicksByDestination.unclassified],
-          ] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-outline/10 p-3"><dt className="text-xs font-semibold text-muted">{label}</dt><dd className="mt-2 text-2xl font-bold tabular-nums">{number.format(value)}</dd></div>)}
-        </dl>}
-        <p className="mt-3 text-xs leading-5 text-subtle">Same reporting period as the totals above. Includes links to individual listings and marketplace search results; repeated clicks are counted. Unclassified means older or unknown labels could not identify the destination. Website actions are not eBay-credited clicks or sales, and the two services can count differently.</p>
+        <MarketplaceClicks rows={report.marketplaceClicks} />
+        <p className="mt-3 text-xs leading-5 text-subtle">Same reporting period as the totals above. Includes links to individual listings and marketplace search results; repeated clicks are counted. Unidentified destination means older or unknown labels could not identify the marketplace; a dash means the car or part type is not known. Website actions are not eBay-credited clicks or sales, and the two services can count differently.</p>
       </div>
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
         <h3 className="font-bold">Where visitors came from</h3>
-        {report.sources === null ? <p className="mt-3 text-sm text-muted">Traffic sources are temporarily unavailable.</p> : report.sources.length === 0 ? <p className="mt-3 text-sm text-muted">No traffic sources recorded for this period.</p> : <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-xs text-subtle"><th scope="col" className="py-2 pr-3 font-medium">Source</th><th scope="col" className="py-2 text-right font-medium">Visitors</th><th scope="col" className="py-2 pl-3 text-right font-medium">Page views</th></tr></thead><tbody>{report.sources.map((source, index) => <tr key={`${source.source}-${index}`} className="border-t border-outline/10"><th scope="row" className="max-w-48 break-words py-3 pr-3 font-medium">{source.source}</th><td className="py-3 text-right tabular-nums">{number.format(source.visitors)}</td><td className="py-3 pl-3 text-right tabular-nums">{number.format(source.pageviews)}</td></tr>)}</tbody></table></div>}
+        {report.sources === null ? <p className="mt-3 text-sm text-muted">Traffic sources are temporarily unavailable.</p> : report.sources.length === 0 ? <p className="mt-3 text-sm text-muted">No traffic sources recorded for this period.</p> : <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-xs text-subtle"><th scope="col" className="py-2 pr-3 font-medium">Source</th><th scope="col" className="py-2 text-right font-medium">Visitors</th><th scope="col" className="py-2 pl-3 text-right font-medium">Page views</th></tr></thead><tbody>{report.sources.map((source, index) => {
+          const name = trafficSourceName(source.source);
+          return <tr key={`${source.source}-${index}`} className="border-t border-outline/10"><th scope="row" className="max-w-48 break-words py-2.5 pr-3 font-medium">{name}{name !== source.source && <span className="mt-0.5 block text-xs font-normal text-subtle">{source.source}</span>}</th><td className="py-2.5 text-right tabular-nums">{number.format(source.visitors)}</td><td className="py-2.5 pl-3 text-right tabular-nums">{number.format(source.pageviews)}</td></tr>;
+        })}</tbody></table></div>}
         <p className="mt-3 text-xs leading-5 text-subtle">Direct / unknown means no source was supplied. Apps can hide this, so some ad visitors may appear there. A visitor can appear under more than one source.</p>
       </div>
       <p className="mt-4 text-xs leading-5 text-subtle">Updated {date.format(new Date(report.fetchedAt))} · Reports are saved for up to 5 minutes between refreshes. New activity may take time to arrive. Source: Vercel Web Analytics. Visitor estimates can count the same person again on another day or device.</p>

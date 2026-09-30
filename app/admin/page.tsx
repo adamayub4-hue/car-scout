@@ -25,9 +25,11 @@ export default function AdminPage() {
   const [counts, setCounts] = useState({ users: 0, open: 0, saved: 0 });
   const [savingId, setSavingId] = useState<string | null>(null), [saveError, setSaveError] = useState<string | null>(null);
   const requestId = useRef(0), saving = useRef(false);
+  const observedUserId = useRef<string | null | undefined>(undefined), verifiedOwnerId = useRef<string | null>(null);
   const emails = useMemo(() => Object.fromEntries(profiles.map((p) => [p.id, p.email])), [profiles]);
   const load = async () => {
     const id = ++requestId.current;
+    verifiedOwnerId.current = null;
     setLoading(true); setLoadError(null); setSaveError(null); setAllowed(null);
     try {
       const client = getSupabaseBrowserClient();
@@ -36,6 +38,8 @@ export default function AdminPage() {
       if (id !== requestId.current) return;
       if (!authResult.data.user) { setSignedIn(false); setAllowed(false); return; }
       if (authResult.error) throw authResult.error;
+      if (observedUserId.current !== undefined && observedUserId.current !== authResult.data.user.id) throw new Error("Account changed");
+      observedUserId.current = authResult.data.user.id;
       setSignedIn(true);
       const adminResult = await withDeadline(client.from("admins").select("user_id").eq("user_id", authResult.data.user.id).maybeSingle());
       if (id !== requestId.current) return;
@@ -51,36 +55,67 @@ export default function AdminPage() {
       ]));
       if (id !== requestId.current) return;
       if ([p, c, e, s, open].some((result) => result.error) || p.count === null || s.count === null || open.count === null || !p.data || !c.data || !e.data || !s.data) throw new Error("Incomplete dashboard data");
+      verifiedOwnerId.current = authResult.data.user.id;
       setProfiles(p.data as Profile[]); setComplaints(c.data as Complaint[]); setEvents(e.data as EventRow[]); setSaved(s.data as SavedRow[]);
       setCounts({ users: p.count, open: open.count, saved: s.count });
     } catch {
       if (id === requestId.current) setLoadError("We couldn’t load or verify the dashboard. Counts and reports are unavailable—not zero. Check your connection and retry, or sign in again.");
     } finally { if (id === requestId.current) setLoading(false); }
   };
-  useEffect(() => { const lifecycle = requestId; const timer = window.setTimeout(() => void load(), 0); return () => { window.clearTimeout(timer); lifecycle.current++; }; }, []);
+  useEffect(() => {
+    const lifecycle = requestId;
+    const identity = observedUserId;
+    const owner = verifiedOwnerId;
+    const pendingSave = saving;
+    let timer = window.setTimeout(() => void load(), 0);
+    const subscription = getSupabaseBrowserClient()?.auth.onAuthStateChange((_event, session) => {
+      const userId = session?.user.id ?? null;
+      // Token refreshes for the same account must not interrupt reporting or saves.
+      if (identity.current === userId) return;
+      identity.current = userId;
+      lifecycle.current++;
+      owner.current = null;
+      pendingSave.current = false;
+      window.clearTimeout(timer);
+      setAllowed(userId ? null : false); setSignedIn(Boolean(userId)); setLoading(Boolean(userId));
+      setProfiles([]); setComplaints([]); setEvents([]); setSaved([]);
+      setCounts({ users: 0, open: 0, saved: 0 });
+      setLoadError(null); setSaveError(null); setSavingId(null);
+      setOwnerLinkLoading(false); setOwnerLinkMessage("");
+      // Defer Supabase work until its synchronous auth callback has returned.
+      if (userId) timer = window.setTimeout(() => void load(), 0);
+    });
+    return () => { window.clearTimeout(timer); lifecycle.current++; owner.current = null; subscription?.data.subscription.unsubscribe(); };
+  }, []);
   const requestOwnerLink = async () => {
     const client = getSupabaseBrowserClient();
     if (!client) { setOwnerLinkMessage("Owner sign-in is temporarily unavailable."); return; }
+    const lifecycle = requestId.current;
     setOwnerLinkLoading(true); setOwnerLinkMessage("");
     const { error } = await client.auth.signInWithOtp({
       email: "adamayub4@gmail.com",
       options: { shouldCreateUser: false, emailRedirectTo: "https://mekivo.uk/admin" },
     });
+    if (lifecycle !== requestId.current) return;
     setOwnerLinkLoading(false);
     setOwnerLinkMessage(error ? "We couldn’t send the owner sign-in link. Try again shortly." : "A secure one-time sign-in link has been sent to the owner email address.");
   };
   const updateStatus = async (id: string, status: Complaint["status"]) => {
-    if (saving.current) return;
+    const lifecycle = requestId.current;
+    const ownerId = verifiedOwnerId.current;
+    if (saving.current || !ownerId || observedUserId.current !== ownerId) return;
+    const current = () => lifecycle === requestId.current && verifiedOwnerId.current === ownerId && observedUserId.current === ownerId;
     saving.current = true; setSavingId(id); setSaveError(null);
     const previous = complaints.find((row) => row.id === id)?.status;
     try {
       const client = getSupabaseBrowserClient(); if (!client) throw new Error("Service unavailable");
       const { data, error } = await withDeadline(client.from("complaints").update({ status, updated_at: new Date().toISOString() }).eq("id", id).select("id,status").single());
+      if (!current()) return;
       if (error || !data || data.status !== status) throw new Error("Update not confirmed");
       setComplaints((rows) => rows.map((row) => row.id === id ? { ...row, status } : row));
       if (previous) setCounts((value) => ({ ...value, open: value.open + Number(status !== "resolved") - Number(previous !== "resolved") }));
-    } catch { setSaveError("The status change could not be confirmed. Your last confirmed status is still shown. Refresh the dashboard before trying again."); }
-    finally { saving.current = false; setSavingId(null); }
+    } catch { if (current()) setSaveError("The status change could not be confirmed. Your last confirmed status is still shown. Refresh the dashboard before trying again."); }
+    finally { if (current()) { saving.current = false; setSavingId(null); } }
   };
   if (loadError) return <main className="min-h-screen bg-background p-8 text-foreground"><div className="mx-auto max-w-lg rounded-2xl border border-rose-300/30 p-6"><h1 className="text-2xl font-bold">Dashboard unavailable</h1><p role="alert" className="mt-3 text-muted">{loadError}</p><button type="button" onClick={() => void load()} className="mt-5 rounded-lg bg-sky-300 px-4 py-2 font-bold text-slate-950">Retry dashboard</button><Link href="/account" className="ml-4 text-link">Sign in</Link></div></main>;
   if (loading || allowed === null) return <main className="min-h-screen bg-background p-8 text-muted"><p role="status">Loading dashboard and checking owner access…</p></main>;

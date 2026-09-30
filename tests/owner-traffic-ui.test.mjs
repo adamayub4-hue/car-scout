@@ -14,10 +14,18 @@ const trafficHelpers = {};
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/owner-traffic.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: trafficHelpers });
 const session = { access_token: 'owner-test-token', user: { id: 'owner' } };
 const sessionResult = value => ({ data: { session: value }, error: null });
+const marketplaceRows = (counts = {}) => [
+  ...trafficHelpers.OWNER_TRAFFIC_MARKETPLACES.map(marketplace => {
+    const [cars, parts] = counts[marketplace] ?? [0, 0];
+    return { marketplace, cars, parts, clicks: cars + parts };
+  }),
+  { marketplace: 'unclassified', cars: null, parts: null, clicks: counts.unclassified ?? 0 },
+];
 const report = changes => ({
   range: '7d', since: '2026-09-10T12:00:00.000Z', until: '2026-09-17T12:00:00.000Z',
   fetchedAt: '2026-09-17T12:01:00.000Z', visitors: 1234, pageviews: 2345,
   searches: 21, outboundClicks: 16, partial: false, clicksByDestination: { ebayCars: 6, ebayParts: 4, otherMarketplaces: 5, unclassified: 1 },
+  marketplaceClicks: marketplaceRows({ ebay: [6, 4], facebook: [3, 0], gumtree: [1, 1], unclassified: 1 }),
   sources: [{ source: 'facebook.com', visitors: 43, pageviews: 55 }], ...changes,
 });
 function deferred() {
@@ -307,16 +315,75 @@ test('the matching initial auth event does not cancel a valid owner session look
 });
 
 
-test('the click split distinguishes eBay parts, cars and other destinations without implying credited earnings', async () => {
-  const h = await loaded();
-  for (const [label, value] of [['eBay cars', 6], ['eBay parts', 4], ['Other marketplaces', 5], ['Unclassified', 1]]) assert.match(h.html(), new RegExp(`>${label}</dt><dd[^>]*>${value}</dd>`));
-  assert.match(h.html(), /Same reporting period as the totals above/);
-  assert.match(h.html(), /not eBay-credited clicks or sales/);
-  const missing = h.view({ report: report({ clicksByDestination: null, partial: true }), loading: false, error: null });
-  assert.match(missing, /outbound-click breakdown is temporarily unavailable/);
-  assert.doesNotMatch(missing, /eBay parts<\/dt>/);
-  const zero = h.view({ report: report({ clicksByDestination: { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 } }), loading: false, error: null });
-  assert.match(zero, />eBay parts<\/dt><dd[^>]*>0<\/dd>/);
+function tableRows(html, caption) {
+  const table = html.match(new RegExp(`<caption[^>]*>${caption}</caption>([\\s\\S]*?)</table>`))?.[1] ?? '';
+  const plain = value => value.replace(/<[^>]+>/g, '').replaceAll('&amp;', '&');
+  return [...table.matchAll(/<tr[^>]*><th scope="row"[^>]*>([\s\S]*?)<\/th>([\s\S]*?)<\/tr>/g)].map(([, label, cells]) => [
+    plain(label), ...[...cells.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(([, value]) => plain(value)),
+  ]);
+}
+
+test('marketplaces show names, car and part splits and highest totals first, with deterministic ties', async () => {
+  const rows = marketplaceRows({ facebook: [8, 2], ebay: [3, 1], carandclassic: [4, 0], unclassified: 1 }).reverse();
+  const before = JSON.stringify(rows);
+  const h = await loaded({ marketplaceClicks: rows });
+  const html = h.html();
+  assert.deepEqual(tableRows(html, 'Marketplace clicks, highest total first'), [
+    ['Facebook Marketplace', '8', '2', '10'],
+    ['Car & Classic', '4', '0', '4'],
+    ['eBay', '3', '1', '4'],
+    ['Unidentified destination', '—', '—', '1'],
+  ]);
+  assert.equal(JSON.stringify(rows), before, 'rendering must not mutate the report');
+  assert.match(html, /Car clicks/); assert.match(html, /Part clicks/);
+  assert.match(html, /aria-label="Not known">—/);
+  assert.match(html, /Same reporting period as the totals above/);
+  assert.match(html, /not eBay-credited clicks or sales/);
+  assert.doesNotMatch(html, /Other marketplaces|conversion rate|confirmed partner/i);
+  const collapsed = html.match(/<details\b([^>]*)>([\s\S]*?)<\/details>/);
+  assert.ok(collapsed); assert.doesNotMatch(collapsed[1], /open/);
+  assert.match(collapsed[2], /Show 6 marketplaces with no clicks/);
+  assert.deepEqual(tableRows(collapsed[2], 'Marketplaces with no clicks this period'), [
+    ['AA Cars', '0', '0', '0'], ['Auto Trader', '0', '0', '0'], ['CarGurus', '0', '0', '0'],
+    ['Gumtree', '0', '0', '0'], ['MOTORS', '0', '0', '0'], ['PistonHeads', '0', '0', '0'],
+  ]);
+});
+
+test('a genuine zero-click period stays distinct from unavailable and older report payloads', () => {
+  const h = harness();
+  const view = changes => h.view({ report: report(changes), loading: false, error: null });
+  for (const marketplaceClicks of [null, undefined]) {
+    const html = view({ marketplaceClicks });
+    assert.match(html, /marketplace breakdown is temporarily unavailable/);
+    assert.match(html, /does not mean there were no clicks/);
+    assert.doesNotMatch(html, /No marketplace clicks recorded|marketplaces with no clicks|<caption[^>]*>Marketplace clicks/);
+    assert.equal(card(html, 'Listing clicks'), '16', 'legacy aggregate remains available without inventing detailed rows');
+  }
+  const zero = view({ outboundClicks: 0, marketplaceClicks: marketplaceRows() });
+  assert.match(zero, /No marketplace clicks recorded for this period/);
+  assert.match(zero, /Show 9 marketplaces with no clicks/);
+  assert.equal(tableRows(zero, 'Marketplaces with no clicks this period').length, 9);
+  assert.equal(card(zero, 'Listing clicks'), '0');
+  assert.doesNotMatch(zero, /marketplace breakdown is temporarily unavailable/);
+  const empty = view({ outboundClicks: 0, marketplaceClicks: [] });
+  assert.match(empty, /No marketplace clicks recorded for this period/);
+  assert.doesNotMatch(empty, /marketplace breakdown is temporarily unavailable/);
+});
+
+test('sources use familiar names with original hostnames and preserve unknown text safely', async () => {
+  const h = await loaded({ sources: [
+    'l.facebook.com', 'l.instagram.com', 'www.tiktok.com', 'www.google.co.uk',
+    'facebook.com.example.org', '<img src=x onerror=alert(1)>', 'Direct / unknown',
+  ].map(source => ({ source, visitors: 2, pageviews: 3 })) });
+  const html = h.html();
+  for (const [label, host] of [['Facebook', 'l.facebook.com'], ['Instagram', 'l.instagram.com'], ['TikTok', 'www.tiktok.com'], ['Google', 'www.google.co.uk']]) {
+    assert.ok(html.includes(`>${label}<span`));
+    assert.ok(html.includes(`>${host}</span>`));
+  }
+  assert.match(html, />facebook\.com\.example\.org<\/th>/, 'lookalike hostnames must not receive a trusted source label');
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/); assert.doesNotMatch(html, /<img/);
+  assert.match(html, />Direct \/ unknown<\/th>/);
+  assert.match(html, /A visitor can appear under more than one source/);
 });
 
 test('custom dates wait for Apply, validate before fetching, and ignore older period responses', async () => {

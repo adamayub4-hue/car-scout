@@ -28,6 +28,18 @@ Verified operational observation (Vercel dashboard, 29 September): the UI select
 
 API reference: [Web Analytics API](https://vercel.com/docs/analytics/web-analytics-api), [page-view aggregates](https://vercel.com/docs/rest-api/web-analytics/aggregates-page-views), [custom-event aggregates](https://vercel.com/docs/rest-api/web-analytics/aggregates-custom-events).
 
+### Named marketplaces and private dashboard — 30 September 2026
+
+The owner view now replaces the combined “Other marketplaces” display with a named table for eBay, Auto Trader, Facebook Marketplace, MOTORS, Gumtree, CarGurus, PistonHeads, AA Cars and Car & Classic. `marketplaceClicks` uses the existing context aggregate, with separate car, part and total click counts. Repeated actions and all supported listing/search-result destinations are combined per marketplace. No additional analytics query or tracker is introduced. The original `clicksByDestination` summary remains in the API for compatibility.
+
+Named rows appear busiest first; verified zero-click marketplaces are in an expandable section. Missing/legacy/unknown contexts and the provider's `Others` group are “Unidentified destination”; their car/part split is unknown, shown as a dash. Both breakdowns are unavailable on provider/parse failure, count overflow or a mismatch with the confirmed outbound total. An older response missing the new field also shows unavailable, never invented zeroes.
+
+Common referrer hostnames have clearer display labels while preserving the original hostname. Different hostnames are not combined: summing their visitor counts could double-count people. The reporting dates, five-minute cache, historical testing caveat and distinction between clicks, people and credited eBay sales remain visible.
+
+The account dashboard subscribes to authentication changes and clears private rows, counts and pending results after sign-out or an account change. Late loads and report-status responses cannot restore a previous owner's records; a same-account token refresh does not clear valid data. Server-side owner checks and database row permissions remain required. Normal visitors cannot retrieve the traffic report by opening its API URL.
+
+Validation: lint, all 348 Node tests and the production build passed. Local browser review uses fictional sample figures, including named and unidentified destinations and expandable zero-click rows. Production review must retain browser analytics exclusion and must not generate test search/outbound events.
+
 ## Owner and testing exclusion — 17 September 2026
 
 `analytics-audience.ts` is shared by both Vercel SDKs, the growth-event wrapper and optional Supabase search/save activity. Collection starts only after the browser session check confirms an anonymous visitor or a signed-in non-owner. A signed-in owner's `admins` membership sets a persistent boolean `mekivo_internal_traffic=1` in local storage, without retaining an ID or email in that preference. Exclusion remains after sign-out. Identity/role errors or timeouts suppress analytics without preventing the website from working.
