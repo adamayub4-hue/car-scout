@@ -36,7 +36,7 @@ const text = node => typeof node === 'string' ? node : Array.isArray(node)
 // exists before scrolling and that restoration and later interactions win.
 function page(query) {
   let cursor = 0, dirty = true, tree;
-  const slots = [], effects = new Map(), pendingEffects = [], scrolls = [], requests = [];
+  const slots = [], effects = new Map(), pendingEffects = [], scrolls = [], requests = [], events = [];
   const hooks = {
     useState(initial) {
       const index = cursor++;
@@ -68,7 +68,7 @@ function page(query) {
       if (name === './lib/parts-guide-data') return guideData;
       if (name === './lib/saved-search') return savedSearch;
       if (name === './lib/search') return search;
-      if (name === './lib/growth-events') return { trackGrowthEvent() {} };
+      if (name === './lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
       if (name === './lib/analytics-audience') return { analyticsAudience: () => 'excluded' };
       if (name === './lib/supabase') return { getSupabaseBrowserClient: () => null };
       if (name === './components/parts-guide') return { default: Guide };
@@ -91,7 +91,7 @@ function page(query) {
   };
   render();
   return {
-    scrolls, requests, render,
+    scrolls, requests, events, render,
     guide: () => nodes(render()).find(node => node.type === Guide),
     button: label => nodes(render()).find(node => node.type === 'button' && text(node) === label),
     vehicle: () => nodes(render()).find(node => node.type === 'details' && /Search with vehicle details|Vehicle:/.test(text(node))),
@@ -150,10 +150,25 @@ test('saved search restoration takes precedence over explicit and campaign guide
     assert.equal(direct.guide(), undefined);
     assert.equal(direct.vehicle().props.open, false);
     assert.equal(direct.scrolls.length, 0);
+    assert.equal(direct.events.length, guideQuery.startsWith('utm_') ? 1 : 0);
+    assert.equal(direct.requests.length, 0);
     const diagram = page(`?mode=parts&${guideQuery}&restore=1&make=Ford&model=Fiesta&year=2012&part_method=diagram&category=Suspension&part=Control+Arm`);
     assert.equal(diagram.guide().props.category, 'Suspension');
     assert.equal(diagram.guide().props.part, 'Control Arm');
     assert.equal(diagram.vehicle().props.open, true);
     assert.equal(diagram.scrolls.length, 0);
+    assert.equal(diagram.events.length, guideQuery.startsWith('utm_') ? 1 : 0);
+    assert.equal(diagram.requests.length, 0);
   }
+});
+
+test('untagged shared links only restore criteria; actual campaign parameters still emit one landing event', () => {
+  for (const query of ['?restore=1&mode=cars&make=Ford&price=5000&min_price=1500', '?restore=1&mode=parts&search_method=part_number&part_number=1K0+698+151+F']) {
+    const shared = page(query);
+    assert.deepEqual(shared.events, []); assert.equal(shared.requests.length, 0);
+  }
+  for (const query of ['', '?mode=parts']) assert.deepEqual(page(query).events, []);
+  const campaign = page('?mode=cars&utm_source=facebook&utm_medium=organic_social');
+  assert.equal(campaign.events.length, 1); assert.equal(campaign.events[0][0], 'campaign_landing');
+  assert.equal(campaign.events[0][1].landing_mode, 'cars'); assert.equal(campaign.requests.length, 0);
 });

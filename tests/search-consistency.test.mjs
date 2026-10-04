@@ -258,6 +258,21 @@ test('saved car filters restore without a request, and old saved searches retain
   assert.equal(old.CarSort, 'best_match'); assert.equal(old.HideUnwanted, false);
 });
 
+test('shared criteria restore the exact part-number suffix and car budget without private location or a submission', () => {
+  const partSearch = search.createPartSearch({ ...fields, partNumber: '1K0 698 151 F' }, true);
+  const partUrl = saved.getSharedSearchUrl(partSearch.saveItem);
+  const partState = restoreFromUrl(new URL(partUrl, 'https://local.test').search);
+  assert.equal(partState.PartNumber, '1K0 698 151 F');
+  assert.equal(partState.PartMethod, 'search'); assert.equal(partState.VehicleDetailsOpen, false);
+  for (const key of ['Make', 'Model', 'Year', 'Engine', 'Fuel', 'BodyStyle', 'Part', 'PartCategory']) assert.equal(partState[key], '', key);
+  const carSearch = search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '2018', minPrice: '1500', price: '5000', sort: 'price_desc', hideUnwanted: true, postcode: 'SW1A 1AA', platform: 'ebay' });
+  const carState = restoreFromUrl(new URL(saved.getSharedSearchUrl(carSearch.saveItem), 'https://local.test').search);
+  assert.equal(carState.Make, 'Ford'); assert.equal(carState.Model, 'Fiesta'); assert.equal(carState.Year, '2018');
+  assert.equal(carState.MinPrice, '1500'); assert.equal(carState.Price, '5000'); assert.equal(carState.CarSort, 'price_desc');
+  assert.equal(carState.HideUnwanted, true); assert.equal(carState.Platform, 'ebay'); assert.equal(carState.Postcode, '');
+  assert.equal(carState.RestoredSearch, true);
+});
+
 test('restoration rejects inherited category keys and unknown platform or method values', () => {
   const state = restoreFromUrl('?restore=1&mode=parts&make=Ford&model=Fiesta&year=2018&category=toString&part_method=catalogue&platform=javascript%3Aalert%281%29');
   assert.equal(state.PartCategory, ''); assert.equal(state.Platform, 'all');

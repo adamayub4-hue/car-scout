@@ -49,6 +49,27 @@ export function getSavedSearchUrl(item: SavedSearchItem) {
   return `/?${safe}`;
 }
 
+export function getSharedSearchUrl(item: SavedSearchItem) {
+  // Build from catalogue criteria, never the current URL or saved-item metadata.
+  const keys = item.kind === "car_search"
+    ? ["make", "model", "year", "price", "minPrice", "sort", "hideUnwanted", "platform"]
+    : ["make", "model", "year", "engine", "fuel", "bodyStyle", "part", "partCategory", "partNumber", "partMethod", "searchMethod"];
+  const data: Record<string, unknown> = {};
+  for (const key of keys) {
+    const value = item.data?.[key];
+    // Free-text catalogue fields must not turn into a route for personal data.
+    if (typeof value === "string") {
+      const clean = text(value);
+      if (/@|https?:\/\/|\b(?:password|access_token|refresh_token|api[_ -]?key|bearer|sk-proj-)\b/i.test(clean)
+        || /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i.test(clean)
+        || /\b[A-Z]{2}\d{2}\s?[A-Z]{3}\b/i.test(clean)
+        || /\b[A-HJ-NPR-Z0-9]{17}\b/i.test(clean)) continue;
+      data[key] = clean;
+    } else if (key === "hideUnwanted" && typeof value === "boolean") data[key] = value;
+  }
+  return getSavedSearchUrl({ kind: item.kind, title: "Shared search", data });
+}
+
 export function safeSearchReturnUrl(value: string | null) {
   if (!value || !value.startsWith("/?") || value.startsWith("//")) return null;
   try {

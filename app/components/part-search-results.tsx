@@ -5,6 +5,7 @@ import type { EbayListing, SubmittedSearch } from "../lib/search";
 import EbayResults from "./ebay-results";
 import PartRecommendations from "./part-recommendations";
 import SaveButton from "./save-button";
+import ShareSearchButton from "./share-search-button";
 import { getSavedSearchUrl } from "../lib/saved-search";
 
 const tabs = [{ id: "live", label: "Live parts" }, { id: "prices", label: "Price picks" }] as const;
@@ -35,9 +36,12 @@ export default function PartSearchResults({ search, items, loading, error, onRet
 
   return <>
     <div ref={toolbarRef} className="sticky top-0 z-20 scroll-mt-2 rounded-2xl border border-outline/15 bg-background/95 px-3 pt-3 shadow-lg shadow-black/10 backdrop-blur-md sm:px-5 sm:pt-4">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0"><h2 className="break-words text-lg font-bold sm:text-xl">{search.title}</h2><p className="mt-1 text-xs text-muted">Live listings from eBay · check fit before buying</p></div>
-        <button type="button" onClick={onEdit} className="min-h-11 shrink-0 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">Edit search</button>
+        <div className="flex min-w-0 flex-wrap items-start gap-2 sm:shrink-0">
+          <button type="button" onClick={onEdit} className="min-h-11 shrink-0 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">Edit search</button>
+          <ShareSearchButton item={search.saveItem} />
+        </div>
       </div>
       <div role="tablist" aria-label="Parts results views" className="mt-3 flex gap-1">
         {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={`part-tab-${tab.id}`} aria-controls={`part-panel-${tab.id}`}

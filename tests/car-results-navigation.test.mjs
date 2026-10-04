@@ -13,6 +13,7 @@ vm.runInNewContext(compile('../app/lib/search.ts'), { exports: searchHelpers, UR
 const savedSearchHelpers = {};
 vm.runInNewContext(compile('../app/lib/saved-search.ts'), { exports: savedSearchHelpers, URL, URLSearchParams });
 const Save = () => null;
+const Share = () => null;
 const LiveListings = () => null;
 const PricePicks = () => null;
 const PartPricePicks = () => null;
@@ -66,6 +67,7 @@ function component(path, initialProps) {
       if (name === '../lib/saved-search') return savedSearchHelpers;
       if (name === '../lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
       if (name === './save-button') return { default: Save };
+      if (name === './share-search-button') return { default: Share };
       if (name === './ebay-results') return { default: LiveListings };
       if (name === './save-listing-button') return { default: () => null };
       if (name === './car-recommendations') return { default: PricePicks };
@@ -166,6 +168,17 @@ test('clicking views exposes exactly one panel and preserves the live and price 
   app.click(app.button('Live cars'));
   assertTabWiring(app, 'Live cars');
   assert.deepEqual(app.events, [], 'view navigation is neither a search nor an outbound click');
+});
+
+test('car and part result toolbars expose sharing of the submitted snapshot without activity events', () => {
+  const carApp = results();
+  assert.equal(carApp.one(node => node.type === Share).props.item, carApp.props.search.saveItem);
+  carApp.click(carApp.button('Other sites'));
+  assert.equal(carApp.one(node => node.type === Share).props.item, carApp.props.search.saveItem);
+  const partSearch = searchHelpers.createPartSearch({ make: '', model: '', year: '', engine: '', fuel: '', bodyStyle: '', part: '', partCategory: '', partNumber: '1K0 698 151 F', partMethod: 'search' }, true);
+  const partApp = component('../app/components/part-search-results.tsx', { search: partSearch, items: [], loading: false, error: '', onRetry() {}, onEdit() {} });
+  assert.equal(partApp.one(node => node.type === Share).props.item, partSearch.saveItem);
+  assert.deepEqual(carApp.events, []); assert.deepEqual(partApp.events, []);
 });
 
 test('arrow, Home and End keys move selection and focus with wrapping and one tab stop', () => {

@@ -143,7 +143,7 @@ export default function Home() {
     const landingMode = saved?.mode || (params.get("mode") === "parts" ? "parts" : "cars");
     const guideCampaign = ["visual_guide", "visual_guide_v2"].includes(params.get("utm_content") || "");
     guideLandingPending.current = !saved && landingMode === "parts" && (params.get("guide") === "1" || guideCampaign);
-    trackGrowthEvent("campaign_landing", { landing_mode: landingMode });
+    if (["utm_source", "utm_medium", "utm_campaign", "utm_content"].some(key => params.has(key))) trackGrowthEvent("campaign_landing", { landing_mode: landingMode });
     const frame = window.requestAnimationFrame(() => {
       setMode(landingMode);
       if (guideLandingPending.current) setPartMethod("diagram");
