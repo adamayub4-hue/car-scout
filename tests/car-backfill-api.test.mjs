@@ -72,6 +72,16 @@ test('a short final car page stops without next and caches its results and metad
   assert.equal(cached.headers.get('cache-control'), 'no-store');
 });
 
+test('unrelated model suggestions cannot fill a selected-model batch before backfill', async () => {
+  const h = harness(url => Number(url.searchParams.get('offset')) === 0
+    ? page(Array.from({ length: 48 }, (_, index) => ({ ...car(`polo-${index}`), title: 'Volkswagen Polo' })), next)
+    : page([{ ...car('golf-1'), title: 'VW Golf GTI' }, { ...car('golf-2'), title: 'Volkswagen Golf Plus' }], undefined));
+  const body = await (await h.get(`${requestQuery}&q=Volkswagen+Golf&make=Volkswagen&model=Golf`)).json();
+  assert.deepEqual(body.items.map(item => item.id), ['golf-1', 'golf-2']);
+  assert.deepEqual(body.searchInfo, { checkedCount: 50, pagesChecked: 2, hasMore: false, partial: false });
+  assert.deepEqual(h.calls.map(call => call.url.searchParams.get('offset')), ['0', '48']);
+});
+
 test('a page of hidden adverts is backfilled with real cars using fixed offsets and one deadline', async () => {
   const remoteNext = 'https://attacker.example/steal-token?offset=999999&filter=none';
   const h = harness(url => Number(url.searchParams.get('offset')) === 0

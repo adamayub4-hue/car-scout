@@ -163,6 +163,19 @@ test('live car request sends selected filters and counts only the filtered visib
   assert.equal(app.state.error, ''); assert.equal(app.state.loading, false);
 });
 
+test('selected make/model are sent from the submitted search and unrelated suggestions are hidden', async () => {
+  const app = requestsHarness();
+  const submitted = search.createCarSearch({ make: 'Volkswagen', model: 'Golf', year: '', price: '5000', postcode: '', platform: 'all' });
+  const pending = app.run(submitted);
+  const params = new URL(app.requests[0].url, 'https://local.test').searchParams;
+  assert.equal(params.get('make'), 'Volkswagen'); assert.equal(params.get('model'), 'Golf');
+  const item = (id, title) => ({ id, title, price: '4500', currency: 'GBP', buyingOptions: ['FIXED_PRICE'] });
+  app.requests[0].resolve({ ok: true, json: async () => ({ items: [item('golf', 'VW Golf GTI'), item('polo', 'Volkswagen Polo')] }) });
+  await pending;
+  assert.deepEqual(Array.from(app.state.items, item => item.id), ['golf']);
+  assert.equal(app.events[0][1].result_count, 1);
+});
+
 test('successful partial metadata is kept with matching cars and reset immediately for a new search', async () => {
   const h = requestsHarness();
   const info = { checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true };
@@ -176,19 +189,19 @@ test('successful partial metadata is kept with matching cars and reset immediate
   assert.equal(h.state.searchInfo, null, 'old checked counts and partial status disappear before the new request returns');
   assert.equal(h.state.items.length, 0);
   assert.equal(h.state.loading, true);
-  h.requests[1].resolve(responseWithInfo(undefined, 'New car')); await next;
+  h.requests[1].resolve(responseWithInfo(undefined, 'New Ford Fiesta')); await next;
   assert.equal(h.state.searchInfo, null, 'a response without metadata cannot inherit the previous counts');
-  assert.equal(h.state.items[0].title, 'New car');
+  assert.equal(h.state.items[0].title, 'New Ford Fiesta');
 });
 
 test('an older car response cannot overwrite a newer response or its checked-listing metadata', async () => {
   const h = requestsHarness();
   const old = h.run(oldSearch), latest = h.run(oldSearch);
   const latestInfo = { checkedCount: 144, pagesChecked: 3, hasMore: false, partial: false };
-  h.requests[1].resolve(responseWithInfo(latestInfo, 'Current car')); await latest;
-  h.requests[0].resolve(responseWithInfo({ checkedCount: 48, pagesChecked: 1, hasMore: true, partial: true }, 'Stale car')); await old;
+  h.requests[1].resolve(responseWithInfo(latestInfo, 'Current Ford Fiesta')); await latest;
+  h.requests[0].resolve(responseWithInfo({ checkedCount: 48, pagesChecked: 1, hasMore: true, partial: true }, 'Stale Ford Fiesta')); await old;
   assert.equal(h.state.searchInfo, latestInfo);
-  assert.equal(h.state.items[0].title, 'Current car');
+  assert.equal(h.state.items[0].title, 'Current Ford Fiesta');
   assert.equal(h.state.loading, false);
   assert.equal(h.events.length, 1);
 });

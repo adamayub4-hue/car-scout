@@ -41,6 +41,32 @@ function harness(items = []) {
   return { calls, get: query => GET({ nextUrl: new URL(`https://mekivo.uk/api/ebay/search?${query}`) }) };
 }
 
+test('selected make and model reject unrelated suggestions and keep their cache separate', async () => {
+  const items = ['Volkswagen Golf GTI', 'VW Golf Plus', 'Volkswagen Polo', 'Audi A3 vw golf alternative'].map((title, index) => ({
+    itemId: String(index), title, itemWebUrl: `https://www.ebay.co.uk/itm/${index}`,
+    price: { value: '4500', currency: 'GBP' }, buyingOptions: ['FIXED_PRICE'],
+  }));
+  const h = harness(items);
+  const request = model => h.get(`type=cars&q=Volkswagen&maxPrice=5000&make=Volkswagen&model=${model}`);
+  const golf = await (await request('Golf')).json();
+  assert.deepEqual(golf.items.map(item => item.id), ['0', '1']);
+  const polo = await (await request('Polo')).json();
+  assert.deepEqual(polo.items.map(item => item.id), ['2']);
+  assert.equal(h.calls.length, 2);
+  await request('golf');
+  assert.equal(h.calls.length, 2, 'case-normalized criteria reuse the correct cache');
+});
+
+test('overlong explicit car criteria are rejected before eBay; parts ignore them', async () => {
+  const h = harness();
+  for (const field of ['make', 'model']) {
+    assert.equal((await h.get(`type=cars&${field}=${'x'.repeat(61)}`)).status, 400);
+  }
+  assert.equal(h.calls.length, 0);
+  assert.equal((await h.get(`type=parts&q=oil+filter&make=${'x'.repeat(61)}&model=Golf`)).status, 200);
+  assert.equal(h.calls.length, 1);
+});
+
 test('car price range accepts zero, decimal bounds and one-sided budgets', async () => {
   const h = harness();
   for (const [input, expected] of [

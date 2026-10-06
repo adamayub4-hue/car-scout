@@ -32,13 +32,14 @@ const resultsCache = new BoundedTtlCache<SearchResult>(100, 30_000);
 const maxCarPages = 4;
 const carSorts = { best_match: "", price_asc: "price", price_desc: "-price", newest: "newlyListed" } as const;
 
-function cacheKey(query: string, type: string, minPrice: string, maxPrice: string, sort: string, hideUnwanted: boolean) {
+function cacheKey(query: string, type: string, minPrice: string, maxPrice: string, sort: string, hideUnwanted: boolean, make: string, model: string) {
   // Do not retain searches resembling a registration or VIN. Keys for ordinary
   // catalogue searches are hashed; no caller identity is included in the cache.
-  if (/\b[A-HJ-NPR-Z0-9]{17}\b|\b[A-Z]{2}\d{2}\s?[A-Z]{3}\b|\b[A-Z]\d{1,3}\s?[A-Z]{3}\b|\b[A-Z]{3}\s?\d{1,3}[A-Z]\b/i.test(query)) return null;
-  const registrationCandidates = query.matchAll(/\b(?:[A-Z]{1,3}\s?\d{1,4}|\d{1,4}\s?[A-Z]{1,3})\b/gi);
+  const searchTerms = [query, make, model].join(" ");
+  if (/\b[A-HJ-NPR-Z0-9]{17}\b|\b[A-Z]{2}\d{2}\s?[A-Z]{3}\b|\b[A-Z]\d{1,3}\s?[A-Z]{3}\b|\b[A-Z]{3}\s?\d{1,3}[A-Z]\b/i.test(searchTerms)) return null;
+  const registrationCandidates = searchTerms.matchAll(/\b(?:[A-Z]{1,3}\s?\d{1,4}|\d{1,4}\s?[A-Z]{1,3})\b/gi);
   if ([...registrationCandidates].some(([candidate]) => candidate.replace(/\s/g, "").length >= 5)) return null;
-  return createHash("sha256").update(JSON.stringify([query.toLowerCase(), type, minPrice, maxPrice, sort, hideUnwanted])).digest("hex");
+  return createHash("sha256").update(JSON.stringify([query.toLowerCase(), type, minPrice, maxPrice, sort, hideUnwanted, make.toLowerCase(), model.toLowerCase()])).digest("hex");
 }
 
 function json(body: unknown, status = 200) {
@@ -55,7 +56,10 @@ export async function GET(request: NextRequest) {
   const minimumInput = type === "cars" ? request.nextUrl.searchParams.get("minPrice")?.trim() ?? "" : "";
   const sortInput = type === "cars" ? request.nextUrl.searchParams.get("sort") ?? "best_match" : "best_match";
   const hideInput = type === "cars" ? request.nextUrl.searchParams.get("hideUnwanted") ?? "0" : "0";
+  const make = type === "cars" ? (request.nextUrl.searchParams.get("make") ?? "").trim().replace(/\s+/g, " ") : "";
+  const model = type === "cars" ? (request.nextUrl.searchParams.get("model") ?? "").trim().replace(/\s+/g, " ") : "";
   if (type !== "cars" && type !== "parts") return json({ error: "Choose cars or parts." }, 400);
+  if (make.length > 60 || model.length > 60) return json({ error: "Enter a make and model of up to 60 characters each." }, 400);
   // An empty car query searches the Cars category across makes. Parts still
   // require a useful keyword/number; a one-character query is never useful.
   if ((query.length < 2 && !(type === "cars" && query.length === 0)) || query.length > 160) {
@@ -77,14 +81,14 @@ export async function GET(request: NextRequest) {
   const sort = carSorts[sortInput as keyof typeof carSorts];
   const hideUnwanted = hideInput === "1" || hideInput === "true";
   const limit = type === "cars" ? 48 : 12;
-  const key = cacheKey(query, type, minPrice, maxPrice, sort, hideUnwanted);
+  const key = cacheKey(query, type, minPrice, maxPrice, sort, hideUnwanted, make, model);
   const cachedResult = key ? resultsCache.get(key) : undefined;
   if (cachedResult) return json(cachedResult);
   const collected: PublicListing[] = [];
   const searchInfo: SearchInfo | undefined = type === "cars"
     ? { checkedCount: 0, pagesChecked: 0, hasMore: false, partial: false }
     : undefined;
-  const carFilters = { minPrice, maxPrice, sort: sortInput as keyof typeof carSorts, hideUnwanted };
+  const carFilters = { minPrice, maxPrice, sort: sortInput as keyof typeof carSorts, hideUnwanted, make, model };
   const result = (): SearchResult => ({
     items: (type === "cars" ? filterCarListings(collected, carFilters) as PublicListing[] : collected).slice(0, limit),
     ...(searchInfo ? { searchInfo } : {}),

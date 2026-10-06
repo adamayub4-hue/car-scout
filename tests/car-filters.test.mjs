@@ -212,3 +212,126 @@ test('clear registration-only offers are hidden without removing cars with an in
     assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 1, title);
   }
 });
+
+test('whole-car results hide boot lids, DPFs and individual engines found in live budget responses', () => {
+  const titles = [
+    'Mitsubishi Evolution 7/8/9 NEW Carbon Fibre BootLid',
+    'Mitsubishi Evolution Carbon Fibre Boot Lid £500',
+    'Hyundai Santa Fe 2019 2.2 Diesel Genuine DPF',
+    'Ford Focus Diesel Particulate Filter £250',
+    '2010 Volkswagen Golf 1.4 Tsi Engine',
+    'Volkswagen Golf 1.4 TSI Engine £500',
+    'Bare engine Volkswagen Golf 1.4 TSI CAXA tested runs',
+    'Engine for Volkswagen Golf 1.4 TSI tested runs',
+  ];
+  const items = titles.map((title, index) => car(index, { title, price: '500' }));
+  assert.equal(filterCarListings(items, { maxPrice: '1000', hideUnwanted: true }).length, 0);
+  assert.equal(filterCarListings(items, { maxPrice: '1000', hideUnwanted: false }).length, items.length);
+  assert.equal(getCarRecommendations(items, createCarSearch(fields)).length, 0);
+});
+
+test('engine and DPF maintenance and replacement boot lids remain complete-car descriptions', () => {
+  const titles = [
+    '2010 Volkswagen Golf 1.4 TSI replacement engine full MOT',
+    '2010 Volkswagen Golf 1.4 TSI engine replaced',
+    '2012 Ford Focus new engine',
+    '2012 Ford Focus reconditioned engine fitted',
+    '2010 Volkswagen Golf 1.4 TSI bare engine replaced full MOT',
+    '2019 Hyundai Santa Fe 2.2 Diesel DPF replaced',
+    '2019 Hyundai Santa Fe new diesel particulate filter full service history',
+    'Mitsubishi Evolution carbon fibre boot lid fitted 80,000 miles',
+    'Mitsubishi Evolution replacement bootlid',
+  ];
+  for (const title of titles) {
+    assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 1, title);
+  }
+});
+
+test('motorcycles and scooters cannot become car picks while fitted mobility equipment remains allowed', () => {
+  const titles = [
+    'vespa scooter gts 300 SUPER RED LOW MILEAGE',
+    'Honda CBR600 motorcycle full MOT runs well',
+    'Yamaha motorbike 125cc',
+    'Peugeot moped 50cc',
+  ];
+  const items = titles.map((title, index) => car(index, { title }));
+  assert.equal(filterCarListings(items, { hideUnwanted: true }).length, 0);
+  assert.equal(getCarRecommendations(items, createCarSearch(fields)).length, 0);
+  assert.equal(filterCarListings(items, { hideUnwanted: false }).length, items.length);
+  for (const title of [
+    'Ford C-Max mobility scooter hoist full MOT',
+    'Ford C-Max mobility-scooter hoist full MOT',
+    'Ford C-Max mobility scooter lift full MOT',
+    'Ford Fiesta full MOT motorbike part exchange welcome',
+    'Ford Fiesta full MOT part-exchange motorcycle considered',
+  ]) assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 1, title);
+  assert.equal(filterCarListings([car(1, { title: 'Ford Fiesta motorbike swaps only' })], { hideUnwanted: true }).length, 0);
+});
+
+test('cheap disclosed repair and project cars stay available when the unwanted-advert toggle is off', () => {
+  const items = [
+    car(1, { title: 'Volkswagen Polo Needs A New Clutch', price: '500' }),
+    car(2, { title: 'Volkswagen Passat Engine Fault', price: '500' }),
+    car(3, { title: 'Land Rover Discovery Project', price: '500' }),
+    car(4, { title: 'Ford Fiesta spares or repairs', price: '500' }),
+  ];
+  assert.deepEqual(ids(filterCarListings(items, { maxPrice: '500', hideUnwanted: false })), ['1', '2', '3', '4']);
+});
+
+test('explicit make and model keep Golf and Golf Plus while excluding different cars and keyword tails', () => {
+  const items = [
+    car(1, { title: '2010 Volkswagen Golf 1.6 TDI' }),
+    car(2, { title: 'VW Golf Plus GT TDI' }),
+    car(3, { title: 'vW / gOlF - Match' }),
+    car(4, { title: 'Volkswagen Polo 1.2 Match' }),
+    car(5, { title: 'Volkswagen Tiguan 2.0 Diesel' }),
+    car(6, { title: 'SEAT Leon 1.6 TDI' }),
+    car(7, { title: 'Volkswagen Golfing accessory' }),
+    car(8, { title: 'audi a3 sportback 1.6 tdi £20 road tax black a1 a2 a3 a4 vw golf polo ford' }),
+    car(9, { title: '2010 Audi A3 comparable to VW Golf' }),
+    car(10, { title: '2010 VWGolf 1.6 TDI' }),
+    car(11, { title: '2010 VolkswagenGolfPlus 1.6 TDI' }),
+    car(12, { title: 'AudiA3 1.6 TDI comparable to VW Golf' }),
+    car(13, { title: 'VW Polo 1.2 comparable to Golf' }),
+    car(14, { title: 'VW Tiguan 2.0 TDI similar to Golf' }),
+  ];
+  for (const make of ['Volkswagen', 'VW', ' volkswagen ']) {
+    assert.deepEqual(ids(filterCarListings(items, { make, model: 'Golf', maxPrice: '5000', hideUnwanted: false })), ['1', '2', '3', '10', '11']);
+  }
+  assert.equal(filterCarListings(items, { make: '', model: '' }).length, items.length);
+  assert.deepEqual(ids(filterCarListings(items, { make: 'Volkswagen' })), ['1', '2', '3', '4', '5', '7', '10', '11', '13', '14']);
+  assert.deepEqual(ids(filterCarListings(items, { model: 'Polo' })), ['4', '8', '13']);
+});
+
+test('make/model matching normalizes punctuation and aliases without matching partial tokens', () => {
+  for (const make of ['Mercedes', 'Mercedes-Benz']) {
+    const items = [
+      car(1, { title: '2014 MERCEDES-BENZ C-Class full MOT' }),
+      car(2, { title: 'Mercedes C Class 2.1 CDI' }),
+      car(3, { title: 'Mercedes E-Class' }),
+    ];
+    assert.deepEqual(ids(filterCarListings(items, { make, model: 'C Class' })), ['1', '2']);
+  }
+  assert.equal(filterCarListings([car(1, { title: 'AUDI A-3 2010' })], { make: 'Audi', model: 'A3' }).length, 1);
+  assert.equal(filterCarListings([car(1, { title: 'Audi A30' })], { make: 'Audi', model: 'A3' }).length, 0);
+  assert.equal(filterCarListings([car(1, { title: 'Range-Rover Evoque 2012' })], { make: 'Land Rover', model: 'Range Rover Evoque' }).length, 1);
+});
+
+test('BMW series choices accept standard numeric badges and reject other series', () => {
+  const items = [
+    car(1, { title: 'BMW 3 Series 2012' }),
+    car(2, { title: 'BMW 320d estate 2012' }),
+    car(3, { title: 'BMW 330e M Sport' }),
+    car(4, { title: 'BMW M340i xDrive' }),
+    car(5, { title: 'BMW 5 Series 2014' }),
+    car(6, { title: 'BMW 530D estate' }),
+    car(7, { title: 'BMW 520i automatic' }),
+    car(8, { title: 'BMW 118d hatchback' }),
+    car(9, { title: 'BMW X3 3.0d 2012' }),
+    car(10, { title: 'BMW 320 door mirror' }),
+  ];
+  assert.deepEqual(ids(filterCarListings(items, { make: 'BMW', model: '3 Series' })), ['1', '2', '3', '4']);
+  assert.deepEqual(ids(filterCarListings(items, { make: 'BMW', model: '5 Series' })), ['5', '6', '7']);
+  assert.deepEqual(ids(filterCarListings(items, { make: 'BMW', model: '1 Series' })), ['8']);
+  assert.deepEqual(ids(filterCarListings(items, { make: 'BMW', model: 'X3' })), ['9']);
+});

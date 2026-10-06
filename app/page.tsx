@@ -277,6 +277,8 @@ export default function Home() {
         if (search.minPrice) params.set("minPrice", search.minPrice);
         if (search.carSort) params.set("sort", search.carSort);
         params.set("hideUnwanted", search.hideUnwanted ? "1" : "0");
+        if (search.carCriteria?.make) params.set("make", search.carCriteria.make);
+        if (search.carCriteria?.model) params.set("model", search.carCriteria.model);
       }
       const response = await fetch(`/api/ebay/search?${params}`, { signal: controller.signal });
       if (response.status === 429) throw new Error("Too many searches. Please wait a minute, then try again.");
@@ -284,7 +286,7 @@ export default function Home() {
       if (controller.signal.aborted) throw new Error("Search timed out");
       if (requestId !== ebayRequest.current.id) return;
       if (!response.ok) throw new Error(payload.error || "Live eBay results are unavailable.");
-      const items = search.mode === "cars" ? filterCarListings(payload.items ?? [], { minPrice: search.minPrice, maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted }) : payload.items ?? [];
+      const items = search.mode === "cars" ? filterCarListings(payload.items ?? [], { minPrice: search.minPrice, maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted, make: search.carCriteria?.make, model: search.carCriteria?.model }) : payload.items ?? [];
       setEbayItems(items);
       setCarSearchInfo(search.mode === "cars" ? payload.searchInfo ?? null : null);
       trackGrowthEvent(items.length ? "results_shown" : "results_empty", { ...eventProperties, result_count: items.length });
