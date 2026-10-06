@@ -495,11 +495,37 @@ export default function Home() {
                   )}
                 </div>
               </details>
-              <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Quick car budgets">
-                <span className="mr-1 text-xs font-semibold text-muted">Find a car within budget</span>
-                {[2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && carSort === "price_asc"}
-                  onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }}
-                  className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5 aria-pressed:border-sky-400/60 aria-pressed:bg-sky-400/10">Under £{amount.toLocaleString("en-GB")}</button>)}
+              <div className="mb-4 rounded-2xl border border-sky-400/25 bg-sky-400/[0.055] p-4">
+                <h2 className="text-base font-bold">Find cars within your budget</h2>
+                <p id="car-budget-help" className="mt-1 text-sm leading-6 text-muted">Enter £500 to see cars priced at £500 or less. Leave make, model and year blank to browse any car.</p>
+                <div className="mt-3 flex flex-wrap gap-2" aria-label="Quick car budgets">
+                  {[500, 1000, 2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && !minPrice && carSort === "price_asc"}
+                    onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }}
+                    className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5 aria-pressed:border-sky-400/60 aria-pressed:bg-sky-400/10">Up to £{amount.toLocaleString("en-GB")}</button>)}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm text-muted">
+                    <span className="mb-2 block font-semibold text-foreground">Maximum budget (£)</span>
+                    <input
+                      value={price}
+                      onChange={(event) => {
+                        setPrice(event.target.value.replace(/\D/g, ""));
+                        setShowResults(false);
+                      }}
+                      inputMode="numeric"
+                      placeholder="e.g. 500"
+                      aria-describedby="car-budget-help"
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="text-sm text-muted">
+                    <span className="mb-2 block">Minimum price (£) <span className="text-subtle">(optional)</span></span>
+                    <input value={minPrice} onChange={event => { setMinPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="No minimum" className={fieldClass} />
+                  </label>
+                </div>
+                <button type="button"
+                  onClick={() => { setMake(""); setModel(""); setYear(""); setMinPrice(""); setPlatform("all"); setCarSort("price_asc"); setHideUnwanted(true); setShowResults(false); setError(""); }}
+                  className="mt-3 min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5">Use any make and year within this budget</button>
               </div>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 <label className="text-sm text-muted">
@@ -527,23 +553,6 @@ export default function Home() {
                     <option value="">Any year</option>
                     {years.map((item) => <option key={item}>{item}</option>)}
                   </select>
-                </label>
-                <label className="text-sm text-muted">
-                  <span className="mb-2 block">Minimum price</span>
-                  <input value={minPrice} onChange={event => { setMinPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="No minimum" className={fieldClass} />
-                </label>
-                <label className="text-sm text-muted">
-                  <span className="mb-2 block">Maximum price</span>
-                  <input
-                    value={price}
-                    onChange={(event) => {
-                      setPrice(event.target.value.replace(/\D/g, ""));
-                      setShowResults(false);
-                    }}
-                    inputMode="numeric"
-                    placeholder="No maximum"
-                    className={fieldClass}
-                  />
                 </label>
                 <label className="text-sm text-muted">
                   <span className="mb-2 block">Postcode</span>

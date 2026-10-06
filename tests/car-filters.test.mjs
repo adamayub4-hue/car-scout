@@ -79,6 +79,43 @@ test('minimum and maximum asking-price filters are inclusive and reject unpriced
   assert.equal(filterCarListings([car(1)], { minPrice: '0' }).length, 1);
 });
 
+test('£500 and £1,000 budget-only searches include the ceiling, exclude dearer cars and survive saving', () => {
+  for (const amount of [500, 1000]) {
+    const search = createCarSearch({ ...fields, price: String(amount), minPrice: '', sort: 'price_asc', hideUnwanted: true });
+    const items = [
+      car(1, { price: String(amount) }),
+      car(2, { price: String(amount + 0.01) }),
+      car(3, { price: String(amount - 100) }),
+      car(4, { price: '99', title: 'Ford Fiesta deposit only' }),
+      car(5, { price: '50', title: 'Ford Fiesta spares or repairs' }),
+      car(6, { price: '10', buyingOptions: ['AUCTION'] }),
+      car(7, { price: null }),
+      car(8, { currency: 'EUR' }),
+    ];
+    assert.deepEqual(ids(filterCarListings(items, { maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted })), ['3', '1']);
+    assert.equal(search.query, '');
+    assert.equal(new URL(search.carLinks.ebay).searchParams.get('_udhi'), String(amount));
+    assert.equal(new URL(search.carLinks.autotrader).searchParams.get('price-to'), String(amount));
+    const restored = parseSavedSearchParams(new URL(getSavedSearchUrl(search.saveItem), 'https://mekivo.uk').searchParams);
+    assert.equal(restored.price, String(amount));
+    assert.equal(restored.minPrice, undefined);
+    assert.equal(restored.make, '');
+  }
+});
+
+test('budget filters never accept an auction-only starting price even with best match and repair adverts enabled', () => {
+  const items = [
+    car(1, { price: '99', buyingOptions: ['AUCTION'] }),
+    car(2, { price: '400', buyingOptions: ['CLASSIFIED_AD'] }),
+    car(3, { price: '500', buyingOptions: ['AUCTION', 'FIXED_PRICE'] }),
+    car(4, { price: '10', buyingOptions: [] }),
+  ];
+  for (const sort of [undefined, 'best_match', 'newest', 'price_asc', 'price_desc']) {
+    const expected = sort === 'price_desc' ? ['3', '2'] : ['2', '3'];
+    assert.deepEqual(ids(filterCarListings(items, { maxPrice: '500', sort, hideUnwanted: false })), expected);
+  }
+});
+
 test('price sorting compares positive purchase prices, never bids, and does not mutate provider data', () => {
   const items = [car(1, { price: '5000' }), car(2, { price: '999.99' }), car(3, { price: '2500' }), car(4, { price: '10', buyingOptions: ['AUCTION'] }), car(5, { price: '0' }), car(6, { currency: 'USD' }), car(7, { price: null })];
   const before = structuredClone(items);

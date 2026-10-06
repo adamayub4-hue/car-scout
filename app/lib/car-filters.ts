@@ -57,7 +57,9 @@ export function filterCarListings(items: readonly EbayListing[], filters: CarLis
       if (item.currency !== "GBP" || price === null) return false;
       if (minimum !== null && price < minimum) return false;
       if (maximum !== null && price > maximum) return false;
-      if (priceSort && !hasCarPurchasePrice(item)) return false;
+      // A budget is a purchase-price ceiling, regardless of sort order or the
+      // repair-advert toggle. An auction starting price is not a cash price.
+      if (!hasCarPurchasePrice(item)) return false;
     }
     return true;
   });

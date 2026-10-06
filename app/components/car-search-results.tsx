@@ -88,7 +88,7 @@ export default function CarSearchResults({ search, items, loading, error, onRetr
         </div>}
         {!loading && !error && items.length === 0 && <p className="mt-4 text-sm text-muted">No cars remain in this batch with your filters. Try a different budget or make, choose Best match, or use Edit search to include repair adverts.</p>}
         <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="cars" onRetry={onRetry} />
-        <p className="mt-3 text-xs leading-5 text-subtle">Up to 48 eBay listings located in the UK checked per search. Price sorts use advertised purchase prices, not auction bids; delivery and fees may be extra. This does not compare every UK marketplace.</p>
+        <p className="mt-3 text-xs leading-5 text-subtle">Up to 48 eBay listings located in the UK checked per search. Budgets and price sorts use advertised purchase prices, not auction bids; delivery and fees may be extra. This does not compare every UK marketplace.</p>
       </>}
       {tab.id === "prices" && <div className="pt-4"><CarRecommendations search={search} items={items} loading={loading} error={error} compact /></div>}
       {tab.id === "marketplaces" && <section aria-labelledby="other-car-sites-heading" className="pt-5">

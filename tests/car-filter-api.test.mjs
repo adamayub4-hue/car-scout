@@ -49,6 +49,8 @@ test('car price range accepts zero, decimal bounds and one-sided budgets', async
     ['minPrice=1500', 'price:[1500],priceCurrency:GBP'],
     ['minPrice=0', 'price:[0],priceCurrency:GBP'],
     ['maxPrice=5000', 'price:[..5000],priceCurrency:GBP'],
+    ['maxPrice=500', 'price:[..500],priceCurrency:GBP'],
+    ['maxPrice=1000', 'price:[..1000],priceCurrency:GBP'],
     ['minPrice=500&maxPrice=500', 'price:[500..500],priceCurrency:GBP'],
   ]) {
     assert.equal((await h.get(`type=cars&q=Ford+Fiesta&${input}`)).status, 200, input);
