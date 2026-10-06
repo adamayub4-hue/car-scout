@@ -13,7 +13,8 @@ function harness(initialAudience = 'pending') {
   const slots = [], effects = [], timers = new Map(), listeners = new Set();
   const Analytics = () => null, SpeedInsights = () => null;
   const Fragment = Symbol('Fragment');
-  let cursor = 0, nextTimer = 0, audience = initialAudience, initialized = 0;
+  let cursor = 0, nextTimer = 0, audience = initialAudience, initialized = 0, pathname = '/';
+  const usage = { initialized: 0, opens: [] };
   const counts = { analyticsMounts: 0, speedMounts: 0, unmounts: 0 };
   let previousSdkTypes = [];
   const filter = event => audience === 'included' ? event : null;
@@ -55,10 +56,14 @@ function harness(initialAudience = 'pending') {
     require(name) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return { Fragment, jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
-      if (name === 'next/navigation') return { usePathname: () => '/' };
+      if (name === 'next/navigation') return { usePathname: () => pathname };
       if (name === '@vercel/analytics/next') return { Analytics };
       if (name === '@vercel/speed-insights/next') return { SpeedInsights };
       if (name === '../lib/analytics-audience') return policy;
+      if (name === '../lib/app-usage') return {
+        initializeAppUsage() { usage.initialized++; },
+        trackAppOpen() { usage.opens.push({ pathname, audience }); },
+      };
       throw new Error(`Unexpected import: ${name}`);
     },
   });
@@ -85,9 +90,10 @@ function harness(initialAudience = 'pending') {
     return { tree, nodes };
   }
   return {
-    render, counts, filter, timers,
+    render, counts, filter, timers, usage,
     get initialized() { return initialized; },
     audience(value) { audience = value; listeners.forEach(listener => listener()); },
+    navigate(path) { pathname = path; },
     flushTimers() { for (const [id, callback] of [...timers]) { timers.delete(id); callback(); } },
   };
 }
@@ -106,6 +112,25 @@ test('pending and owner-excluded audiences never mount either analytics SDK', ()
     assert.equal(h.initialized, 1);
     assert.equal(h.timers.size, 0);
   }
+});
+
+test('usage registration stays mounted and launch checks follow route and audience changes', () => {
+  const h = harness('excluded'); h.navigate('/account'); h.render();
+  assert.equal(h.usage.initialized, 1);
+  assert.deepEqual(h.usage.opens, [{ pathname: '/account', audience: 'excluded' }]);
+  h.render(); h.flushTimers(); h.render();
+  assert.equal(h.usage.opens.length, 1, 'ordinary renders do not repeat launch checks');
+  h.navigate('/'); h.audience('pending'); h.render();
+  h.audience('included'); h.render(); h.flushTimers(); h.render();
+  h.navigate('/guides'); h.render();
+  assert.deepEqual(h.usage.opens, [
+    { pathname: '/account', audience: 'excluded' },
+    { pathname: '/', audience: 'pending' },
+    { pathname: '/', audience: 'included' },
+    { pathname: '/guides', audience: 'included' },
+  ]);
+  assert.equal(h.usage.initialized, 1);
+  assert.deepEqual(h.counts, { analyticsMounts: 1, speedMounts: 1, unmounts: 0 });
 });
 
 test('both SDKs mount once after inclusion and live filters block subsequent pending or excluded events', () => {

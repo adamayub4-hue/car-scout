@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { OWNER_TRAFFIC_MARKETPLACES, ownerTrafficDateWindow, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks, type OwnerTrafficMarketplaceRow } from "./owner-traffic";
+import { OWNER_TRAFFIC_MARKETPLACES, ownerTrafficDateWindow, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks, type OwnerTrafficMarketplaceRow, type OwnerTrafficAppUsage } from "./owner-traffic";
 import { BoundedTtlCache } from "./server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "./server-upstream";
 
@@ -12,6 +12,7 @@ const RANGE_MS: Record<Exclude<OwnerTrafficRange, "custom">, number> = {
 };
 const PRODUCTION_FILTER = "environment eq 'production'";
 const EVENT_FILTER = `${PRODUCTION_FILTER} and (eventName eq 'search_submitted' or eventName eq 'marketplace_outbound')`;
+const APP_USAGE_FILTER = `${PRODUCTION_FILTER} and (eventName eq 'app_open' or eventName eq 'browser_open' or eventName eq 'app_install')`;
 
 export class OwnerTrafficError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) {
@@ -84,6 +85,7 @@ function parseFailure(error: unknown) {
   const categories: Record<string, string> = {
     "Invalid analytics response": "invalid_rows", "Invalid analytics context": "invalid_context",
     "Duplicate analytics context": "duplicate_context", "Conflicting analytics context": "conflicting_context", "Invalid analytics count": "invalid_count",
+    "Unknown analytics event": "unknown_event", "Duplicate analytics event": "duplicate_event", "Invalid analytics event totals": "invalid_totals",
   };
   const message = error instanceof Error ? error.message : "";
   return new AnalyticsQueryError(Object.hasOwn(categories, message) ? categories[message] : "invalid_response");
@@ -139,6 +141,31 @@ function parseEvents(payload: unknown) {
     counts[name === "search_submitted" ? "searches" : "outboundClicks"] = count(row.count);
   }
   return counts;
+}
+
+function parseAppUsage(payload: unknown): OwnerTrafficAppUsage {
+  const usage = { appVisitors: 0, browserVisitors: 0, appOpens: 0, confirmedInstalls: 0 };
+  const seen = new Set<string>();
+  for (const row of rows(payload, 3)) {
+    const name = row.eventName;
+    if (name !== "app_open" && name !== "browser_open" && name !== "app_install") throw new Error("Unknown analytics event");
+    if (seen.has(name)) throw new Error("Duplicate analytics event");
+    seen.add(name);
+    const eventCount = count(row.count);
+    const visitors = count(row.visitors);
+    if (visitors > eventCount) throw new Error("Invalid analytics event totals");
+    // Event groups can overlap: use each provider visitor count directly rather
+    // than summing them or subtracting them from the website's visitor total.
+    if (name === "app_open") {
+      usage.appVisitors = visitors;
+      usage.appOpens = eventCount;
+    } else if (name === "browser_open") {
+      usage.browserVisitors = visitors;
+    } else {
+      usage.confirmedInstalls = eventCount;
+    }
+  }
+  return usage;
 }
 
 function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; marketplaces: OwnerTrafficMarketplaceRow[]; total: number } {
@@ -218,11 +245,12 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
     });
   }
 
-  const [totals, sources, events, destinations] = await Promise.allSettled([
+  const [totals, sources, events, destinations, appUsage] = await Promise.allSettled([
     query("visits", "environment", PRODUCTION_FILTER, 1, parseTotals),
     query("visits", "referrerHostname", PRODUCTION_FILTER, 8, parseSources),
     query("events", "eventName", EVENT_FILTER, 10, parseEvents),
     query("events", "eventData/context", `${PRODUCTION_FILTER} and eventName eq 'marketplace_outbound'`, 100, parseDestinations),
+    query("events", "eventName", APP_USAGE_FILTER, 3, parseAppUsage),
   ]);
   if (totals.status === "rejected") {
     const timedOut = totals.reason instanceof UpstreamTimeoutError;
@@ -232,6 +260,14 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
   const warnings: string[] = [];
   if (sources.status === "rejected") warnings.push("Traffic sources are temporarily unavailable.");
   if (events.status === "rejected") warnings.push("Search and outbound-click totals are temporarily unavailable.");
+  if (appUsage.status === "rejected") {
+    warnings.push("App usage is temporarily unavailable.");
+    const failure = appUsage.reason;
+    // Keep diagnostics server-only and limited to safe failure categories.
+    console.warn("Owner traffic app usage unavailable", failure instanceof AnalyticsQueryError
+      ? { reason: failure.category, ...(failure.status ? { status: failure.status } : {}) }
+      : { reason: failure instanceof UpstreamTimeoutError ? "timeout" : "network_failure" });
+  }
   // Queries can settle at different ingestion moments. Never present a split
   // that does not add up to the confirmed total, or fill a failed split with 0.
   const confirmedDestinations = destinations.status === "fulfilled" && events.status === "fulfilled"
@@ -257,6 +293,7 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
     searches: events.status === "fulfilled" ? events.value.searches : null,
     outboundClicks: events.status === "fulfilled" ? events.value.outboundClicks : null,
     clicksByDestination, marketplaceClicks,
+    appUsage: appUsage.status === "fulfilled" ? appUsage.value : null,
     ...(range === "custom" && dates ? { calendarDates: dates } : {}),
     partial: warnings.length > 0, warnings,
   };

@@ -58,6 +58,13 @@ export type OwnerTrafficSource = {
   pageviews: number;
 };
 
+export type OwnerTrafficAppUsage = {
+  appVisitors: number;
+  browserVisitors: number;
+  appOpens: number;
+  confirmedInstalls: number;
+};
+
 export type OwnerTrafficReport = {
   range: OwnerTrafficRange;
   since: string;
@@ -69,6 +76,7 @@ export type OwnerTrafficReport = {
   outboundClicks: number | null;
   clicksByDestination: OwnerTrafficClicks | null;
   marketplaceClicks: OwnerTrafficMarketplaceRow[] | null;
+  appUsage: OwnerTrafficAppUsage | null;
   calendarDates?: OwnerTrafficDates;
   sources: OwnerTrafficSource[] | null;
   partial: boolean;

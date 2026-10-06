@@ -155,6 +155,45 @@ test('successful report shows real totals, genuine zero actions and explanatory 
   assert.equal(h.timers.size, 0);
 });
 
+const appDates = { since: '2026-10-01T12:00:00.000Z', until: '2026-10-08T12:00:00.000Z', fetchedAt: '2026-10-08T12:00:00.000Z' };
+const appLabels = ['App visitors', 'Browser visitors', 'App opens', 'Confirmed installs'];
+
+test('app usage shows independent overlapping visitor groups without changing website totals', async () => {
+  const h = await loaded({ ...appDates, appUsage: { appVisitors: 800, browserVisitors: 900, appOpens: 1200, confirmedInstalls: 5 } });
+  const html = h.html();
+  assert.deepEqual(appLabels.map(label => card(html, label)), ['800', '900', '1,200', '5']);
+  assert.equal(card(html, 'Visitors'), '1,234');
+  assert.match(html, /aria-labelledby="app-usage-heading"/);
+  assert.match(html, /App visitors are included in the main Visitors total/);
+  assert.match(html, /counts can overlap/);
+  assert.match(html, /6 October 2026/);
+  assert.match(html, /iPhone home-screen additions are not reported as installs/);
+  assert.match(html, /not every return to an already-open app/);
+});
+
+test('successful empty app data shows zeros while null and older missing fields stay unavailable', () => {
+  const h = harness();
+  const render = appUsage => h.view({ report: report({ ...appDates, ...(appUsage === undefined ? {} : { appUsage }) }), loading: false, error: null });
+  assert.deepEqual(appLabels.map(label => card(render({ appVisitors: 0, browserVisitors: 0, appOpens: 0, confirmedInstalls: 0 }), label)), ['0', '0', '0', '0']);
+  for (const value of [null, undefined]) {
+    const html = render(value);
+    assert.deepEqual(appLabels.map(label => card(html, label)), Array(4).fill('Unavailable'));
+    assert.match(html, /does not mean there were no app visits or installs/);
+    assert.equal(card(html, 'Visitors'), '1,234');
+  }
+});
+
+test('historical dates and loading or failed reports never imply known app counts', () => {
+  const h = harness();
+  const data = report({ appUsage: { appVisitors: 0, browserVisitors: 0, appOpens: 0, confirmedInstalls: 0 } });
+  const historical = h.view({ report: data, loading: false, error: null });
+  assert.match(historical, /was not tracked during this period/);
+  assert.deepEqual(appLabels.map(label => card(historical, label)), Array(4).fill(undefined));
+  for (const state of [{ report: data, loading: true, error: null }, { report: data, loading: false, error: 'Try again later.' }]) {
+    assert.deepEqual(appLabels.map(label => card(h.view(state), label)), Array(4).fill(undefined));
+  }
+});
+
 test('missing optional sections remain unavailable while an actual empty report displays zero', async () => {
   const h = await loaded({ searches: null, outboundClicks: null, sources: null, partial: true });
   const partial = h.html();
@@ -340,7 +379,8 @@ test('marketplaces show names, car and part splits and highest totals first, wit
   assert.match(html, /Same reporting period as the totals above/);
   assert.match(html, /not eBay-credited clicks or sales/);
   assert.doesNotMatch(html, /Other marketplaces|conversion rate|confirmed partner/i);
-  const collapsed = html.match(/<details\b([^>]*)>([\s\S]*?)<\/details>/);
+  const collapsed = [...html.matchAll(/<details\b([^>]*)>([\s\S]*?)<\/details>/g)]
+    .find(([, , body]) => body.includes('Marketplaces with no clicks this period'));
   assert.ok(collapsed); assert.doesNotMatch(collapsed[1], /open/);
   assert.match(collapsed[2], /Show 6 marketplaces with no clicks/);
   assert.deepEqual(tableRows(collapsed[2], 'Marketplaces with no clicks this period'), [

@@ -65,6 +65,12 @@ function eventContext(name: string, properties: EventProperties) {
   const method = choice(properties.search_method, searchMethods);
   const marketplace = choice(properties.marketplace, marketplaces);
   switch (name) {
+    case "app_open":
+      return "standalone";
+    case "browser_open":
+      return "browser";
+    case "app_install":
+      return "confirmed";
     case "campaign_landing":
       return choice(properties.landing_mode, ["cars", "parts"]);
     case "vehicle_lookup_success":

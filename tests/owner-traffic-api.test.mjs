@@ -17,6 +17,10 @@ const defaultEnv = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: 'public-anon-test-key',
   MEKIVO_ANALYTICS_VERCEL_TOKEN: 'private-vercel-test-token',
 };
+const APP_USAGE_FILTER = "environment eq 'production' and (eventName eq 'app_open' or eventName eq 'browser_open' or eventName eq 'app_install')";
+const FUNNEL_EVENTS_FILTER = "environment eq 'production' and (eventName eq 'search_submitted' or eventName eq 'marketplace_outbound')";
+const isAppUsageQuery = url => new URL(url).searchParams.get('filter') === APP_USAGE_FILTER;
+const isFunnelEventsQuery = url => new URL(url).searchParams.get('filter') === FUNNEL_EVENTS_FILTER;
 
 function fixture(url) {
   const query = new URL(url);
@@ -27,7 +31,11 @@ function fixture(url) {
       { referrerHostname: null, visitors: 50, pageviews: 70 },
       { referrerHostname: 'l.facebook.com', visitors: 45, pageviews: 54 },
     ] };
-    case 'eventName': return { data: [
+    case 'eventName': return { data: isAppUsageQuery(url) ? [
+      { eventName: 'app_open', count: 41, visitors: 14 },
+      { eventName: 'browser_open', count: 88, visitors: 69 },
+      { eventName: 'app_install', count: 6, visitors: 5 },
+    ] : [
       { eventName: 'search_submitted', count: 29, visitors: 15 },
       { eventName: 'marketplace_outbound', count: 11, visitors: 8 },
     ] };
@@ -124,6 +132,7 @@ test('owner traffic verifies the bearer with Supabase and queries only the verif
   assert.equal(body.pageviews, 124);
   assert.equal(body.searches, 29);
   assert.equal(body.outboundClicks, 11);
+  assert.deepEqual(body.appUsage, { appVisitors: 14, browserVisitors: 69, appOpens: 41, confirmedInstalls: 6 });
   assert.deepEqual(body.clicksByDestination, { ebayCars: 4, ebayParts: 2, otherMarketplaces: 3, unclassified: 2 });
   assert.deepEqual(body.marketplaceClicks, [
     { marketplace: 'ebay', cars: 4, parts: 2, clicks: 6 },
@@ -159,7 +168,7 @@ test('Vercel requests use fixed production groups and no caller-supplied project
   const h = harness();
   const response = await h.get('projectId=attacker&slug=other&filter=anything&token=leak');
   assert.equal(response.status, 200);
-  assert.equal(h.providerCalls().length, 4);
+  assert.equal(h.providerCalls().length, 5);
   for (const { url, headers, options } of h.providerCalls()) {
     const query = new URL(url);
     assert.equal(query.origin, 'https://api.vercel.com');
@@ -172,7 +181,8 @@ test('Vercel requests use fixed production groups and no caller-supplied project
     assert.ok(!url.includes('token'));
     if (query.searchParams.get('by') === 'eventName') {
       assert.equal(query.pathname, '/v1/query/web-analytics/events/aggregate');
-      assert.equal(query.searchParams.get('filter'), "environment eq 'production' and (eventName eq 'search_submitted' or eventName eq 'marketplace_outbound')");
+      assert.ok(isFunnelEventsQuery(query) || isAppUsageQuery(query));
+      assert.equal(query.searchParams.get('limit'), isAppUsageQuery(query) ? '3' : '10');
     } else if (query.searchParams.get('by') === 'eventData/context') {
       assert.equal(query.pathname, '/v1/query/web-analytics/events/aggregate');
       assert.equal(query.searchParams.get('filter'), "environment eq 'production' and eventName eq 'marketplace_outbound'");
@@ -213,7 +223,7 @@ test('cached reports never bypass a fresh session or admin check', async () => {
   assert.equal((await h.get()).status, 403);
   h.state.adminId = customerId;
   assert.equal((await h.get()).status, 403);
-  assert.equal(h.providerCalls().length, 4);
+  assert.equal(h.providerCalls().length, 5);
 });
 
 test('auth and membership failures fail closed without exposing upstream details', async () => {
@@ -237,7 +247,7 @@ test('missing analytics configuration is explicit and cannot expose a cached sna
   assert.equal(response.status, 503);
   assert.equal((await response.json()).code, 'not_configured');
   assertPrivate(response);
-  assert.equal(h.providerCalls().length, 4);
+  assert.equal(h.providerCalls().length, 5);
 });
 
 test('missing authentication configuration fails closed', async () => {
@@ -258,13 +268,13 @@ test('rolling ranges retain independent cached snapshots and reject unknown or d
     assert.equal(Date.parse(report.until) - Date.parse(report.since), days * 86400_000);
     await h.get(`range=${range}`);
   }
-  assert.equal(h.providerCalls().length, 12);
+  assert.equal(h.providerCalls().length, 15);
   for (const query of ['range=', 'range=all', 'range=__proto__', 'range=365d', 'range=7d&range=30d']) {
     const response = await h.get(query);
     assert.equal(response.status, 400);
     assertPrivate(response);
   }
-  assert.equal(h.providerCalls().length, 12);
+  assert.equal(h.providerCalls().length, 15);
 });
 
 test('snapshot cache expires at five minutes without extending expiry on reads', async () => {
@@ -273,11 +283,11 @@ test('snapshot cache expires at five minutes without extending expiry on reads',
   h.advance(299_999);
   const cached = await (await h.get()).json();
   assert.deepEqual(cached, first);
-  assert.equal(h.providerCalls().length, 4);
+  assert.equal(h.providerCalls().length, 5);
   h.advance(1);
   const refreshed = await (await h.get()).json();
   assert.notEqual(refreshed.fetchedAt, first.fetchedAt);
-  assert.equal(h.providerCalls().length, 8);
+  assert.equal(h.providerCalls().length, 10);
   assert.equal(h.authCalls().length, 3);
 });
 
@@ -294,7 +304,7 @@ test('changing project, team or token invalidates the cached snapshot', async ()
     const response = await h.get();
     assert.equal(response.status, 200);
     assert.ok(!(await response.text()).includes(value));
-    assert.equal(h.providerCalls().length - before, 4);
+    assert.equal(h.providerCalls().length - before, 5);
   }
 });
 
@@ -307,7 +317,7 @@ test('the snapshot cache stays bounded when server configuration changes', async
   h.env.MEKIVO_ANALYTICS_PROJECT_ID = 'project-0';
   assert.equal((await h.get()).status, 200);
   // The thirteenth distinct snapshot evicted the oldest from the 12-entry cache.
-  assert.equal(h.providerCalls().length, 14 * 4);
+  assert.equal(h.providerCalls().length, 14 * 5);
 });
 
 test('an empty valid provider dataset means zero, including missing event groups', async () => {
@@ -317,12 +327,126 @@ test('an empty valid provider dataset means zero, including missing event groups
   assert.equal(report.pageviews, 0);
   assert.equal(report.searches, 0);
   assert.equal(report.outboundClicks, 0);
+  assert.deepEqual(report.appUsage, { appVisitors: 0, browserVisitors: 0, appOpens: 0, confirmedInstalls: 0 });
   assert.deepEqual(report.clicksByDestination, { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 });
   assert.equal(report.marketplaceClicks.length, 10);
   assert.ok(report.marketplaceClicks.every(row => row.clicks === 0));
   assert.ok(report.marketplaceClicks.filter(row => row.marketplace !== 'unclassified').every(row => row.cars === 0 && row.parts === 0));
   assert.deepEqual(report.sources, []);
   assert.equal(report.partial, false);
+});
+
+test('app usage uses each event visitor count directly and zero-fills only absent successful groups', async () => {
+  for (const [data, expected] of [
+    [[], { appVisitors: 0, browserVisitors: 0, appOpens: 0, confirmedInstalls: 0 }],
+    [[{ eventName: 'app_open', count: 0, visitors: 0 }, { eventName: 'browser_open', count: 0, visitors: 0 }, { eventName: 'app_install', count: 0, visitors: 0 }],
+      { appVisitors: 0, browserVisitors: 0, appOpens: 0, confirmedInstalls: 0 }],
+    [[{ eventName: 'app_open', count: 37, visitors: 11 }], { appVisitors: 11, browserVisitors: 0, appOpens: 37, confirmedInstalls: 0 }],
+    [[{ eventName: 'browser_open', count: 27, visitors: 16 }], { appVisitors: 0, browserVisitors: 16, appOpens: 0, confirmedInstalls: 0 }],
+    [[{ eventName: 'app_install', count: 9, visitors: 7 }], { appVisitors: 0, browserVisitors: 0, appOpens: 0, confirmedInstalls: 9 }],
+    [[{ eventName: 'app_install', count: 3, visitors: 2 }, { eventName: 'browser_open', count: 100, visitors: 70 }, { eventName: 'app_open', count: 51, visitors: 30 }],
+      { appVisitors: 30, browserVisitors: 70, appOpens: 51, confirmedInstalls: 3 }],
+    [[{ eventName: 'app_open', count: Number.MAX_SAFE_INTEGER, visitors: Number.MAX_SAFE_INTEGER }, { eventName: 'app_install', count: Number.MAX_SAFE_INTEGER, visitors: 1 }],
+      { appVisitors: Number.MAX_SAFE_INTEGER, browserVisitors: 0, appOpens: Number.MAX_SAFE_INTEGER, confirmedInstalls: Number.MAX_SAFE_INTEGER }],
+  ]) {
+    const h = harness({ upstream: url => Response.json(isAppUsageQuery(url) ? { data } : fixture(url)) });
+    const report = await (await h.get()).json();
+    assert.deepEqual(report.appUsage, expected);
+    assert.equal(report.visitors, 75);
+    assert.equal(report.pageviews, 124);
+    assert.equal(report.searches, 29);
+    assert.equal(report.outboundClicks, 11);
+    assert.equal(report.partial, false);
+    assert.deepEqual(report.warnings, []);
+    assert.deepEqual(h.diagnostics, []);
+    await h.get();
+    assert.equal(h.providerCalls().length, 5, 'successful app usage shares the normal report cache');
+  }
+});
+
+test('malformed app usage stays unavailable and retryable while website totals remain usable', async () => {
+  const malformed = [
+    {}, { data: null }, { data: {} }, { data: [null] }, { data: [[]] },
+    { data: [{ count: 1, visitors: 1 }] },
+    { data: [{ eventName: 'search_submitted', count: 1, visitors: 1 }] },
+    { data: [{ eventName: 'app_open', count: 1, visitors: 1 }, { eventName: 'app_open', count: 2, visitors: 1 }] },
+    { data: ['app_open', 'browser_open', 'app_install', 'app_open'].map(eventName => ({ eventName, count: 0, visitors: 0 })) },
+  ];
+  for (const eventName of ['app_open', 'browser_open', 'app_install']) {
+    malformed.push(
+      { data: [{ eventName, visitors: 1 }] },
+      { data: [{ eventName, count: 1 }] },
+      { data: [{ eventName, count: 0, visitors: 1 }] },
+      { data: [{ eventName, count: 2, visitors: 3 }] },
+    );
+    for (const invalid of [null, '1', -1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+      malformed.push({ data: [{ eventName, count: invalid, visitors: 0 }] });
+      malformed.push({ data: [{ eventName, count: 1, visitors: invalid }] });
+    }
+  }
+  for (const payload of malformed) {
+    let failing = true;
+    const h = harness({ upstream: url => Response.json(failing && isAppUsageQuery(url) ? payload : fixture(url)) });
+    const response = await h.get();
+    assert.equal(response.status, 200);
+    assertPrivate(response);
+    const report = await response.json();
+    assert.equal(report.appUsage, null, JSON.stringify(payload));
+    assert.equal(report.visitors, 75);
+    assert.equal(report.pageviews, 124);
+    assert.equal(report.searches, 29);
+    assert.equal(report.outboundClicks, 11);
+    assert.ok(report.clicksByDestination);
+    assert.equal(report.partial, true);
+    assert.deepEqual(report.warnings, ['App usage is temporarily unavailable.']);
+    failing = false;
+    const recovered = await (await h.get()).json();
+    assert.equal(recovered.partial, false);
+    assert.deepEqual(recovered.appUsage, { appVisitors: 14, browserVisitors: 69, appOpens: 41, confirmedInstalls: 6 });
+    assert.equal(h.providerCalls().length, 10);
+  }
+});
+
+test('app usage HTTP, JSON, network and timeout failures produce safe diagnostics and immediately recover', async () => {
+  for (const [response, reason, status] of [
+    [() => new Response('secret raw provider body', { status: 429 }), 'http_error', 429],
+    [() => new Response('secret invalid JSON'), 'invalid_json'],
+    [() => { throw new Error('private-vercel-test-token secret network failure'); }, 'network_failure'],
+    [() => ({ ok: true, json: () => new Promise(() => {}) }), 'timeout'],
+    [() => Response.json({ data: [{ eventName: 'private-event-name', count: 115, visitors: 1 }] }), 'unknown_event'],
+    [() => Response.json({ data: [{ eventName: 'app_open', count: 1, visitors: 1 }, { eventName: 'app_open', count: 1, visitors: 1 }] }), 'duplicate_event'],
+    [() => Response.json({ data: [{ eventName: 'app_open', count: '115', visitors: 1 }] }), 'invalid_count'],
+    [() => Response.json({ data: [{ eventName: 'app_open', count: 1, visitors: 115 }] }), 'invalid_totals'],
+  ]) {
+    let failing = true;
+    let appSignal;
+    const h = harness({ timerLimit: 15, upstream: (url, options) => {
+      if (failing && isAppUsageQuery(url)) {
+        appSignal = options.signal;
+        return response();
+      }
+      return Response.json(fixture(url));
+    } });
+    const result = await h.get();
+    assert.equal(result.status, 200);
+    const report = await result.json();
+    assert.equal(report.appUsage, null);
+    assert.equal(report.visitors, 75);
+    assert.equal(report.partial, true);
+    assert.deepEqual(report.warnings, ['App usage is temporarily unavailable.']);
+    assert.equal(h.diagnostics.length, 1);
+    const [label, detail] = h.diagnostics[0];
+    assert.equal(label, 'Owner traffic app usage unavailable');
+    assert.equal(detail.reason, reason);
+    assert.deepEqual(Object.keys(detail).sort(), status ? ['reason', 'status'] : ['reason']);
+    if (status) assert.equal(detail.status, status);
+    if (reason === 'timeout') assert.equal(appSignal.aborted, true);
+    const log = JSON.stringify(h.diagnostics);
+    for (const sensitive of ['private-event-name', 'secret', '115', 'owner-session-token', 'private-vercel-test-token', 'api.vercel.com', 'app_open', APP_USAGE_FILTER]) assert.ok(!log.includes(sensitive), sensitive);
+    failing = false;
+    assert.equal((await (await h.get()).json()).partial, false);
+    assert.equal(h.providerCalls().length, 10);
+  }
 });
 
 test('null and empty referrers display direct/unknown while Others remains a separate provider group', async () => {
@@ -352,7 +476,7 @@ test('malformed core totals never become zeros or get cached', async () => {
     assert.equal((await response.json()).code, 'provider_unavailable');
     failed = false;
     assert.equal((await h.get()).status, 200);
-    assert.equal(h.providerCalls().length, 8);
+    assert.equal(h.providerCalls().length, 10);
   }
 });
 
@@ -377,7 +501,7 @@ test('provider HTTP and JSON failures are safe errors, never fabricated counts',
 test('failed optional sections remain null with warnings and Retry immediately recovers', async () => {
   for (const failedGroup of ['eventName', 'referrerHostname']) {
     let failing = true;
-    const h = harness({ upstream: url => failing && url.searchParams.get('by') === failedGroup
+    const h = harness({ upstream: url => failing && (failedGroup === 'eventName' ? isFunnelEventsQuery(url) : url.searchParams.get('by') === failedGroup)
       ? new Response('failed', { status: 503 }) : Response.json(fixture(url)) });
     const response = await h.get();
     assert.equal(response.status, 200);
@@ -397,7 +521,7 @@ test('failed optional sections remain null with warnings and Retry immediately r
     }
     failing = false;
     assert.equal((await (await h.get()).json()).partial, false);
-    assert.equal(h.providerCalls().length, 8);
+    assert.equal(h.providerCalls().length, 10);
   }
 });
 
@@ -409,7 +533,7 @@ test('invalid optional numbers, duplicate event groups and missing source names 
     ['referrerHostname', { data: [{ visitors: 1, pageviews: 2 }] }],
     ['referrerHostname', { data: [{ referrerHostname: 'facebook.com', visitors: -2, pageviews: 2 }] }],
   ]) {
-    const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === group ? payload : fixture(url)) });
+    const h = harness({ upstream: url => Response.json((group === 'eventName' ? isFunnelEventsQuery(url) : url.searchParams.get('by') === group) ? payload : fixture(url)) });
     const report = await (await h.get()).json();
     assert.equal(report.partial, true);
     assert.equal(report[group === 'eventName' ? 'searches' : 'sources'], null);
@@ -447,14 +571,14 @@ for (const phase of ['headers', 'body']) {
     const response = await h.get();
     assert.equal(response.status, 504);
     assert.equal((await response.json()).code, 'provider_timeout');
-    assert.equal(signals.length, 4);
+    assert.equal(signals.length, 5);
     assert.ok(signals.every(signal => signal.aborted));
     assertPrivate(response);
   });
 }
 
 test('optional provider timeout preserves core traffic and reports missing event counts', async () => {
-  const h = harness({ timerLimit: 15, upstream: async url => url.searchParams.get('by') === 'eventName'
+  const h = harness({ timerLimit: 15, upstream: async url => isFunnelEventsQuery(url)
     ? { ok: true, json: () => new Promise(() => {}) } : Response.json(fixture(url)) });
   const response = await h.get();
   assert.equal(response.status, 200);
@@ -480,9 +604,9 @@ test('custom dates are inclusive UK calendar days, capped at 31 days with indepe
     assert.equal(query.get('since'), report.since); assert.equal(query.get('until'), report.until);
   }
   await h.get('range=custom&from=2026-09-14&to=2026-09-27');
-  assert.equal(h.providerCalls().length, 4);
+  assert.equal(h.providerCalls().length, 5);
   await h.get('range=custom&from=2026-09-15&to=2026-09-27');
-  assert.equal(h.providerCalls().length, 8);
+  assert.equal(h.providerCalls().length, 10);
   const today = await (await h.get('range=custom&from=2026-09-29&to=2026-09-29')).json();
   assert.equal(today.until, today.fetchedAt, 'today stops at the report time');
   assert.equal((await h.get('range=custom&from=2026-08-30&to=2026-09-29')).status, 200);
@@ -537,7 +661,7 @@ test('named marketplaces combine destination contexts while keeping car and part
   ];
   const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context'
     ? { data: contexts.map(([context, count]) => ({ 'eventData/context': context, count })) }
-    : url.searchParams.get('by') === 'eventName' ? { data: [{ eventName: 'marketplace_outbound', count: 140 }] } : fixture(url)) });
+    : isFunnelEventsQuery(url) ? { data: [{ eventName: 'marketplace_outbound', count: 140 }] } : fixture(url)) });
   const report = await (await h.get()).json();
   assert.deepEqual(report.marketplaceClicks, [
     { marketplace: 'ebay', cars: 9, parts: 12, clicks: 21 },
@@ -554,13 +678,13 @@ test('named marketplaces combine destination contexts while keeping car and part
   assert.deepEqual(report.clicksByDestination, { ebayCars: 9, ebayParts: 12, otherMarketplaces: 54, unclassified: 65 });
   assert.equal(report.marketplaceClicks.reduce((sum, row) => sum + row.clicks, 0), report.outboundClicks);
   assert.equal(report.partial, false);
-  assert.equal(h.providerCalls().length, 4, 'named breakdown reuses the existing context query');
+  assert.equal(h.providerCalls().length, 5, 'named breakdown reuses the existing context query');
 });
 
 test('top-100 contexts plus the provider Others row retain all clicks as unclassified', async () => {
   const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context'
     ? { data: [...Array.from({ length: 100 }, (_, i) => ({ eventData: `legacy-${i}`, count: 1 })), { eventData: 'Others', count: 7 }] }
-    : url.searchParams.get('by') === 'eventName' ? { data: [{ eventName: 'marketplace_outbound', count: 107 }] } : fixture(url)) });
+    : isFunnelEventsQuery(url) ? { data: [{ eventName: 'marketplace_outbound', count: 107 }] } : fixture(url)) });
   const report = await (await h.get()).json();
   assert.equal(report.partial, false);
   assert.equal(report.marketplaceClicks.length, 10);
@@ -588,7 +712,7 @@ test('failed, malformed or unreconciled click breakdowns are unavailable and ret
     assert.equal(report.marketplaceClicks, null);
     failing = false;
     assert.equal((await (await h.get()).json()).partial, false);
-    assert.equal(h.providerCalls().length, 8);
+    assert.equal(h.providerCalls().length, 10);
   }
   const h = harness({ upstream: url => url.searchParams.get('by') === 'eventData/context' ? new Response('fail', { status: 503 }) : Response.json(fixture(url)) });
   const report = await (await h.get()).json();

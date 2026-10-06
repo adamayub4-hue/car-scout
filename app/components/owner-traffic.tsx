@@ -62,6 +62,31 @@ function MarketplaceClicks({ rows }: { rows: OwnerTrafficMarketplaceRow[] | null
   </>;
 }
 
+function AppUsage({ report }: { report: OwnerTrafficReport }) {
+  const beforeTracking = ownerTrafficUKDate(Date.parse(report.until)) < "2026-10-06";
+  const usage = report.appUsage;
+  return <section aria-labelledby="app-usage-heading" className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
+    <h3 id="app-usage-heading" className="font-bold">App and browser usage</h3>
+    <p className="mt-2 text-xs leading-5 text-subtle">Counting starts with the update on 6 October 2026. Earlier visits cannot be separated. Same reporting period as above. App visitors are included in the main Visitors total; app and browser visitor counts can overlap.</p>
+    {beforeTracking ? <p className="mt-3 text-sm text-muted">App and browser usage was not tracked during this period. Choose dates from 6 October 2026 onwards.</p> : <>
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: "App visitors", value: usage?.appVisitors, detail: "Estimated visitors opening Mekivo as an app." },
+          { label: "Browser visitors", value: usage?.browserVisitors, detail: "Estimated visitors using a browser tab." },
+          { label: "App opens", value: usage?.appOpens, detail: "New loads or switches into app mode." },
+          { label: "Confirmed installs", value: usage?.confirmedInstalls, detail: "Install confirmations from supporting browsers." },
+        ].map(({ label, value, detail }) => <div key={label} className="rounded-lg border border-outline/10 p-3 sm:p-4"><p className="text-sm font-semibold text-muted">{label}</p><p className={`mt-2 font-bold ${value == null ? "text-base" : "text-2xl sm:text-3xl"}`}>{value == null ? "Unavailable" : number.format(value)}</p><p className="mt-2 text-xs leading-5 text-subtle">{detail}</p></div>)}
+      </div>
+      {usage == null && <p className="mt-3 text-sm text-muted">App figures are temporarily unavailable. This does not mean there were no app visits or installs.</p>}
+    </>}
+    <details className="mt-3 text-xs leading-5 text-subtle">
+      <summary className="cursor-pointer font-medium text-link">How these figures work</summary>
+      <p className="mt-2">App visitors are already included in the main Visitors total. The same person can use both the app and browser, so do not add these visitor counts together. New tracking may reach the report at a different time from page views.</p>
+      <p className="mt-2">App opens count new page loads or a switch into app mode, not every return to an already-open app. Confirmed installs are events, not the total number of people with Mekivo installed. iPhone home-screen additions are not reported as installs, but their app visits can still count.</p>
+    </details>
+  </section>;
+}
+
 // Kept separate from loading so the real dashboard layout can be reviewed locally.
 export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCustomDates, hasCustomDates = false }: {
   range: OwnerTrafficRange;
@@ -113,6 +138,7 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCus
         ].map(({ label, value, detail }) => <div key={label} className="rounded-xl border border-outline/10 bg-panel p-4 sm:p-5"><p className="text-sm font-semibold text-muted">{label}</p><p className={`mt-2 font-bold ${value === null ? "text-base" : "text-3xl sm:text-4xl"}`}>{value === null ? "Unavailable" : number.format(value)}</p><p className="mt-2 text-xs leading-5 text-subtle">{detail}</p></div>)}
       </div>
       {report.partial && <p role="status" className="mt-4 text-sm text-warning">Some sections could not be loaded. The available figures are shown; try refreshing in a few minutes.</p>}
+      <AppUsage report={report} />
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
         <h3 className="font-bold">Where listing clicks went</h3>
         <MarketplaceClicks rows={report.marketplaceClicks} />

@@ -55,6 +55,9 @@ function load({ query = '', storage = new Map(), ready = true, blockedStorage = 
 test('every existing funnel event keeps its name and exactly two useful Pro properties', () => {
   const app = load({ query: paidCampaign });
   const cases = [
+    ['app_open', { email: 'PRIVATE@example.com', registration: 'PRIVATE', context: 'injected' }, 'standalone'],
+    ['browser_open', { user_id: 'PRIVATE', context: 'injected' }, 'browser'],
+    ['app_install', { install_id: 'PRIVATE', context: 'injected' }, 'confirmed'],
     ['campaign_landing', { landing_mode: 'cars' }, 'cars'],
     ['campaign_landing', { landing_mode: 'parts' }, 'parts'],
     ['vehicle_lookup_success', { has_model: true }, 'parts:model_found'],
