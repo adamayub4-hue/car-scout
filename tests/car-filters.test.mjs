@@ -335,3 +335,35 @@ test('BMW series choices accept standard numeric badges and reject other series'
   assert.deepEqual(ids(filterCarListings(items, { make: 'BMW', model: '1 Series' })), ['8']);
   assert.deepEqual(ids(filterCarListings(items, { make: 'BMW', model: 'X3' })), ['9']);
 });
+
+test('split Gear Box product wording is hidden while gearbox maintenance and ordinary specifications survive', () => {
+  const product = car(1, {
+    title: 'AUDI Q7 3.0 S LINE 2018 GEAR BOX QUATTRO 8 SPEED AUTOMATIC',
+    price: '3200',
+  });
+  assert.equal(filterCarListings([product], { maxPrice: '5000', hideUnwanted: true }).length, 0);
+  assert.equal(getCarRecommendations([product], createCarSearch(fields)).length, 0);
+  assert.equal(filterCarListings([product], { maxPrice: '5000', hideUnwanted: false }).length, 1);
+  for (const title of [
+    'Audi Q7 3.0 S Line 2018 automatic gearbox',
+    '2018 Audi Q7 automatic gear box',
+    'Audi Q7 3.0 S Line 2018 gear box replaced',
+    'Audi Q7 3.0 S Line 2018 new gear box fitted full MOT',
+    'Audi Q7 3.0 S Line 2018 gearbox replaced full MOT',
+    'Audi Q7 3.0 S Line 2018 gear box quattro 8 speed automatic full MOT 80,000 miles',
+  ]) {
+    assert.equal(filterCarListings([car(2, { title })], { hideUnwanted: true }).length, 1, title);
+  }
+});
+
+test('BMW plus only a seven-character mixed part code is hidden without treating badges or car context as parts', () => {
+  for (const title of ['BMW  5A1A646', 'bmw ABC1234', 'BMW 123ABCD']) {
+    const item = car(1, { title, price: '60' });
+    assert.equal(filterCarListings([item], { maxPrice: '500', hideUnwanted: true }).length, 0, title);
+    assert.equal(getCarRecommendations([item], createCarSearch(fields)).length, 0, title);
+    assert.equal(filterCarListings([item], { maxPrice: '500', hideUnwanted: false }).length, 1, title);
+  }
+  for (const title of ['BMW 320d', 'BMW M340i', 'BMW 5Series', 'BMW 3 Series', 'BMW 320d full MOT code 5A1A646']) {
+    assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 1, title);
+  }
+});

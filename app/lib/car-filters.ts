@@ -16,14 +16,19 @@ const EXCLUDED_SMALL_COMPONENT = /\b(?:(?:petrol|fuel|diesel)\s+(?:filler\s+)?ca
 const WHEEL_SET_AT_START = /^(?:set\s+of\s+)?[234](?:\s*x)?\s+.*\b(?:alloy|steel)\s+wheels?\b/i;
 // These titles name a component as the item being sold. Preserve clear full-car
 // descriptions of fitted equipment or completed maintenance.
-const COMPONENT_AS_PRODUCT = /\b(?:gearbox\s*$|engine\s*(?:£\s*\d[\d,]*(?:\.\d{1,2})?)?\s*$|(?:manifold\s+to\s+cat|exhaust)\s+pipe\b|rear\s+spoiler\b|boot\s*lid\b|dpf\b|diesel\s+particulate\s+filter\b)/i;
-const FULL_CAR_CONTEXT = /\b(?:mot|mileage|\d[\d,]*\s+miles|fsh|full\s+service\s+history|drives?|runs?|owners?|v5c|logbook|(?:gearbox|exhaust|spoiler|engine|dpf|boot\s*lid|diesel\s+particulate\s+filter)\s+(?:replaced|fitted|included|repaired|rebuilt|reconditioned)|(?:new|replaced|replacement|rebuilt|reconditioned)\s+(?:gearbox|engine|dpf|boot\s*lid|diesel\s+particulate\s+filter))\b/i;
+const COMPONENT_AS_PRODUCT = /\b(?:gearbox\s*$|gear[\s-]+box\s+(?:quattro\s+)?(?:\d+\s*speed\s+)?(?:automatic|manual)\b|engine\s*(?:£\s*\d[\d,]*(?:\.\d{1,2})?)?\s*$|(?:manifold\s+to\s+cat|exhaust)\s+pipe\b|rear\s+spoiler\b|boot\s*lid\b|dpf\b|diesel\s+particulate\s+filter\b)/i;
+const FULL_CAR_CONTEXT = /\b(?:mot|mileage|\d[\d,]*\s+miles|fsh|full\s+service\s+history|drives?|runs?|owners?|v5c|logbook|(?:gear[\s-]*box|exhaust|spoiler|engine|dpf|boot\s*lid|diesel\s+particulate\s+filter)\s+(?:replaced|fitted|included|repaired|rebuilt|reconditioned)|(?:new|replaced|replacement|rebuilt|reconditioned)\s+(?:gear[\s-]*box|engine|dpf|boot\s*lid|diesel\s+particulate\s+filter))\b/i;
+const GEARBOX_SPECIFICATION = /\b(?:automatic|manual)\s+gear[\s-]*box\s*$/i;
 // An engine advertised on its own can still say it runs or was tested. That is
 // component condition, rather than evidence that a complete car is being sold.
 const BARE_ENGINE_AS_PRODUCT = /\bbare\s+engine\b|^(?:(?:genuine|oem|new|used)[\s-]+)*engine\s+for\b/i;
 const MOTORCYCLE_AS_PRODUCT = /\b(?:motorcycles?|motorbikes?|scooters?|mopeds?)\b/i;
 const COMPLETED_BARE_ENGINE_WORK = /\bbare\s+engine\s+(?:replaced|fitted|rebuilt|repaired|reconditioned)\b/i;
 const COMPLETE_CAR_EVIDENCE = /\b(?:mot|mileage|\d[\d,]*\s+miles|fsh|full\s+service\s+history|v5c|logbook)\b/i;
+// BMW component adverts sometimes contain only the brand and a seven-character
+// mixed part code. Require that entire sparse title; badges and car descriptions
+// must not be caught by a general alphanumeric-code heuristic.
+const BMW_COMPONENT_CODE_ONLY = /^bmw\s+(?![135]series$)(?=[a-z0-9]{7}$)(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{7}$/i;
 
 function normalizedCarText(value: string) {
   const separated = value.replace(compactMakePrefix, (name, offset, source: string) => {
@@ -94,9 +99,14 @@ export function isUnwantedCarListing(item: EbayListing) {
     .replace(/\bmobility[\s-]+scooter[\s-]+(?:hoist|carrier|ramp|lift)\b/gi, "")
     .replace(/\b(?:motorcycles?|motorbikes?|scooters?|mopeds?)\s+part[\s-]+exchange\s+(?:welcome|considered)\b|\bpart[\s-]+exchange\s+(?:motorcycles?|motorbikes?|scooters?|mopeds?)\s+(?:welcome|considered)\b/gi, "");
   const completedBareEngineWork = COMPLETED_BARE_ENGINE_WORK.test(title) && COMPLETE_CAR_EVIDENCE.test(title);
+  // A year followed by an ordinary transmission specification can describe a
+  // whole car. Keep that ambiguous case rather than treating every gearbox
+  // mention as a component; explicit product wording runs the other way round.
+  const gearboxSpecification = GEARBOX_SPECIFICATION.test(title) && /\b(?:19|20)\d{2}\b/.test(title);
   return EXCLUDED_SWAP.test(rawTitle) || EXCLUDED_SMALL_COMPONENT.test(title) || WHEEL_SET_AT_START.test(title.trim()) ||
+    BMW_COMPONENT_CODE_ONLY.test(title.trim()) ||
     (BARE_ENGINE_AS_PRODUCT.test(title.trim()) && !completedBareEngineWork) || MOTORCYCLE_AS_PRODUCT.test(vehicleTitle) ||
-    (COMPONENT_AS_PRODUCT.test(title) && !FULL_CAR_CONTEXT.test(title)) ||
+    (COMPONENT_AS_PRODUCT.test(title) && !FULL_CAR_CONTEXT.test(title) && !gearboxSpecification) ||
     EXCLUDED_OFFER.test(title) || EXCLUDED_PART.test(title) || EXCLUDED_COMPONENT.test(title) || COMPONENT_AT_START.test(title.trim()) ||
     (REGISTRATION_AT_START.test(title.trim()) && !/\b(?:plates?|registration)\s+included\b/i.test(title)) ||
     EXCLUDED_CONDITION.test(item.condition || "") ||
