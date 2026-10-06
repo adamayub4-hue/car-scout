@@ -11,6 +11,13 @@ const EXCLUDED_CONDITION = /\b(?:parts?|not\s+working|damaged|salvage|repair)\b/
 const EXCLUDED_COMPONENT = /\b(?:(?:temperature|coolant|crankshaft|camshaft|oxygen|lambda|nox|abs|map|maf|oil\s+pressure|fuel\s+pressure|tyre\s+pressure)\s+sensors?|(?:engine|gearbox|transmission|airbag|abs|body|comfort|electronic)\s+(?:control\s+)?(?:units?|modules?)|control\s+modules?|headrest|(?:front|rear|left|right)[\s-]+(?:left[\s-]+|right[\s-]+)*headrests?|suspension\s+struts?|shock\s+absorbers?|radiators?|intercoolers?|steering\s+racks?|wishbones?|drive\s*shafts?)\b/i;
 const COMPONENT_AT_START = /^(?:(?:genuine|oem|new|used|bosch|denso|delphi|continental)[\s-]+)*(?:sensors?|modules?)\b/i;
 const REGISTRATION_AT_START = /^(?:(?:private|cherished|personalised|personalized|dateless|dvla)[\s-]+)*(?:(?:number|registration)[\s-]*plates?|(?:private|cherished|personalised|personalized)[\s-]+(?:plate|registration)|registration[\s-]+(?:number|transfer))\b/i;
+const EXCLUDED_SWAP = /\b(?:swaps?|exchange)\s+only\b|\bonly\s+(?:swaps?|exchange)\b|\bpart[\s-]+exchange\s+only\b/i;
+const EXCLUDED_SMALL_COMPONENT = /\b(?:(?:petrol|fuel|diesel)\s+(?:filler\s+)?cap|battery\s+conditioner|(?:lower|upper)\s+grill(?:e)?|(?:full\s+black|interior\s+trim)\s+(?:trims?|set)|rolling\s+shell)\b/i;
+const WHEEL_SET_AT_START = /^(?:set\s+of\s+)?[234](?:\s*x)?\s+.*\b(?:alloy|steel)\s+wheels?\b/i;
+// These titles name a component as the item being sold. Preserve clear full-car
+// descriptions of fitted equipment or completed maintenance.
+const COMPONENT_AS_PRODUCT = /\b(?:gearbox\s*$|(?:manifold\s+to\s+cat|exhaust)\s+pipe\b|rear\s+spoiler\b)/i;
+const FULL_CAR_CONTEXT = /\b(?:mot|mileage|\d[\d,]*\s+miles|fsh|full\s+service\s+history|drives?|runs?|owners?|v5c|logbook|(?:gearbox|exhaust|spoiler)\s+(?:replaced|fitted|included)|(?:new|replaced)\s+gearbox)\b/i;
 
 export function carPriceInPence(value: string | undefined | null) {
   if (typeof value !== "string" || !/^\d+(?:\.\d{1,2})?$/.test(value.trim())) return null;
@@ -26,8 +33,11 @@ export function hasCarPurchasePrice(item: EbayListing) {
 
 export function isUnwantedCarListing(item: EbayListing) {
   // Dealer finance availability and part exchange are normal full-car wording.
-  const title = item.title.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\bpart[\s-]+exchange\b/gi, "");
-  return EXCLUDED_OFFER.test(title) || EXCLUDED_PART.test(title) || EXCLUDED_COMPONENT.test(title) || COMPONENT_AT_START.test(title.trim()) ||
+  const rawTitle = item.title.replace(/([a-z])([A-Z])/g, "$1 $2");
+  const title = rawTitle.replace(/\bpart[\s-]+exchange\b/gi, "");
+  return EXCLUDED_SWAP.test(rawTitle) || EXCLUDED_SMALL_COMPONENT.test(title) || WHEEL_SET_AT_START.test(title.trim()) ||
+    (COMPONENT_AS_PRODUCT.test(title) && !FULL_CAR_CONTEXT.test(title)) ||
+    EXCLUDED_OFFER.test(title) || EXCLUDED_PART.test(title) || EXCLUDED_COMPONENT.test(title) || COMPONENT_AT_START.test(title.trim()) ||
     (REGISTRATION_AT_START.test(title.trim()) && !/\b(?:plates?|registration)\s+included\b/i.test(title)) ||
     EXCLUDED_CONDITION.test(item.condition || "") ||
     /\bauction[ -]+only\b/i.test(title) ||

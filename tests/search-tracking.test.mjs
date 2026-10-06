@@ -209,16 +209,19 @@ for (const name of ['handleCarSearch', 'handlePartsSearch', 'handlePartNumberSea
 test('external marketplace opens in the click turn despite stalled analytics', async () => {
   const opened = [];
   let revision = 20;
+  let searchInfo = { checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true };
   const pending = handler('handleCarSearch', {
     make: 'Audi', model: 'A3', year: '', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'autotrader',
     trackGrowthEvent() {},
     ...searchHelpers, setSubmittedSearch() {}, ebayRequest: { current: { id: 0, controller: null } }, setEbayLoading() {},
+    setCarSearchInfo(value) { searchInfo = value; },
     setCarSearchRevision(update) { revision = typeof update === 'function' ? update(revision) : update; },
     setError() {}, setShowResults() {}, trackActivity: () => new Promise(() => {}),
     window: { open: (...args) => opened.push(args) },
   })();
   assert.equal(opened.length, 1);
   assert.equal(revision, 21, 'an external-marketplace search also resets the previous results view');
+  assert.equal(searchInfo, null, 'external marketplace results cannot retain the previous live search metadata');
   assert.equal(new URL(opened[0][0]).hostname, 'www.autotrader.co.uk');
   assert.equal(new URL(opened[0][0]).searchParams.get('model'), 'A3');
   await pending;

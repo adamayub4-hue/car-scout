@@ -40,7 +40,10 @@ function loadModule(path, { fetch: fetchMock, env = {}, timerLimit, clock } = {}
 const ebayEnv = { EBAY_CLIENT_ID: 'test-client', EBAY_CLIENT_SECRET: 'test-secret' };
 const vehicleEnv = { ENABLE_DVLA_LOOKUP: 'true', DVLA_API_KEY: 'test-dvla' };
 const token = () => Response.json({ access_token: 'test-token', expires_in: 7200 });
-const listing = { itemId: 'test-item', title: 'Test listing', itemWebUrl: 'https://www.ebay.co.uk/itm/123' };
+const listing = {
+  itemId: 'test-item', title: 'Ford Focus 2012', itemWebUrl: 'https://www.ebay.co.uk/itm/123',
+  price: { value: '3500', currency: 'GBP' }, buyingOptions: ['FIXED_PRICE'],
+};
 const results = () => Response.json({ itemSummaries: [listing] });
 const searchRequest = (query) => ({ nextUrl: new URL(`https://mekivo.uk/api/ebay/search?${query}`) });
 const registrationRequest = (registrationNumber = 'AB12CDE', headers = {}) => new Request('https://mekivo.uk/api/vehicle', {

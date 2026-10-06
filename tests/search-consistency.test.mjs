@@ -59,12 +59,13 @@ test('eBay car handoff uses actual budget and category filters rather than price
 
 function carSubmitHarness(overrides = {}) {
   const requests = [], events = [];
-  const state = { error: '', submitted: null, visible: false, revision: 0 };
+  const state = { error: '', submitted: null, visible: false, revision: 0, searchInfo: null };
   const context = {
     make: '', model: '', year: '', price: '5000', minPrice: '1000', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all',
     createCarSearch: search.createCarSearch,
     setError: value => { state.error = value; }, setSubmittedSearch: value => { state.submitted = value; },
     setShowResults: value => { state.visible = value; }, setCarSearchRevision: update => { state.revision = update(state.revision); },
+    setCarSearchInfo: value => { state.searchInfo = value; },
     searchEbay: value => { requests.push(value); }, trackGrowthEvent: (...args) => events.push(args), trackActivity() {},
     ...overrides,
   };
@@ -91,6 +92,19 @@ test('budget-only car search accepts any make and preserves the selected filters
   assert.deepEqual(app.events.map(([name]) => name), ['search_submitted']);
 });
 
+test('a marketplace-only car submission discards metadata from the previous live search', async () => {
+  const controller = new AbortController();
+  const ebayRequest = { current: { id: 7, controller } };
+  const app = carSubmitHarness({ platform: 'more', ebayRequest, setEbayLoading() {} });
+  app.state.searchInfo = { checkedCount: 144, pagesChecked: 3, hasMore: true, partial: true };
+  await app.run();
+  assert.equal(app.state.searchInfo, null);
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(ebayRequest.current.id, 8);
+  assert.equal(app.requests.length, 0);
+  assert.equal(app.state.submitted.platform, 'more');
+});
+
 test('changing result sort uses the submitted search snapshot, preserving its budget and saved state', () => {
   const submitted = search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '2018', price: '5000', minPrice: '1000', sort: 'price_asc', hideUnwanted: true, postcode: 'SW1A 1AA', platform: 'all' });
   const before = JSON.stringify(submitted), calls = [];
@@ -110,11 +124,12 @@ test('changing result sort uses the submitted search snapshot, preserving its bu
 
 function requestsHarness() {
   const requests = [], events = [], timers = new Map();
-  const state = { items: [], loading: false, error: '', mode: 'cars' };
+  const state = { items: [], loading: false, error: '', mode: 'cars', searchInfo: null };
   const ref = { current: { id: 0, controller: null } };
   let timerId = 0;
   const context = {
     filterCarListings: carFilters.filterCarListings, ebayRequest: ref, setEbayLoading: value => { state.loading = value; }, setEbayError: value => { state.error = value; }, setEbayItems: value => { state.items = value; },
+    setCarSearchInfo: value => { state.searchInfo = value; },
     setMode: value => { state.mode = value; }, setShowResults() {}, setError() {},
     trackGrowthEvent: (...args) => events.push(args),
     setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id),
@@ -126,6 +141,9 @@ function requestsHarness() {
 const oldSearch = search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '', price: '', postcode: '', platform: 'all' });
 const newSearch = search.createPartSearch(fields, true);
 const response = title => ({ ok: true, json: async () => ({ items: [{ id: title, title }] }) });
+const responseWithInfo = (searchInfo, title = 'Ford Fiesta') => ({ ok: true, json: async () => ({
+  items: [{ id: title, title, price: '450', currency: 'GBP', condition: 'Used', buyingOptions: ['FIXED_PRICE'] }], searchInfo,
+}) });
 
 test('live car request sends selected filters and counts only the filtered visible response', async () => {
   const app = requestsHarness();
@@ -143,6 +161,67 @@ test('live car request sends selected filters and counts only the filtered visib
   assert.deepEqual(Array.from(app.state.items, item => item.id), ['c', 'a']);
   assert.equal(app.events.length, 1); assert.equal(app.events[0][0], 'results_shown'); assert.equal(app.events[0][1].result_count, 2);
   assert.equal(app.state.error, ''); assert.equal(app.state.loading, false);
+});
+
+test('successful partial metadata is kept with matching cars and reset immediately for a new search', async () => {
+  const h = requestsHarness();
+  const info = { checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true };
+  const first = h.run(oldSearch);
+  h.requests[0].resolve(responseWithInfo(info)); await first;
+  assert.equal(h.state.searchInfo, info);
+  assert.equal(h.state.items[0].title, 'Ford Fiesta');
+  assert.equal(h.state.error, '');
+  assert.deepEqual(h.events.map(([name]) => name), ['results_shown']);
+  const next = h.run(oldSearch);
+  assert.equal(h.state.searchInfo, null, 'old checked counts and partial status disappear before the new request returns');
+  assert.equal(h.state.items.length, 0);
+  assert.equal(h.state.loading, true);
+  h.requests[1].resolve(responseWithInfo(undefined, 'New car')); await next;
+  assert.equal(h.state.searchInfo, null, 'a response without metadata cannot inherit the previous counts');
+  assert.equal(h.state.items[0].title, 'New car');
+});
+
+test('an older car response cannot overwrite a newer response or its checked-listing metadata', async () => {
+  const h = requestsHarness();
+  const old = h.run(oldSearch), latest = h.run(oldSearch);
+  const latestInfo = { checkedCount: 144, pagesChecked: 3, hasMore: false, partial: false };
+  h.requests[1].resolve(responseWithInfo(latestInfo, 'Current car')); await latest;
+  h.requests[0].resolve(responseWithInfo({ checkedCount: 48, pagesChecked: 1, hasMore: true, partial: true }, 'Stale car')); await old;
+  assert.equal(h.state.searchInfo, latestInfo);
+  assert.equal(h.state.items[0].title, 'Current car');
+  assert.equal(h.state.loading, false);
+  assert.equal(h.events.length, 1);
+});
+
+test('mode changes clear completed car metadata and a late car response cannot restore it', async () => {
+  const h = requestsHarness();
+  const first = h.run(oldSearch);
+  h.requests[0].resolve(responseWithInfo({ checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true })); await first;
+  h.setMode('parts');
+  assert.equal(h.state.searchInfo, null);
+  assert.equal(h.state.items.length, 0);
+  h.setMode('cars');
+  const pending = h.run(oldSearch);
+  h.setMode('parts');
+  h.requests[1].resolve(responseWithInfo({ checkedCount: 192, pagesChecked: 4, hasMore: true, partial: true })); await pending;
+  assert.equal(h.state.searchInfo, null);
+  assert.equal(h.state.items.length, 0);
+  assert.equal(h.state.mode, 'parts');
+  assert.equal(h.events.length, 1, 'only the first completed search emits a result event');
+});
+
+test('parts and failed searches cannot adopt car checked-listing metadata from a response', async () => {
+  const info = { checkedCount: 192, pagesChecked: 4, hasMore: true, partial: true };
+  const h = requestsHarness();
+  const part = h.run(newSearch);
+  h.requests[0].resolve(responseWithInfo(info, 'Brake pads')); await part;
+  assert.equal(h.state.searchInfo, null);
+  assert.equal(h.state.items[0].title, 'Brake pads');
+  const car = h.run(oldSearch);
+  h.requests[1].resolve({ ok: false, json: async () => ({ error: 'eBay unavailable', searchInfo: info }) }); await car;
+  assert.equal(h.state.searchInfo, null);
+  assert.equal(h.state.items.length, 0);
+  assert.equal(h.state.error, 'eBay unavailable');
 });
 
 test('an old response cannot replace results or stop the newer search loading', async () => {

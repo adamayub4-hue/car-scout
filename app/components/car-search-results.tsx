@@ -21,9 +21,11 @@ const marketplaces = [
 ] as const;
 const moreMarketplaceIds: MarketplaceId[] = ["gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"];
 type View = "live" | "prices" | "marketplaces";
+export type CarSearchInfo = { checkedCount: number; pagesChecked: number; hasMore: boolean; partial: boolean };
 
-export default function CarSearchResults({ search, items, loading, error, onRetry, onEdit, onSortChange }: {
+export default function CarSearchResults({ search, items, loading, error, searchInfo, onRetry, onEdit, onSortChange }: {
   search: SubmittedSearch; items: EbayListing[]; loading: boolean; error: string;
+  searchInfo?: CarSearchInfo | null;
   onRetry: () => void; onEdit: () => void;
   onSortChange?: (sort: "best_match" | "price_asc" | "price_desc" | "newest") => void;
 }) {
@@ -86,9 +88,11 @@ export default function CarSearchResults({ search, items, loading, error, onRetr
           </label>
           {search.hideUnwanted && <p className="text-xs text-muted">Parts, repair and deposit adverts hidden</p>}
         </div>}
-        {!loading && !error && items.length === 0 && <p className="mt-4 text-sm text-muted">No cars remain in this batch with your filters. Try a different budget or make, choose Best match, or use Edit search to include repair adverts.</p>}
+        {!loading && !error && searchInfo?.partial && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm text-warning">eBay stopped responding before this search finished. {items.length > 0 ? "These cars were returned successfully. " : "No matching cars have been returned yet. "}<button type="button" onClick={onRetry} className="font-semibold underline underline-offset-4">Try again for more</button>.</div>}
+        {!loading && !error && items.length === 0 && <p className="mt-4 text-sm text-muted">No cars remain in the checked results with your filters. Try a different budget or make, choose Best match, or use Edit search to include repair adverts.</p>}
+        {!loading && !error && items.length > 0 && <p className="mt-4 text-sm font-semibold text-muted">{items.length} matching {items.length === 1 ? "car" : "cars"} returned{items.length > 3 ? " · Use Next below to browse more" : ""}</p>}
         <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="cars" onRetry={onRetry} />
-        <p className="mt-3 text-xs leading-5 text-subtle">Up to 48 eBay listings located in the UK checked per search. Budgets and price sorts use advertised purchase prices, not auction bids; delivery and fees may be extra. This does not compare every UK marketplace.</p>
+        <p className="mt-3 text-xs leading-5 text-subtle">{!loading && !error && searchInfo ? `${searchInfo.checkedCount} eBay listings checked across ${searchInfo.pagesChecked} ${searchInfo.pagesChecked === 1 ? "batch" : "batches"}. ${searchInfo.hasMore ? "More listings may be available on eBay. " : ""}` : "Up to 192 eBay listings located in the UK checked per search, returning up to 48 matches. "}Budgets and price sorts use advertised purchase prices, not auction bids; delivery and fees may be extra. This does not compare every UK marketplace.</p>
       </>}
       {tab.id === "prices" && <div className="pt-4"><CarRecommendations search={search} items={items} loading={loading} error={error} compact /></div>}
       {tab.id === "marketplaces" && <section aria-labelledby="other-car-sites-heading" className="pt-5">

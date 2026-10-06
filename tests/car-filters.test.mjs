@@ -176,6 +176,34 @@ test('normal car equipment and recent clutch work do not trigger component exclu
   assert.equal(filterCarListings(items, { hideUnwanted: true }).length, items.length);
 });
 
+test('cheap-category component and swap-only adverts cannot consume genuine car results', () => {
+  const misleading = [
+    'Mondeo St 2.2 Diesel, SWAPS ONLY for VXR',
+    'Volkswagen Golf part exchange only',
+    'bentley continental gt petrol cap',
+    'mazda MX5 Mk 2 manifold to Cat exhaust pipe',
+    'Aston Martin DB9 battery conditioner used',
+    'RANGE ROVER SPORT L494 LOWER GRILL GENUINE JK6M-17F775-A',
+    'Ford Fiesta Rolling Shell Project Track Day Car Stripped mk7 2011',
+    'VW Golf Audi A3 2.0 TDI 6 Speed Manual Gearbox',
+    '4 Genuine BMW F20 F21 M140i Black Alloy Wheels',
+    'Lotus Exige Rear Spoiler Black £295',
+    'BMW M3 M4 G80 Gloss Black full black trims',
+  ].map((title, index) => car(index, { title, price: '400' }));
+  assert.equal(filterCarListings(misleading, { maxPrice: '500', sort: 'price_asc', hideUnwanted: true }).length, 0);
+  assert.equal(filterCarListings(misleading, { maxPrice: '500', sort: 'price_asc', hideUnwanted: false }).length, misleading.length);
+  const genuine = [
+    '2011 Ford Ka Edge HPI Clear 1.2 Petrol',
+    '2003 Mazda 2 1.25 Petrol Manual Long MOT FSH',
+    'Volkswagen Golf manual gearbox new clutch full MOT',
+    '2015 Ford Focus new gearbox',
+    '2012 Honda Civic rear spoiler included',
+    'Suzuki Ignis mk1 1.3 2003 silver alloys',
+    'Ford Fiesta part exchange welcome finance available',
+  ].map((title, index) => car(index, { title, price: '450' }));
+  assert.equal(filterCarListings(genuine, { maxPrice: '500', sort: 'price_asc', hideUnwanted: true }).length, genuine.length);
+});
+
 test('clear registration-only offers are hidden without removing cars with an included private plate', () => {
   for (const title of ['Private number plate AB12 ABC', 'Cherished registration ABC 123', 'DVLA personalised registration plate', 'Registration transfer ABC 123']) {
     assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 0, title);

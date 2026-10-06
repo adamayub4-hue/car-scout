@@ -241,6 +241,64 @@ test('result sorting is reachable in the live view and reflects the submitted bu
   assert.equal(nodes(activePanel(app)).some(node => node.type === 'select'), false, 'live-only sort is not presented as a filter for other providers');
 });
 
+test('checked-listing metadata discloses the actual batch count and possible remaining listings', () => {
+  const app = results({ searchInfo: { checkedCount: 144, pagesChecked: 3, hasMore: true, partial: false } });
+  assert.match(text(activePanel(app)), /144 eBay listings checked across 3 batches/);
+  assert.match(text(activePanel(app)), /More listings may be available on eBay/);
+  assert.doesNotMatch(text(activePanel(app)), /Up to 192/);
+  app.update({ searchInfo: { checkedCount: 17, pagesChecked: 1, hasMore: false, partial: false } });
+  assert.match(text(activePanel(app)), /17 eBay listings checked across 1 batch\./);
+  assert.doesNotMatch(text(activePanel(app)), /More listings may be available/);
+  app.update({ searchInfo: null });
+  assert.match(text(activePanel(app)), /Up to 192 eBay listings located in the UK checked per search, returning up to 48 matches/);
+  assert.doesNotMatch(text(activePanel(app)), /17 eBay listings checked/);
+});
+
+test('partial searches retain the successfully returned cars with an accessible notice and retry', () => {
+  const items = cars(8);
+  const app = results({ items, searchInfo: { checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true } });
+  const notice = app.one(node => node.props?.role === 'status');
+  assert.match(text(notice), /eBay stopped responding before this search finished/);
+  assert.match(text(notice), /These cars were returned successfully/);
+  assert.equal(app.one(node => node.type === LiveListings).props.items, items);
+  assert.equal(app.one(node => node.type === LiveListings).props.error, '');
+  app.click(app.button('Try again for more'));
+  assert.equal(app.calls.retry, 1);
+  assert.deepEqual(app.events, [], 'retry is not an outbound marketplace click');
+});
+
+test('partial searches without matches provide retry without claiming that cars were found', () => {
+  const app = results({ items: [], searchInfo: { checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true } });
+  const notice = app.one(node => node.props?.role === 'status');
+  assert.match(text(notice), /eBay stopped responding/);
+  assert.doesNotMatch(text(notice), /These cars were returned successfully/);
+  assert.match(text(activePanel(app)), /No cars remain in the checked results/);
+  app.click(app.button('Try again for more'));
+  assert.equal(app.calls.retry, 1);
+});
+
+test('visible car counts use singular wording and explain Next only when another page exists', () => {
+  for (const count of [1, 3, 4, 12]) {
+    const app = results({ items: cars(count) });
+    const panel = text(activePanel(app));
+    assert.match(panel, new RegExp(`${count} matching ${count === 1 ? 'car' : 'cars'} returned`));
+    if (count > 3) assert.match(panel, /Use Next below to browse more/);
+    else assert.doesNotMatch(panel, /Use Next below/);
+  }
+});
+
+test('loading and failed replacement searches do not expose stale counts or partial retry notices', () => {
+  const app = results({ searchInfo: { checkedCount: 144, pagesChecked: 3, hasMore: true, partial: true } });
+  for (const replacement of [{ loading: true, error: '' }, { loading: false, error: 'Provider unavailable' }]) {
+    app.update(replacement);
+    const panel = text(activePanel(app));
+    assert.doesNotMatch(panel, /144 eBay listings checked|12 matching cars returned|Use Next below|eBay stopped responding|Try again for more/);
+    const live = app.one(node => node.type === LiveListings);
+    assert.equal(live.props.loading, replacement.loading);
+    assert.equal(live.props.error, replacement.error);
+  }
+});
+
 test('platform selection determines available views and only exposes its prepared marketplaces', () => {
   const destinations = ['autotrader', 'facebook', 'motors', 'gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic'];
   for (const platform of ['all', 'ebay', 'more', ...destinations]) {

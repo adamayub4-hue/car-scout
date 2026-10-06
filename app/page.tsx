@@ -9,7 +9,8 @@ import { analyticsAudience } from "./lib/analytics-audience";
 import { categories, diagramSystems, electricCategoryOverrides, electricDiagramOverrides } from "./lib/parts-guide-data";
 import { parseSavedSearchParams } from "./lib/saved-search";
 import PartSearchResults from "./components/part-search-results";
-import CarSearchResults from "./components/car-search-results";
+import CarSearchResults, { type CarSearchInfo } from "./components/car-search-results";
+import InstallMekivo from "./components/install-mekivo";
 import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type EbayListing } from "./lib/search";
 import { filterCarListings } from "./lib/car-filters";
 import AppearanceControl from "./components/appearance";
@@ -136,6 +137,7 @@ export default function Home() {
   const [ebayItems, setEbayItems] = useState<EbayListing[]>([]);
   const [ebayLoading, setEbayLoading] = useState(false);
   const [ebayError, setEbayError] = useState("");
+  const [carSearchInfo, setCarSearchInfo] = useState<CarSearchInfo | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -245,6 +247,7 @@ export default function Home() {
     setError("");
     setEbayItems([]);
     setEbayError("");
+    setCarSearchInfo(null);
   };
 
   const vehicleReady = Boolean(make && model && year);
@@ -264,7 +267,7 @@ export default function Home() {
     const controller = new AbortController();
     const requestId = ++ebayRequest.current.id;
     ebayRequest.current.controller = controller;
-    setEbayLoading(true); setEbayError(""); setEbayItems([]);
+    setEbayLoading(true); setEbayError(""); setEbayItems([]); setCarSearchInfo(null);
     const timeout = setTimeout(() => controller.abort(new Error("Search timed out")), 20000);
     const eventProperties = { search_type: search.mode, search_method: search.searchMethod };
     try {
@@ -277,12 +280,13 @@ export default function Home() {
       }
       const response = await fetch(`/api/ebay/search?${params}`, { signal: controller.signal });
       if (response.status === 429) throw new Error("Too many searches. Please wait a minute, then try again.");
-      const payload = (await response.json()) as { items?: EbayListing[]; error?: string };
+      const payload = (await response.json()) as { items?: EbayListing[]; error?: string; searchInfo?: CarSearchInfo };
       if (controller.signal.aborted) throw new Error("Search timed out");
       if (requestId !== ebayRequest.current.id) return;
       if (!response.ok) throw new Error(payload.error || "Live eBay results are unavailable.");
       const items = search.mode === "cars" ? filterCarListings(payload.items ?? [], { minPrice: search.minPrice, maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted }) : payload.items ?? [];
       setEbayItems(items);
+      setCarSearchInfo(search.mode === "cars" ? payload.searchInfo ?? null : null);
       trackGrowthEvent(items.length ? "results_shown" : "results_empty", { ...eventProperties, result_count: items.length });
     } catch (searchError) {
       if (requestId !== ebayRequest.current.id) return;
@@ -317,7 +321,7 @@ export default function Home() {
     if (platform === "all" || platform === "ebay") {
       void searchEbay(search);
     } else {
-      ebayRequest.current.id += 1; ebayRequest.current.controller?.abort(); setEbayLoading(false);
+      ebayRequest.current.id += 1; ebayRequest.current.controller?.abort(); setEbayLoading(false); setCarSearchInfo(null);
       trackGrowthEvent("results_shown", { search_type: "cars", result_kind: "marketplace_links" });
     }
     if (platform !== "all" && platform !== "more" && platform !== "ebay") {
@@ -417,6 +421,8 @@ export default function Home() {
             Start your search here. Compare marketplaces and open the original listings.
           </p>
         </section>
+
+        <InstallMekivo />
 
         <div className="mx-auto mb-3 grid max-w-md grid-cols-2 rounded-2xl border border-outline/10 bg-overlay/[0.05] p-1.5 shadow-2xl shadow-black/20">
           {(["cars", "parts"] as const).map((item) => (
@@ -898,7 +904,7 @@ export default function Home() {
 
         {showResults && submittedSearch?.mode === "cars" && mode === "cars" && (
           <section ref={resultsRef} tabIndex={-1} aria-label={`Car results for ${submittedSearch.title}`} className="mx-auto mt-6 max-w-4xl scroll-mt-3 outline-none">
-            <CarSearchResults key={carSearchRevision} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError}
+            <CarSearchResults key={carSearchRevision} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError} searchInfo={carSearchInfo}
               onSortChange={handleCarSortChange}
               onRetry={() => void searchEbay(submittedSearch)}
               onEdit={() => {

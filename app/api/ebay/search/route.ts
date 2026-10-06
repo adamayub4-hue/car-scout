@@ -3,6 +3,7 @@ import { getApplicationToken, clearEbayApplicationToken } from "../../../lib/ser
 import { createHash } from "node:crypto";
 import { BoundedTtlCache } from "../../../lib/server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "../../../lib/server-upstream";
+import { filterCarListings } from "../../../lib/car-filters";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,10 @@ type PublicListing = {
   buyingOptions: string[]; itemEndDate: string | null;
   postage: { price: string; currency: string } | null;
 };
-const resultsCache = new BoundedTtlCache<PublicListing[]>(100, 30_000);
+type SearchInfo = { checkedCount: number; pagesChecked: number; hasMore: boolean; partial: boolean };
+type SearchResult = { items: PublicListing[]; searchInfo?: SearchInfo };
+const resultsCache = new BoundedTtlCache<SearchResult>(100, 30_000);
+const maxCarPages = 4;
 const carSorts = { best_match: "", price_asc: "price", price_desc: "-price", newest: "newlyListed" } as const;
 
 function cacheKey(query: string, type: string, minPrice: string, maxPrice: string, sort: string, hideUnwanted: boolean) {
@@ -74,8 +78,17 @@ export async function GET(request: NextRequest) {
   const hideUnwanted = hideInput === "1" || hideInput === "true";
   const limit = type === "cars" ? 48 : 12;
   const key = cacheKey(query, type, minPrice, maxPrice, sort, hideUnwanted);
-  const cachedItems = key ? resultsCache.get(key) : undefined;
-  if (cachedItems) return json({ items: cachedItems });
+  const cachedResult = key ? resultsCache.get(key) : undefined;
+  if (cachedResult) return json(cachedResult);
+  const collected: PublicListing[] = [];
+  const searchInfo: SearchInfo | undefined = type === "cars"
+    ? { checkedCount: 0, pagesChecked: 0, hasMore: false, partial: false }
+    : undefined;
+  const carFilters = { minPrice, maxPrice, sort: sortInput as keyof typeof carSorts, hideUnwanted };
+  const result = (): SearchResult => ({
+    items: (type === "cars" ? filterCarListings(collected, carFilters) as PublicListing[] : collected).slice(0, limit),
+    ...(searchInfo ? { searchInfo } : {}),
+  });
 
   try {
     const token = await getApplicationToken();
@@ -97,54 +110,86 @@ export async function GET(request: NextRequest) {
     // Sort the provider's catalogue before taking a page. eBay price order
     // includes shipping; it is not a guarantee of the cheapest complete car.
     if (type === "cars" && sort) url.searchParams.set("sort", sort);
-    // hideUnwanted is applied by the shared client-side car filter to this
-    // returned batch. Browse does not document NOT keywords, and buyingOptions
-    // filters require a leaf category rather than our broad Cars category.
+    // The same car checks run here and in the client, so hidden adverts do not
+    // consume the whole returned batch. Browse buyingOptions filters require
+    // a leaf category rather than our broad Cars category.
 
-    const items = await withUpstreamTimeout(async (signal) => {
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-EBAY-C-MARKETPLACE-ID": "EBAY_GB",
-          "Accept-Language": "en-GB",
-        },
-        cache: "no-store",
-        signal,
-      });
+    await withUpstreamTimeout(async (signal) => {
+      const seen = new Set<string>();
+      for (let page = 0; page < (type === "cars" ? maxCarPages : 1); page++) {
+        if (signal.aborted) throw new UpstreamTimeoutError();
+        // next only indicates another page. Rebuild the trusted endpoint with
+        // a bounded offset; never follow a provider-supplied URL with our token.
+        const pageUrl = new URL(url);
+        if (type === "cars") pageUrl.searchParams.set("offset", String(page * limit));
+        const response = await fetch(pageUrl, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "X-EBAY-C-MARKETPLACE-ID": "EBAY_GB",
+            "Accept-Language": "en-GB",
+          },
+          cache: "no-store",
+          signal,
+        });
+        if (signal.aborted) throw new UpstreamTimeoutError();
 
-      if (!response.ok) {
-        if (response.status === 401) clearEbayApplicationToken();
-        // Log only provider status, never a caller's search or identifier.
-        throw new Error(`EBAY_SEARCH_${response.status}`);
+        if (!response.ok) {
+          if (response.status === 401) clearEbayApplicationToken();
+          // Log only provider status, never a caller's search or identifier.
+          throw new Error(`EBAY_SEARCH_${response.status}`);
+        }
+
+        const payload = (await response.json()) as { itemSummaries?: EbayItemSummary[]; next?: unknown };
+        if (signal.aborted) throw new UpstreamTimeoutError();
+        if (!payload || typeof payload !== "object" || Array.isArray(payload) || (payload.itemSummaries !== undefined && !Array.isArray(payload.itemSummaries))) throw new Error("EBAY_RESULTS_INVALID");
+        const candidates = type === "cars" ? (payload.itemSummaries ?? []).slice(0, limit) : payload.itemSummaries ?? [];
+        if (searchInfo) {
+          searchInfo.checkedCount += candidates.length;
+          searchInfo.pagesChecked++;
+          searchInfo.hasMore = typeof payload.next === "string" && payload.next.trim().length > 0;
+        }
+        const batch: PublicListing[] = candidates
+          .filter((item) => item && typeof item.title === "string" && typeof item.itemWebUrl === "string" && item.title && item.itemWebUrl)
+          .slice(0, limit)
+          .map((item) => ({
+            id: item.itemId ?? item.itemWebUrl!,
+            title: item.title!,
+            url: item.itemWebUrl!,
+            image: item.image?.imageUrl ?? null,
+            price: item.price?.value ?? null,
+            currency: item.price?.currency ?? null,
+            // price is the advertised purchase price. Never substitute the
+            // separate currentBidPrice when building a price comparison.
+            buyingOptions: Array.isArray(item.buyingOptions) ? item.buyingOptions.filter((option): option is string => typeof option === "string") : [],
+            itemEndDate: typeof item.itemEndDate === "string" ? item.itemEndDate : null,
+            condition: item.condition ?? null,
+            location: item.itemLocation?.postalCode ?? item.itemLocation?.country ?? null,
+            // Search summaries are not a quote for the customer's address. Only
+            // expose an explicitly fixed amount; absent/calculated is unknown.
+            postage: fixedPostage(item.shippingOptions),
+          }));
+        const unique = type === "cars" ? batch.filter(item => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        }) : batch;
+        collected.push(...(type === "cars" ? filterCarListings(unique, carFilters) as PublicListing[] : unique));
+        // total is indicative in Browse and must not control pagination.
+        if (type !== "cars" || collected.length >= limit || !searchInfo?.hasMore || candidates.length === 0) break;
       }
-
-      const payload = (await response.json()) as { itemSummaries?: EbayItemSummary[] };
-      if (!payload || (payload.itemSummaries !== undefined && !Array.isArray(payload.itemSummaries))) throw new Error("EBAY_RESULTS_INVALID");
-      return (payload.itemSummaries ?? [])
-        .filter((item) => item && typeof item.title === "string" && typeof item.itemWebUrl === "string" && item.title && item.itemWebUrl)
-        .slice(0, limit)
-        .map((item) => ({
-          id: item.itemId ?? item.itemWebUrl!,
-          title: item.title!,
-          url: item.itemWebUrl!,
-          image: item.image?.imageUrl ?? null,
-          price: item.price?.value ?? null,
-          currency: item.price?.currency ?? null,
-          // price is the advertised purchase price. Never substitute the
-          // separate currentBidPrice when building a price comparison.
-          buyingOptions: Array.isArray(item.buyingOptions) ? item.buyingOptions.filter((option): option is string => typeof option === "string") : [],
-          itemEndDate: typeof item.itemEndDate === "string" ? item.itemEndDate : null,
-          condition: item.condition ?? null,
-          location: item.itemLocation?.postalCode ?? item.itemLocation?.country ?? null,
-          // Search summaries are not a quote for the customer's address. Only
-          // expose an explicitly fixed amount; absent/calculated is unknown.
-          postage: fixedPostage(item.shippingOptions),
-        }));
     });
 
-    if (key) resultsCache.set(key, items);
-    return json({ items });
+    const completeResult = result();
+    if (key) resultsCache.set(key, completeResult);
+    return json(completeResult);
   } catch (error) {
+    if (searchInfo && collected.length > 0) {
+      // A later backfill failure should not erase successfully checked cars.
+      // Do not cache this incomplete response, including its metadata.
+      searchInfo.partial = true;
+      searchInfo.hasMore = true;
+      return json(result());
+    }
     if (error instanceof UpstreamTimeoutError) {
       return json({ error: "eBay search took too long. Please try again." }, 504);
     }

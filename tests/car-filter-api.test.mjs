@@ -70,10 +70,11 @@ test('invalid budget, sort and hide values never reach eBay', async () => {
   assert.equal(h.calls.length, 0);
 });
 
-test('car sorting is sent to eBay before the result limit and preserves provider order', async () => {
+test('car sorting is sent to eBay before the result limit and ranks returned asking prices', async () => {
   const items = Array.from({ length: 60 }, (_, index) => ({
     itemId: String(index), title: `Car ${index}`, itemWebUrl: `https://www.ebay.co.uk/itm/${123456789000 + index}`,
     price: { value: String(60000 - index * 100), currency: 'GBP' },
+    buyingOptions: ['FIXED_PRICE'],
   }));
   const h = harness(items);
   for (const [sort, expected] of [['best_match', null], ['price_asc', 'price'], ['price_desc', '-price'], ['newest', 'newlyListed']]) {
@@ -83,7 +84,9 @@ test('car sorting is sent to eBay before the result limit and preserves provider
     assert.equal(h.calls.at(-1).searchParams.get('sort'), expected);
     assert.equal(h.calls.at(-1).searchParams.get('limit'), '48');
     assert.equal(actual.length, 48);
-    assert.deepEqual(actual.map(item => item.id), items.slice(0, 48).map(item => item.itemId));
+    const expectedItems = items.slice(0, 48);
+    if (sort === 'price_asc') expectedItems.reverse();
+    assert.deepEqual(actual.map(item => item.id), expectedItems.map(item => item.itemId));
   }
 });
 
@@ -153,5 +156,5 @@ test('parts retain 12 results and ignore car-only options; purchase prices never
   assert.equal(h.calls[0].searchParams.get('sort'), null);
   assert.equal(h.calls[0].searchParams.get('filter'), null);
   const carResponse = await h.get('type=cars&q=Ford&sort=price_asc&hideUnwanted=1');
-  assert.equal((await carResponse.json()).items[0].price, null);
+  assert.equal((await carResponse.json()).items[0].price, '5000');
 });
