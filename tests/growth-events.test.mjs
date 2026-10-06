@@ -151,6 +151,45 @@ test('approved audio labels normalize while unapproved audio variants remain unk
   }
 });
 
+test('organic eBay demos retain distinct attribution through searches, outbound clicks, and reloads', () => {
+  for (const [content, mode] of [['ebay_budget_demo_20261006', 'cars'], ['ebay_part_number_demo_20261006', 'parts']]) {
+    for (const source of ['facebook', 'instagram', 'tiktok']) {
+      const campaign = `${source}|organic_social|october_free_week|${content}`;
+      const query = `?${new URLSearchParams({ mode, utm_source: source, utm_medium: 'organic_social', utm_campaign: 'october_free_week', utm_content: content, registration: 'AB12CDE', part_number: 'PRIVATE-PART' })}`;
+      const app = load({ query });
+      app.track('campaign_landing', { landing_mode: mode });
+      assert.deepEqual(app.events[0].properties, { campaign, context: mode });
+      assert.deepEqual([...app.storage], [[storageKey, campaign]]);
+
+      app.window.location.search = '';
+      app.track('search_submitted', { search_type: mode, marketplace: 'ebay', search_method: 'part_number' });
+      assert.deepEqual(app.events.at(-1).properties, { campaign, context: `${mode}:${mode === 'cars' ? 'ebay' : 'part_number'}` });
+      app.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
+      const reloaded = load({ storage: app.storage });
+      reloaded.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
+      assert.deepEqual(app.events.at(-1).properties, { campaign, context: `${mode}:ebay:listing` });
+      assert.deepEqual(reloaded.events[0].properties, app.events.at(-1).properties);
+    }
+  }
+});
+
+test('eBay demo labels remain bounded and excluded visits do not emit or retain them', () => {
+  for (const [content, mode] of [['ebay_budget_demo_20261006', 'cars'], ['ebay_part_number_demo_20261006', 'parts']]) {
+    const labels = { utm_source: 'facebook', utm_medium: 'organic_social', utm_campaign: 'october_free_week', utm_content: content };
+    for (const [input, expected] of [[` ${content.toUpperCase()} `, content], [`${content}_2`, 'unknown'], [content.replace('20261006', '20261007'), 'unknown'], [`${content}${'x'.repeat(49)}`, 'unknown']]) {
+      const app = load({ query: `?${new URLSearchParams({ ...labels, utm_content: input })}` });
+      app.track('campaign_landing', { landing_mode: mode });
+      assert.deepEqual(app.events[0].properties, { campaign: `facebook|organic_social|october_free_week|${expected}`, context: mode });
+    }
+    const excluded = load({ query: `?${new URLSearchParams(labels)}`, audience: 'excluded' });
+    excluded.track('campaign_landing', { landing_mode: mode });
+    excluded.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
+    assert.equal(excluded.events.length, 0);
+    assert.equal(excluded.storage.size, 0);
+    assert.equal(excluded.timers.size, 0);
+  }
+});
+
 test('approving new creatives does not accept unknown variants or new campaign, source, and medium labels', () => {
   const approved = { utm_source: 'meta', utm_medium: 'paid_social', utm_campaign: 'september_validation', utm_content: 'car_shortlist_v1' };
   const cases = [
