@@ -32,6 +32,25 @@ const BMW_COMPONENT_CODE_ONLY = /^bmw\s+(?![135]series$)(?=[a-z0-9]{7}$)(?=[a-z0
 const bikeMakes = ["royal enfield", "harley davidson", "harley", "honda", "yamaha", "suzuki", "kawasaki", "triumph", "bmw", "ducati", "ktm", "aprilia", "lexmoto", "vespa", "piaggio", "lambretta", "benelli", "bsa", "norton", "husqvarna", "kymco", "sym", "keeway", "moto guzzi"];
 const compactBikeMake = new RegExp(`\\b(?:${bikeMakes.join("|")})(?=[a-z0-9])`, "gi");
 const EXCLUDED_BIKE_PRODUCT = /\b(?:project\s+(?:bike|motorbike|motorcycle)|mobility\s+scooter|kick\s+scooter|e[ -]?scooter|bicycle|push\s*bike|pedal\s+bike|toy\s+(?:bike|motorcycle)|balance\s+bike)\b|^(?:(?:new|used|genuine|oem|motorcycle|motorbike|bike)[\s-]+)*(?:helmets?|gloves?|jackets?|boots?|fairings?|sprockets?|chains?|sidecars?|exhausts?|fuel\s+tanks?|engines?|frames?)\b|\b(?:fairings?|sprockets?|chains?|sidecars?|exhausts?|fuel\s+tanks?|engines?|frames?)\s+(?:only|for|replacement|removed|bare|assembly)\b/i;
+const bikeComponentPattern = "gps|sat[\\s-]*nav|satellite[\\s-]+navigation|navigators?|air[\\s-]*box(?:es)?|top[\\s-]*box(?:es)?|chargers?|fuel[\\s-]*x|apes|ape[\\s-]+hangers?|handlebars?|(?:(?:heated|front|rear|pillion)[\\s-]+)+seats?|fairings?|sprockets?|chains?|sidecars?|exhausts?|exhuasts?|fuel[\\s-]+tanks?|engines?|frames?";
+const BIKE_COMPONENT_NAME = new RegExp(`\\b(?:${bikeComponentPattern})\\b`, "i");
+const BIKE_FITTED_EQUIPMENT = new RegExp(`\\b(?:with|includes?|including|replaced|rebuilt|reconditioned)\\s+(?:[a-z-]+\\s+){0,4}(?:${bikeComponentPattern})\\b|\\b(?:${bikeComponentPattern})\\s+(?:fitted|included|replaced|rebuilt|reconditioned)\\b`, "i");
+const CLEAR_CAR_IN_BIKE_CATEGORY = /\b(?:honda\s+(?:jazz|civic|accord|cr[\s-]*v|hr[\s-]*v)|suzuki\s+(?:swift|ignis|alto|jimny|vitara|sx[\s-]*4)|bmw\s+(?:[135]\s*series|[1357]\d{2}(?:i|d|e|ci|cd|ti|tds)|x[1-7]))\b/i;
+
+function isUnclearOrComponentBikeTitle(title: string) {
+  if (/\bproject\b/i.test(title) || CLEAR_CAR_IN_BIKE_CATEGORY.test(title)) return true;
+  if (/^(?:please\s+)?(?:(?:check|see|view)\s+(?:the\s+)?(?:photos|pictures)|for\s+sale|new\s+listing|item|vehicle)\s*[.!]*$/i.test(title.trim())) return true;
+  const text = normalizedBikeText(title);
+  // The provider's category also contains unrelated goods. A make/year alone
+  // describes component compatibility; require whole-bike evidence or an
+  // explicit fitted-equipment phrase. Do not whitelist makes for other titles.
+  const bikeEvidence = bikeMakes.some(make => containsCarPhrase(text, make)) ||
+    /\b(?:motorcycles?|motorbikes?|scooters?|mopeds?|pit\s*bikes?|dirt\s*bikes?|\d+\s*cc|vfr\s*\d+)\b/i.test(text);
+  // "Brand new" is normal component-advert wording, not evidence of fitting.
+  const equipmentTitle = title.replace(/\bbrand[\s-]+new\b/gi, "");
+  if (BIKE_COMPONENT_NAME.test(title) && !(bikeEvidence && (COMPLETE_CAR_EVIDENCE.test(title) || BIKE_FITTED_EQUIPMENT.test(equipmentTitle)))) return true;
+  return false;
+}
 
 function normalizedBikeText(value: string) {
   const names = value.replace(/\broyal[\s-]*enfield/gi, "Royal Enfield")
@@ -124,6 +143,7 @@ export function isUnwantedCarListing(item: EbayListing, vehicleType: VehicleType
   // mention as a component; explicit product wording runs the other way round.
   const gearboxSpecification = GEARBOX_SPECIFICATION.test(title) && /\b(?:19|20)\d{2}\b/.test(title);
   return EXCLUDED_SWAP.test(rawTitle) || EXCLUDED_SMALL_COMPONENT.test(title) || WHEEL_SET_AT_START.test(title.trim()) ||
+    (vehicleType === "motorbikes" && isUnclearOrComponentBikeTitle(title)) ||
     (vehicleType !== "motorbikes" && BMW_COMPONENT_CODE_ONLY.test(title.trim())) ||
     (BARE_ENGINE_AS_PRODUCT.test(title.trim()) && !completedBareEngineWork) ||
     EXCLUDED_BIKE_PRODUCT.test(vehicleType === "motorbikes" ? title.trim() : vehicleTitle.trim()) || (vehicleType !== "motorbikes" && MOTORCYCLE_AS_PRODUCT.test(vehicleTitle)) ||

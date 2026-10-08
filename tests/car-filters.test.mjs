@@ -60,6 +60,52 @@ test('motorbike price picks use complete-bike checks and clear purchase prices',
   assert.deepEqual(Array.from(getCarRecommendations(rows, search), result => result.item.id), ['2', '1']);
 });
 
+test('misclassified live motorbike accessories, ambiguous titles and projects cannot become cheap bikes', () => {
+  const titles = [
+    'Black GPS navigator in working condition. Garmin Nuvi 42 model.',
+    'Kawasaki GT 550 1991 Air Box- Good Condition',
+    'Check Photos',
+    '12” Apes for Softail Delux Harley Davidson',
+    'motorbike top box',
+    'kawasaki z900rs standard exhuast',
+    'Brand New FuelX Lite Euro 5+ Kit – Royal Enfield Super Meteor 650 / Shotgun 650',
+    'Sur Ron Ultra Bee QLCHG1000W Cross Bike Motor Charger 85V 12A',
+    'BMW R1300GS HEATED LOW FRONT SEAT 2023-2026.',
+    'MOT till 18-04-2027 Honda Jazz',
+    'VELOCETTE LE PROJECT BARN FIND 1950’s MK 2',
+    'Kawasaki ZZR1100 D Project',
+    'Yamaha Wr 250f Project',
+    'Vespa LML PX 125 (172 kit). Project.',
+    'Honda CBR600 engine runs and tested',
+  ];
+  const rows = titles.map((title, index) => car(index, { title, price: '250' }));
+  assert.equal(filterCarListings(rows, { vehicleType: 'motorbikes', maxPrice: '500', hideUnwanted: true }).length, 0);
+  assert.equal(getCarRecommendations(rows, createCarSearch({ ...fields, vehicleType: 'motorbikes' })).length, 0);
+  assert.equal(filterCarListings(rows, { vehicleType: 'motorbikes', hideUnwanted: false }).length, rows.length);
+});
+
+test('bike component checks preserve sparse bike names, unknown makes and explicitly fitted equipment', () => {
+  const titles = [
+    'Vfr400',
+    'pw50 yamaha',
+    '125cc Pit Bike',
+    'ZHONGNENG Model ZN 125 T-H Black Year of manufacture 2022',
+    'Gabbiano Turismo 50cc Moped',
+    'BMW R1300GS with heated low front seat',
+    'BMW 310 GS motorcycle full MOT',
+    'BMW 310R',
+    'BMW 750GS',
+    'Honda CBR600 new chain and sprockets full MOT',
+    'Royal Enfield Meteor exhaust fitted',
+    'Honda PCX 125 with topbox',
+    'Vespa PX125 with 172 tuning kit full MOT',
+  ];
+  for (const title of titles) {
+    assert.equal(filterCarListings([car(1, { title })], { vehicleType: 'motorbikes', hideUnwanted: true }).length, 1, title);
+  }
+  assert.equal(filterCarListings([car(1, { title: 'MOT till 18-04-2027 Honda Jazz' })], { vehicleType: 'cars', hideUnwanted: true }).length, 1);
+});
+
 test('budget browsing can search all makes and persist explicit filter choices', () => {
   for (const hideUnwanted of [true, false]) {
     const search = createCarSearch({ ...fields, minPrice: '1000', sort: 'price_asc', hideUnwanted });
