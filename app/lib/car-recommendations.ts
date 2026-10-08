@@ -49,7 +49,7 @@ export function getCarRecommendations(items: readonly EbayListing[], search: Sub
   const seen = new Set<string>();
   const candidates: CarRecommendation[] = [];
 
-  for (const item of filterCarListings(items, { minPrice: search.minPrice, maxPrice: search.maxPrice })) {
+  for (const item of filterCarListings(items, { minPrice: search.minPrice, maxPrice: search.maxPrice, vehicleType: search.vehicleType, ...(search.vehicleType === "motorbikes" ? { make, model } : {}) })) {
     if (typeof item.title !== "string" || item.currency !== "GBP") continue;
     const pricePence = carPriceInPence(item.price);
     if (pricePence === null || (maximum !== null && pricePence > maximum)) continue;
@@ -61,7 +61,7 @@ export function getCarRecommendations(items: readonly EbayListing[], search: Sub
       if (!Number.isFinite(end) || end <= now) continue;
     }
     const title = normalized(item.title);
-    if ((make.trim() && !makeMatches(title, make)) || (model.trim() && !containsPhrase(title, model))) continue;
+    if (search.vehicleType !== "motorbikes" && ((make.trim() && !makeMatches(title, make)) || (model.trim() && !containsPhrase(title, model)))) continue;
     if (year.trim()) {
       // The first full year in a car title is the strongest available summary
       // signal. A later MOT/service date must not stand in for the vehicle year.
@@ -69,7 +69,7 @@ export function getCarRecommendations(items: readonly EbayListing[], search: Sub
       if (firstYear !== year.trim()) continue;
     }
     if (/\b(?:19|20)\d{2}\s*[-–/]\s*(?:19|20)\d{2}\b/.test(item.title)) continue;
-    if (isUnwantedCarListing(item)) continue;
+    if (isUnwantedCarListing(item, search.vehicleType)) continue;
     const url = safeEbayListingUrl(item.url);
     if (!url) continue;
     const legacyId = new URL(url).pathname.match(/\/(\d+)\/?$/)![1];

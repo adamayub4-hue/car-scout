@@ -36,12 +36,14 @@ function MarketplaceClicksTable({ rows, caption }: { rows: OwnerTrafficMarketpla
     <thead><tr className="text-xs text-subtle">
       <th scope="col" className="py-2 pr-3 font-medium">Marketplace</th>
       <th scope="col" className="px-2 py-2 text-right font-medium">Car clicks</th>
+      <th scope="col" className="px-2 py-2 text-right font-medium">Motorbike clicks</th>
       <th scope="col" className="px-2 py-2 text-right font-medium">Part clicks</th>
       <th scope="col" className="py-2 pl-3 text-right font-medium">Total</th>
     </tr></thead>
     <tbody>{rows.map(row => <tr key={row.marketplace} className="border-t border-outline/10">
       <th scope="row" className="py-2.5 pr-3 font-medium">{OWNER_TRAFFIC_MARKETPLACE_LABELS[row.marketplace]}</th>
       <td className="px-2 py-2.5 text-right tabular-nums">{row.cars === null ? <span aria-label="Not known">—</span> : number.format(row.cars)}</td>
+      <td className="px-2 py-2.5 text-right tabular-nums">{row.marketplace === "unclassified" || row.motorbikes === null ? <span aria-label="Not known">—</span> : number.format(row.motorbikes ?? 0)}</td>
       <td className="px-2 py-2.5 text-right tabular-nums">{row.parts === null ? <span aria-label="Not known">—</span> : number.format(row.parts)}</td>
       <td className="py-2.5 pl-3 text-right font-semibold tabular-nums">{number.format(row.clicks)}</td>
     </tr>)}</tbody>
@@ -133,7 +135,7 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCus
         {[
           { label: "Visitors", value: report.visitors, detail: "Includes visitors without an account." },
           { label: "Page views", value: report.pageviews, detail: "Pages opened, including repeat views." },
-          { label: "Searches", value: report.searches, detail: "Car and parts searches made." },
+          { label: "Searches", value: report.searches, detail: "Car, motorbike and parts searches made." },
           { label: "Listing clicks", value: report.outboundClicks, detail: "Clicks through to a seller or marketplace." },
         ].map(({ label, value, detail }) => <div key={label} className="rounded-xl border border-outline/10 bg-panel p-4 sm:p-5"><p className="text-sm font-semibold text-muted">{label}</p><p className={`mt-2 font-bold ${value === null ? "text-base" : "text-3xl sm:text-4xl"}`}>{value === null ? "Unavailable" : number.format(value)}</p><p className="mt-2 text-xs leading-5 text-subtle">{detail}</p></div>)}
       </div>
@@ -142,7 +144,7 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCus
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
         <h3 className="font-bold">Where listing clicks went</h3>
         <MarketplaceClicks rows={report.marketplaceClicks} />
-        <p className="mt-3 text-xs leading-5 text-subtle">Same reporting period as the totals above. Includes links to individual listings and marketplace search results; repeated clicks are counted. Unidentified destination means older or unknown labels could not identify the marketplace; a dash means the car or part type is not known. Website actions are not eBay-credited clicks or sales, and the two services can count differently.</p>
+        <p className="mt-3 text-xs leading-5 text-subtle">Same reporting period as the totals above. Includes links to individual listings and marketplace search results; repeated clicks are counted. Unidentified destination means older or unknown labels could not identify the marketplace; a dash means the car, motorbike or part type is not known. Website actions are not eBay-credited clicks or sales, and the two services can count differently.</p>
       </div>
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
         <h3 className="font-bold">Where visitors came from</h3>

@@ -101,6 +101,17 @@ test('a listing save waits for persistence, prevents double submit, then links t
   assert.equal(app.calls.save.length, 1);
 });
 
+test('motorbike save controls show the correct labels and preserve the search subtype for persistence', async () => {
+  const app = buttonHarness();
+  const searchUrl = '/?restore=1&mode=cars&vehicle_type=motorbikes&platform=ebay';
+  app.update({ searchType: 'motorbikes', searchUrl, item: { ...listing, title: 'Honda CBR600 motorcycle' } });
+  assert.equal(text(app.button()), 'Save motorbike');
+  assert.match(app.button().props['aria-label'], /Save motorbike: Honda CBR600/);
+  app.click(); await flush();
+  assert.equal(app.calls.normalize[0][1], 'motorbikes'); assert.equal(app.calls.normalize[0][2], searchUrl);
+  assert.equal(text(app.button()), '✓ Saved motorbike');
+});
+
 test('failed or timed-out persistence shows retry without claiming success', async () => {
   let attempts = 0;
   const app = buttonHarness({ save: async () => { if (++attempts === 1) throw new Error('Request timed out'); return { id: 'existing', alreadySaved: true }; } });

@@ -1,4 +1,4 @@
-import type { CarSort, EbayListing } from "./search";
+import type { CarSort, EbayListing, VehicleType } from "./search";
 
 // Title checks are deliberately conservative; they are not a vehicle inspection
 // or a guarantee of the seller's full cash price, history or availability.
@@ -29,6 +29,26 @@ const COMPLETE_CAR_EVIDENCE = /\b(?:mot|mileage|\d[\d,]*\s+miles|fsh|full\s+serv
 // mixed part code. Require that entire sparse title; badges and car descriptions
 // must not be caught by a general alphanumeric-code heuristic.
 const BMW_COMPONENT_CODE_ONLY = /^bmw\s+(?![135]series$)(?=[a-z0-9]{7}$)(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{7}$/i;
+const bikeMakes = ["royal enfield", "harley davidson", "harley", "honda", "yamaha", "suzuki", "kawasaki", "triumph", "bmw", "ducati", "ktm", "aprilia", "lexmoto", "vespa", "piaggio", "lambretta", "benelli", "bsa", "norton", "husqvarna", "kymco", "sym", "keeway", "moto guzzi"];
+const compactBikeMake = new RegExp(`\\b(?:${bikeMakes.join("|")})(?=[a-z0-9])`, "gi");
+const EXCLUDED_BIKE_PRODUCT = /\b(?:project\s+(?:bike|motorbike|motorcycle)|mobility\s+scooter|kick\s+scooter|e[ -]?scooter|bicycle|push\s*bike|pedal\s+bike|toy\s+(?:bike|motorcycle)|balance\s+bike)\b|^(?:(?:new|used|genuine|oem|motorcycle|motorbike|bike)[\s-]+)*(?:helmets?|gloves?|jackets?|boots?|fairings?|sprockets?|chains?|sidecars?|exhausts?|fuel\s+tanks?|engines?|frames?)\b|\b(?:fairings?|sprockets?|chains?|sidecars?|exhausts?|fuel\s+tanks?|engines?|frames?)\s+(?:only|for|replacement|removed|bare|assembly)\b/i;
+
+function normalizedBikeText(value: string) {
+  const names = value.replace(/\broyal[\s-]*enfield/gi, "Royal Enfield")
+    .replace(/\bmoto[\s-]*guzzi/gi, "Moto Guzzi")
+    .replace(/\bharley[\s-]*davidson/gi, "Harley Davidson");
+  return normalizedCarText(names.replace(compactBikeMake, "$& "));
+}
+
+export function matchesMotorbikeCriteria(title: string, criteria: { make?: string; model?: string } = {}) {
+  const text = normalizedBikeText(title), make = normalizedBikeText(criteria.make || ""), model = normalizedBikeText(criteria.model || "");
+  const names = ["harley", "harley davidson"].includes(make) ? ["harley", "harley davidson"] : [make];
+  if (make && !names.some(name => containsCarPhrase(text, name))) return false;
+  const subject = text.replace(/^(?:\d{2,4}\s+)+/, "");
+  const leadingMake = bikeMakes.find(name => subject === name || subject.startsWith(`${name} `));
+  if (make && leadingMake && !names.includes(leadingMake)) return false;
+  return !model || containsCarPhrase(text, model);
+}
 
 function normalizedCarText(value: string) {
   const separated = value.replace(compactMakePrefix, (name, offset, source: string) => {
@@ -90,7 +110,7 @@ export function hasCarPurchasePrice(item: EbayListing) {
     (item.buyingOptions.includes("FIXED_PRICE") || item.buyingOptions.includes("CLASSIFIED_AD"));
 }
 
-export function isUnwantedCarListing(item: EbayListing) {
+export function isUnwantedCarListing(item: EbayListing, vehicleType: VehicleType = "cars") {
   // Dealer finance availability and part exchange are normal full-car wording.
   const rawTitle = item.title.replace(/([a-z])([A-Z])/g, "$1 $2");
   const title = rawTitle.replace(/\bpart[\s-]+exchange\b/gi, "");
@@ -104,8 +124,9 @@ export function isUnwantedCarListing(item: EbayListing) {
   // mention as a component; explicit product wording runs the other way round.
   const gearboxSpecification = GEARBOX_SPECIFICATION.test(title) && /\b(?:19|20)\d{2}\b/.test(title);
   return EXCLUDED_SWAP.test(rawTitle) || EXCLUDED_SMALL_COMPONENT.test(title) || WHEEL_SET_AT_START.test(title.trim()) ||
-    BMW_COMPONENT_CODE_ONLY.test(title.trim()) ||
-    (BARE_ENGINE_AS_PRODUCT.test(title.trim()) && !completedBareEngineWork) || MOTORCYCLE_AS_PRODUCT.test(vehicleTitle) ||
+    (vehicleType !== "motorbikes" && BMW_COMPONENT_CODE_ONLY.test(title.trim())) ||
+    (BARE_ENGINE_AS_PRODUCT.test(title.trim()) && !completedBareEngineWork) ||
+    EXCLUDED_BIKE_PRODUCT.test(vehicleType === "motorbikes" ? title.trim() : vehicleTitle.trim()) || (vehicleType !== "motorbikes" && MOTORCYCLE_AS_PRODUCT.test(vehicleTitle)) ||
     (COMPONENT_AS_PRODUCT.test(title) && !FULL_CAR_CONTEXT.test(title) && !gearboxSpecification) ||
     EXCLUDED_OFFER.test(title) || EXCLUDED_PART.test(title) || EXCLUDED_COMPONENT.test(title) || COMPONENT_AT_START.test(title.trim()) ||
     (REGISTRATION_AT_START.test(title.trim()) && !/\b(?:plates?|registration)\s+included\b/i.test(title)) ||
@@ -115,6 +136,7 @@ export function isUnwantedCarListing(item: EbayListing) {
 }
 
 export type CarListingFilters = {
+  vehicleType?: VehicleType;
   make?: string;
   model?: string;
   hideUnwanted?: boolean;
@@ -133,8 +155,8 @@ export function filterCarListings(items: readonly EbayListing[], filters: CarLis
   // Rank the returned cards by their displayed asking price. This only covers
   // the returned batch, not every eBay listing or other marketplaces.
   const filtered = items.filter(item => {
-    if (!matchesCarCriteria(item.title, filters)) return false;
-    if (filters.hideUnwanted && isUnwantedCarListing(item)) return false;
+    if (!(filters.vehicleType === "motorbikes" ? matchesMotorbikeCriteria(item.title, filters) : matchesCarCriteria(item.title, filters))) return false;
+    if (filters.hideUnwanted && isUnwantedCarListing(item, filters.vehicleType)) return false;
     if (priceSort || minimum !== null || maximum !== null) {
       const price = carPriceInPence(item.price);
       if (item.currency !== "GBP" || price === null) return false;

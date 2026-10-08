@@ -23,6 +23,43 @@ const fields = { make: '', model: '', year: '', price: '5000', postcode: '', pla
 const car = (id, changes = {}) => ({ id: String(id), title: '2018 Ford Fiesta', url: `https://www.ebay.co.uk/itm/12345678900${id}`, image: null, price: '2500', currency: 'GBP', condition: 'Used', location: 'UK', buyingOptions: ['FIXED_PRICE'], ...changes });
 const ids = rows => Array.from(rows, row => row.id);
 
+test('motorbike filters retain complete bikes and scooters but exclude repair, part and bid adverts', () => {
+  const rows = [
+    ['Honda CBR125 motorcycle full MOT', '450', ['FIXED_PRICE']],
+    ['Vespa Primavera scooter full MOT', '500', ['CLASSIFIED_AD']],
+    ['Honda CBR125 fairing replacement', '50', ['FIXED_PRICE']],
+    ['Yamaha motorbike spares repairs', '99', ['FIXED_PRICE']],
+    ['Honda CBR125 deposit', '199', ['FIXED_PRICE']],
+    ['Honda CBR125 motorcycle', '99', ['AUCTION']],
+    ['Honda CBR125 motorcycle', '501', ['FIXED_PRICE']],
+    ['Mobility scooter', '200', ['FIXED_PRICE']],
+  ].map(([title, price, buyingOptions], index) => car(index + 1, { title, price, buyingOptions }));
+  assert.deepEqual(ids(filterCarListings(rows, { vehicleType: 'motorbikes', maxPrice: '500', sort: 'price_asc', hideUnwanted: true })), ['1', '2']);
+  assert.deepEqual(ids(filterCarListings(rows, { maxPrice: '500', sort: 'price_asc', hideUnwanted: true })), []);
+});
+
+test('motorbike make/model checks handle compact badges, separate brands and preserve car behaviour', () => {
+  const rows = ['HondaCBR125 motorcycle MOT', 'Honda CBR 125 motorcycle', 'Yamaha MT-07 Honda CBR125 alternative', 'Honda CB125F motorcycle'].map((title, index) => car(index + 1, { title, price: '1000' }));
+  assert.deepEqual(ids(filterCarListings(rows, { vehicleType: 'motorbikes', make: 'Honda', model: 'CBR125', hideUnwanted: true })), ['1', '2']);
+  const yamaha = car(5, { title: 'YamahaMT07 motorcycle MOT' });
+  assert.equal(filterCarListings([yamaha], { vehicleType: 'motorbikes', make: 'Yamaha', model: 'MT-07', hideUnwanted: true }).length, 1);
+  assert.equal(filterCarListings([car(6, { title: 'BMW R1200GS' })], { vehicleType: 'motorbikes', make: 'BMW', model: 'R1200GS', hideUnwanted: true }).length, 1, 'BMW motorbike badges must not trigger car part-code checks');
+  for (const [make, model, title] of [['Royal Enfield', 'Meteor 350', 'RoyalEnfield Meteor 350 motorcycle'], ['Moto Guzzi', 'V7', 'MotoGuzzi V7 motorcycle'], ['Harley Davidson', 'Sportster', 'HarleyDavidson Sportster motorcycle']]) {
+    assert.equal(filterCarListings([car(7, { title })], { vehicleType: 'motorbikes', make, model, hideUnwanted: true }).length, 1, title);
+  }
+});
+
+test('motorbike price picks use complete-bike checks and clear purchase prices', () => {
+  const search = createCarSearch({ ...fields, vehicleType: 'motorbikes', make: 'Honda', model: 'CBR125', price: '1000' });
+  const rows = [
+    car(1, { title: 'Honda CBR125 motorcycle full MOT', price: '900' }),
+    car(2, { title: 'Honda CBR125 motorcycle full MOT', price: '750' }),
+    car(3, { title: 'Honda CBR125 spares repairs', price: '100' }),
+    car(4, { title: 'Honda CBR125 motorcycle', price: '50', buyingOptions: ['AUCTION'] }),
+  ];
+  assert.deepEqual(Array.from(getCarRecommendations(rows, search), result => result.item.id), ['2', '1']);
+});
+
 test('budget browsing can search all makes and persist explicit filter choices', () => {
   for (const hideUnwanted of [true, false]) {
     const search = createCarSearch({ ...fields, minPrice: '1000', sort: 'price_asc', hideUnwanted });

@@ -169,8 +169,8 @@ function parseAppUsage(payload: unknown): OwnerTrafficAppUsage {
 }
 
 function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; marketplaces: OwnerTrafficMarketplaceRow[]; total: number } {
-  const summary = { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 };
-  const marketplaces = OWNER_TRAFFIC_MARKETPLACES.map(marketplace => ({ marketplace, cars: 0, parts: 0, clicks: 0 }));
+  const summary: OwnerTrafficClicks = { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 };
+  const marketplaces: { marketplace: typeof OWNER_TRAFFIC_MARKETPLACES[number]; cars: number; parts: number; motorbikes?: number; clicks: number }[] = OWNER_TRAFFIC_MARKETPLACES.map(marketplace => ({ marketplace, cars: 0, parts: 0, clicks: 0 }));
   const marketplaceRows = new Map<string, (typeof marketplaces)[number]>(marketplaces.map(row => [row.marketplace, row]));
   let total = 0;
   const seen = new Set<string | null>();
@@ -187,15 +187,16 @@ function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; mar
       seen.add(context as string | null);
       const parts = typeof context === "string" ? context.split(":") : [];
       const [type, marketplace, destination] = parts;
-      const known = parts.length === 3 && ["cars", "parts"].includes(type) && ["listing", "search_results", "all_results"].includes(destination);
+      const known = parts.length === 3 && ["cars", "motorbikes", "parts"].includes(type) && ["listing", "search_results", "all_results"].includes(destination);
       const clicks = count(row.count);
       total = count(total + clicks);
       const marketplaceRow = known ? marketplaceRows.get(marketplace) : undefined;
-      const group = marketplaceRow && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : "ebayParts")
+      const group = marketplaceRow && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : type === "motorbikes" ? "ebayMotorbikes" : "ebayParts")
         : marketplaceRow ? "otherMarketplaces" : "unclassified";
-      summary[group] = count(summary[group] + clicks);
+      summary[group] = count((summary[group] ?? 0) + clicks);
       if (marketplaceRow) {
-        marketplaceRow[type as "cars" | "parts"] = count(marketplaceRow[type as "cars" | "parts"] + clicks);
+        const vehicleType = type as "cars" | "motorbikes" | "parts";
+        marketplaceRow[vehicleType] = count((marketplaceRow[vehicleType] ?? 0) + clicks);
         marketplaceRow.clicks = count(marketplaceRow.clicks + clicks);
       }
     } catch (error) { throw parseFailure(error); }

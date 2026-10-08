@@ -180,7 +180,7 @@ for (const name of ['handleCarSearch', 'handlePartsSearch', 'handlePartNumberSea
     const searches = [], events = [];
     let revision = 7;
     const ctx = {
-      make: 'Audi', model: 'A3', year: '2018', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all',
+      vehicleType: 'cars', make: 'Audi', model: 'A3', year: '2018', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all',
       vehicleReady: true, vehicleLabel: '2018 Audi A3', engine: '', fuel: '', bodyStyle: '',
       part: 'oil filter', partCategory: '', partNumber: '06J115403Q', partMethod: 'search',
       setError() {}, setShowResults() {}, setPartNumber() {}, setPartMethod() {}, setPartCategory() {}, setPart() {},
@@ -211,7 +211,7 @@ test('external marketplace opens in the click turn despite stalled analytics', a
   let revision = 20;
   let searchInfo = { checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true };
   const pending = handler('handleCarSearch', {
-    make: 'Audi', model: 'A3', year: '', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'autotrader',
+    vehicleType: 'cars', make: 'Audi', model: 'A3', year: '', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'autotrader',
     trackGrowthEvent() {},
     ...searchHelpers, setSubmittedSearch() {}, ebayRequest: { current: { id: 0, controller: null } }, setEbayLoading() {},
     setCarSearchInfo(value) { searchInfo = value; },

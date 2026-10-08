@@ -61,7 +61,7 @@ function choice(value: unknown, allowed: readonly string[]) {
 }
 
 function eventContext(name: string, properties: EventProperties) {
-  const type = choice(properties.search_type, ["cars", "parts"]);
+  const type = choice(properties.search_type, ["cars", "motorbikes", "parts"]);
   const method = choice(properties.search_method, searchMethods);
   const marketplace = choice(properties.marketplace, marketplaces);
   switch (name) {
@@ -72,11 +72,11 @@ function eventContext(name: string, properties: EventProperties) {
     case "app_install":
       return "confirmed";
     case "campaign_landing":
-      return choice(properties.landing_mode, ["cars", "parts"]);
+      return choice(properties.landing_mode, ["cars", "motorbikes", "parts"]);
     case "vehicle_lookup_success":
       return `parts:${properties.has_model === true ? "model_found" : "model_missing"}`;
     case "search_submitted":
-      return `${type}:${type === "cars" ? marketplace : method}`;
+      return `${type}:${type === "cars" || type === "motorbikes" ? marketplace : method}`;
     case "results_shown":
     case "results_empty":
       return `${type}:${properties.result_kind === "marketplace_links" ? "marketplace_links" : method}`;

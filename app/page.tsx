@@ -11,7 +11,7 @@ import { parseSavedSearchParams } from "./lib/saved-search";
 import PartSearchResults from "./components/part-search-results";
 import CarSearchResults, { type CarSearchInfo } from "./components/car-search-results";
 import InstallMekivo from "./components/install-mekivo";
-import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type EbayListing } from "./lib/search";
+import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type VehicleType, type EbayListing } from "./lib/search";
 import { filterCarListings } from "./lib/car-filters";
 import AppearanceControl from "./components/appearance";
 import { getSupabaseBrowserClient } from "./lib/supabase";
@@ -74,6 +74,8 @@ const makes = {
   Vauxhall: ["Astra", "Corsa", "Crossland", "Grandland", "Mokka"],
 } as const;
 
+const motorbikeMakes = ["Honda", "Yamaha", "Suzuki", "Kawasaki", "Triumph", "BMW", "Ducati", "KTM", "Aprilia", "Lexmoto", "Vespa"];
+
 const platformNames: Record<Platform, string> = {
   all: "all marketplaces",
   more: "more marketplaces",
@@ -102,6 +104,7 @@ const fieldClass =
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>("cars");
+  const [vehicleType, setVehicleType] = useState<VehicleType>("cars");
   const [platform, setPlatform] = useState<Platform>("all");
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
@@ -130,6 +133,7 @@ export default function Home() {
   const guideRef = useRef<HTMLDivElement>(null);
   const guideLandingPending = useRef(false);
   const ebayRequest = useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
+  const vehicleLookupRequest = useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
   const vehicleFieldsRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const carSearchFormRef = useRef<HTMLElement>(null);
@@ -143,15 +147,18 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const saved = parseSavedSearchParams(params);
     const landingMode = saved?.mode || (params.get("mode") === "parts" ? "parts" : "cars");
+    const landingVehicleType = landingMode === "cars" && (saved?.vehicleType === "motorbikes" || params.get("vehicle_type") === "motorbikes") ? "motorbikes" : "cars";
     const guideCampaign = ["visual_guide", "visual_guide_v2"].includes(params.get("utm_content") || "");
     guideLandingPending.current = !saved && landingMode === "parts" && (params.get("guide") === "1" || guideCampaign);
-    if (["utm_source", "utm_medium", "utm_campaign", "utm_content"].some(key => params.has(key))) trackGrowthEvent("campaign_landing", { landing_mode: landingMode });
+    if (["utm_source", "utm_medium", "utm_campaign", "utm_content"].some(key => params.has(key))) trackGrowthEvent("campaign_landing", { landing_mode: landingMode === "cars" ? landingVehicleType : landingMode });
     const frame = window.requestAnimationFrame(() => {
       setMode(landingMode);
+      setVehicleType(landingVehicleType);
+      if (landingVehicleType === "motorbikes") setPlatform("ebay");
       if (guideLandingPending.current) setPartMethod("diagram");
       if (saved) {
         setMake(saved.make); setModel(saved.model); setYear(saved.year);
-        setPrice(saved.price); setPostcode(saved.postcode); setPlatform(saved.platform as Platform);
+        setPrice(saved.price); setPostcode(saved.postcode); setPlatform(landingVehicleType === "motorbikes" ? "ebay" : saved.platform as Platform);
         setMinPrice(saved.minPrice || ""); setCarSort(saved.sort || "best_match"); setHideUnwanted(saved.hideUnwanted ?? false);
         setEngine(saved.engine); setFuel(saved.fuel); setBodyStyle(saved.bodyStyle);
         const selection = validatedPartSelection(saved.partCategory, saved.part, saved.partMethod, saved.fuel);
@@ -160,7 +167,8 @@ export default function Home() {
       }
     });
     const request = ebayRequest.current;
-    return () => { window.cancelAnimationFrame(frame); request.id += 1; request.controller?.abort(); };
+    const lookupRequest = vehicleLookupRequest.current;
+    return () => { window.cancelAnimationFrame(frame); request.id += 1; request.controller?.abort(); lookupRequest.id += 1; lookupRequest.controller?.abort(); };
   }, []);
 
   useEffect(() => {
@@ -204,6 +212,10 @@ export default function Home() {
       return;
     }
 
+    vehicleLookupRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const requestId = ++vehicleLookupRequest.current.id;
+    vehicleLookupRequest.current.controller = controller;
     setVehicleLookupLoading(true);
     setVehicleLookup(null);
     setError("");
@@ -212,9 +224,12 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ registrationNumber: cleanedRegistration }),
+        signal: controller.signal,
       });
+      if (requestId !== vehicleLookupRequest.current.id) return;
       if (response.status === 429) throw new Error("Too many registration lookups. Please wait a minute, then try again.");
       const payload = (await response.json()) as { vehicle?: VehicleLookup; error?: string };
+      if (requestId !== vehicleLookupRequest.current.id) return;
       if (!response.ok || !payload.vehicle) throw new Error(payload.error || "We could not identify that vehicle.");
 
       const vehicle = payload.vehicle;
@@ -232,16 +247,29 @@ export default function Home() {
       trackGrowthEvent("vehicle_lookup_success", { has_model: Boolean(vehicle.model) });
       void trackActivity("vehicle_lookup", { usedRegistration: true, make: vehicle.make, year: vehicle.yearOfManufacture });
     } catch (lookupError) {
+      if (requestId !== vehicleLookupRequest.current.id) return;
       setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
     } finally {
-      setVehicleLookupLoading(false);
+      if (requestId === vehicleLookupRequest.current.id) setVehicleLookupLoading(false);
     }
   };
 
-  const setAppMode = (nextMode: Mode) => {
+  const setAppMode = (nextMode: Mode, nextVehicleType: VehicleType = "cars") => {
     setMode(nextMode);
+    setVehicleType(nextMode === "cars" ? nextVehicleType : "cars");
+    setPlatform(nextMode === "cars" && nextVehicleType === "motorbikes" ? "ebay" : "all");
+    setMake(""); setModel(""); setYear("");
+    setEngine(""); setFuel(""); setBodyStyle("");
+    setRegistration(""); setVehicleLookup(null);
+    setPartMethod(""); setPartCategory(""); setPart(""); setPartNumber("");
+    setVehicleDetailsOpen(false);
+    setSubmittedSearch(null);
+    setRestoredSearch(false);
     ebayRequest.current.id += 1;
     ebayRequest.current.controller?.abort();
+    vehicleLookupRequest.current.id += 1;
+    vehicleLookupRequest.current.controller?.abort();
+    setVehicleLookupLoading(false);
     setEbayLoading(false);
     setShowResults(false);
     setError("");
@@ -250,6 +278,8 @@ export default function Home() {
     setCarSearchInfo(null);
   };
 
+  const isMotorbikes = mode === "cars" && vehicleType === "motorbikes";
+  const vehiclePlural = isMotorbikes ? "motorbikes" : "cars";
   const vehicleReady = Boolean(make && model && year);
   const vehicleLabel = [year, make, model, engine, fuel, bodyStyle].filter(Boolean).join(" ");
   const electricOnly = /^electric/i.test(fuel.trim());
@@ -269,11 +299,12 @@ export default function Home() {
     ebayRequest.current.controller = controller;
     setEbayLoading(true); setEbayError(""); setEbayItems([]); setCarSearchInfo(null);
     const timeout = setTimeout(() => controller.abort(new Error("Search timed out")), 20000);
-    const eventProperties = { search_type: search.mode, search_method: search.searchMethod };
+    const eventProperties = { search_type: search.mode === "cars" && search.vehicleType === "motorbikes" ? "motorbikes" : search.mode, search_method: search.searchMethod };
     try {
       const params = new URLSearchParams({ type: search.mode, q: search.query });
       if (search.maxPrice) params.set("maxPrice", search.maxPrice);
       if (search.mode === "cars") {
+        if (search.vehicleType === "motorbikes") params.set("vehicleType", "motorbikes");
         if (search.minPrice) params.set("minPrice", search.minPrice);
         if (search.carSort) params.set("sort", search.carSort);
         params.set("hideUnwanted", search.hideUnwanted ? "1" : "0");
@@ -286,7 +317,7 @@ export default function Home() {
       if (controller.signal.aborted) throw new Error("Search timed out");
       if (requestId !== ebayRequest.current.id) return;
       if (!response.ok) throw new Error(payload.error || "Live eBay results are unavailable.");
-      const items = search.mode === "cars" ? filterCarListings(payload.items ?? [], { minPrice: search.minPrice, maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted, make: search.carCriteria?.make, model: search.carCriteria?.model }) : payload.items ?? [];
+      const items = search.mode === "cars" ? filterCarListings(payload.items ?? [], { vehicleType: search.vehicleType, minPrice: search.minPrice, maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted, make: search.carCriteria?.make, model: search.carCriteria?.model }) : payload.items ?? [];
       setEbayItems(items);
       setCarSearchInfo(search.mode === "cars" ? payload.searchInfo ?? null : null);
       trackGrowthEvent(items.length ? "results_shown" : "results_empty", { ...eventProperties, result_count: items.length });
@@ -301,6 +332,8 @@ export default function Home() {
   };
 
   const handleCarSearch = async () => {
+    const submittedVehicleType = vehicleType;
+    const searchPlatform = submittedVehicleType === "motorbikes" ? "ebay" : platform;
     if ((price && (!/^\d+$/.test(price) || Number(price) <= 0 || Number(price) > 100_000_000)) || (minPrice && (!/^\d+$/.test(minPrice) || Number(minPrice) > 100_000_000))) {
       setError("Enter a valid price in pounds.");
       return;
@@ -309,26 +342,26 @@ export default function Home() {
       setError("Minimum price must not be higher than your maximum price.");
       return;
     }
-    if (postcode.trim() && !isValidPostcode(postcode)) {
+    if (submittedVehicleType !== "motorbikes" && postcode.trim() && !isValidPostcode(postcode)) {
       setError("Enter a valid UK postcode, for example B1 1AA.");
       return;
     }
     setError("");
-    const search = createCarSearch({ make: make.trim(), model: model.trim(), year, price, minPrice, sort: carSort, hideUnwanted, postcode, platform });
+    const search = createCarSearch({ make: make.trim(), model: model.trim(), year, price, minPrice, sort: carSort, hideUnwanted, postcode: submittedVehicleType === "motorbikes" ? "" : postcode, platform: searchPlatform, vehicleType: submittedVehicleType });
     setCarSearchRevision(revision => revision + 1);
     setSubmittedSearch(search);
     setShowResults(true);
-    trackGrowthEvent("search_submitted", { search_type: "cars", marketplace: platform, has_model: Boolean(model), has_year: Boolean(year), has_price: Boolean(price), has_postcode: Boolean(postcode) });
-    void trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: Boolean(postcode), platform });
-    if (platform === "all" || platform === "ebay") {
+    trackGrowthEvent("search_submitted", { search_type: submittedVehicleType, marketplace: searchPlatform, has_model: Boolean(model), has_year: Boolean(year), has_price: Boolean(price), has_postcode: submittedVehicleType !== "motorbikes" && Boolean(postcode) });
+    void trackActivity("car_search", { make, model, year, price: Boolean(price), postcode: submittedVehicleType !== "motorbikes" && Boolean(postcode), platform: searchPlatform, vehicleType: submittedVehicleType });
+    if (searchPlatform === "all" || searchPlatform === "ebay") {
       void searchEbay(search);
     } else {
       ebayRequest.current.id += 1; ebayRequest.current.controller?.abort(); setEbayLoading(false); setCarSearchInfo(null);
-      trackGrowthEvent("results_shown", { search_type: "cars", result_kind: "marketplace_links" });
+      trackGrowthEvent("results_shown", { search_type: submittedVehicleType, result_kind: "marketplace_links" });
     }
-    if (platform !== "all" && platform !== "more" && platform !== "ebay") {
-      trackGrowthEvent("marketplace_outbound", { marketplace: platform, search_type: "cars", destination: "search_results" });
-      window.open(search.carLinks![platform], "_blank", "noopener,noreferrer");
+    if (searchPlatform !== "all" && searchPlatform !== "more" && searchPlatform !== "ebay") {
+      trackGrowthEvent("marketplace_outbound", { marketplace: searchPlatform, search_type: submittedVehicleType, destination: "search_results" });
+      window.open(search.carLinks![searchPlatform], "_blank", "noopener,noreferrer");
     }
   };
 
@@ -340,6 +373,7 @@ export default function Home() {
       price: submittedSearch.maxPrice || "", minPrice: submittedSearch.minPrice || "", sort,
       hideUnwanted: submittedSearch.hideUnwanted,
       postcode: String(submittedSearch.saveItem.data.postcode || ""), platform: submittedSearch.platform,
+      vehicleType: submittedSearch.vehicleType,
     });
     setCarSort(sort); setSubmittedSearch(search);
     void searchEbay(search);
@@ -401,7 +435,7 @@ export default function Home() {
             <span>
               <strong className="block text-xl tracking-tight">Mekivo</strong>
               <span className="text-xs text-muted">
-                UK car &amp; parts search
+                UK cars, motorbikes &amp; parts
               </span>
             </span>
           </button>
@@ -417,7 +451,7 @@ export default function Home() {
             One search. More places.
           </p>
           <h1 className="text-balance text-3xl font-bold tracking-[-0.035em] sm:text-5xl">
-            Find your next car—or the right part.
+            Find your next car, motorbike or part.
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-pretty text-sm leading-6 text-muted sm:text-base">
             Start your search here. Compare marketplaces and open the original listings.
@@ -426,20 +460,24 @@ export default function Home() {
 
         <InstallMekivo />
 
-        <div className="mx-auto mb-3 grid max-w-md grid-cols-2 rounded-2xl border border-outline/10 bg-overlay/[0.05] p-1.5 shadow-2xl shadow-black/20">
-          {(["cars", "parts"] as const).map((item) => (
+        <div className="mx-auto mb-3 grid max-w-lg grid-cols-3 rounded-2xl border border-outline/10 bg-overlay/[0.05] p-1.5 shadow-2xl shadow-black/20">
+          {(["cars", "motorbikes", "parts"] as const).map((item) => (
             <button
               key={item}
               type="button"
-              aria-pressed={mode === item}
-              onClick={() => setAppMode(item)}
-              className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
-                mode === item
+              aria-pressed={item === "parts" ? mode === "parts" : mode === "cars" && vehicleType === item}
+              onClick={() => {
+                if (item === "parts" ? mode !== "parts" : mode !== "cars" || vehicleType !== item) {
+                  setAppMode(item === "parts" ? "parts" : "cars", item === "motorbikes" ? "motorbikes" : "cars");
+                }
+              }}
+              className={`min-h-11 rounded-xl px-2 py-3 text-xs font-semibold transition sm:px-4 sm:text-sm ${
+                (item === "parts" ? mode === "parts" : mode === "cars" && vehicleType === item)
                   ? "bg-white text-slate-950 shadow-lg"
                   : "text-muted hover:text-foreground"
               }`}
             >
-              {item === "cars" ? "Find cars" : "Find parts"}
+              {item === "cars" ? "Find cars" : item === "motorbikes" ? "Find motorbikes" : "Find parts"}
             </button>
           ))}
         </div>
@@ -452,9 +490,9 @@ export default function Home() {
           <ol className="mt-4 grid gap-3 sm:grid-cols-3">
             {(mode === "cars"
               ? [
-                  ["1", "Choose where to search", "Not sure? Leave All platforms selected."],
+                  ["1", isMotorbikes ? "Search eBay motorbikes" : "Choose where to search", isMotorbikes ? "Browse live motorbike listings from eBay." : "Not sure? Leave All platforms selected."],
                   ["2", "Enter what you know", "Choose a budget, or add a make and model to narrow it down."],
-                  ["3", "Browse your results", "Press Search to browse eBay cars here, or open another site."],
+                  ["3", "Browse your results", isMotorbikes ? "Press Search to browse live motorbikes and price picks." : "Press Search to browse eBay cars here, or open another site."],
                 ]
               : [
                   ["1", "Identify the vehicle", "Use the registration, or enter the make, model and year."],
@@ -477,7 +515,7 @@ export default function Home() {
         <section ref={carSearchFormRef} tabIndex={-1} className="mx-auto max-w-4xl scroll-mt-4 rounded-2xl border border-outline/10 bg-panel/95 p-4 shadow-xl shadow-black/15 sm:p-6">
           {mode === "cars" ? (
             <>
-              <details className="mb-4 rounded-xl border border-outline/10 p-3">
+              {isMotorbikes ? <p className="mb-4 rounded-xl border border-outline/10 p-3 text-sm text-muted">Motorbike searches use live eBay listings. Set your budget below, then add a make or model if you wish.</p> : <details className="mb-4 rounded-xl border border-outline/10 p-3">
                 <summary className="cursor-pointer text-sm font-semibold text-foreground">Search: {platformNames[platform]} · Change</summary>
                 <p className="mt-1 text-xs leading-5 text-muted">Choose one marketplace, or keep All platforms selected for the widest search.</p>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -502,11 +540,11 @@ export default function Home() {
                     ),
                   )}
                 </div>
-              </details>
+              </details>}
               <div className="mb-4 rounded-2xl border border-sky-400/25 bg-sky-400/[0.055] p-4">
-                <h2 className="text-base font-bold">Find cars within your budget</h2>
-                <p id="car-budget-help" className="mt-1 text-sm leading-6 text-muted">Enter £500 to see cars priced at £500 or less. Leave make, model and year blank to browse any car.</p>
-                <div className="mt-3 flex flex-wrap gap-2" aria-label="Quick car budgets">
+                <h2 className="text-base font-bold">Find {vehiclePlural} within your budget</h2>
+                <p id="car-budget-help" className="mt-1 text-sm leading-6 text-muted">Enter £500 to see {vehiclePlural} priced at £500 or less. Leave make, model and year blank to browse any {isMotorbikes ? "motorbike" : "car"}.</p>
+                <div className="mt-3 flex flex-wrap gap-2" aria-label={isMotorbikes ? "Quick motorbike budgets" : "Quick car budgets"}>
                   {[500, 1000, 2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && !minPrice && carSort === "price_asc"}
                     onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }}
                     className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5 aria-pressed:border-sky-400/60 aria-pressed:bg-sky-400/10">Up to £{amount.toLocaleString("en-GB")}</button>)}
@@ -532,7 +570,7 @@ export default function Home() {
                   </label>
                 </div>
                 <button type="button"
-                  onClick={() => { setMake(""); setModel(""); setYear(""); setMinPrice(""); setPlatform("all"); setCarSort("price_asc"); setHideUnwanted(true); setShowResults(false); setError(""); }}
+                  onClick={() => { setMake(""); setModel(""); setYear(""); setMinPrice(""); setPlatform(isMotorbikes ? "ebay" : "all"); setCarSort("price_asc"); setHideUnwanted(true); setShowResults(false); setError(""); }}
                   className="mt-3 min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5">Use any make and year within this budget</button>
               </div>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -549,11 +587,11 @@ export default function Home() {
                     placeholder="Any make"
                     className={fieldClass}
                   />
-                  <datalist id="car-make-options">{Object.keys(makes).map((item) => <option key={item} value={item} />)}</datalist>
+                  <datalist id="car-make-options">{(isMotorbikes ? motorbikeMakes : Object.keys(makes)).map((item) => <option key={item} value={item} />)}</datalist>
                 </label>
                 <label className="text-sm text-muted">
                   <span className="mb-2 block">Model <span className="text-subtle">(optional)</span></span>
-                  <input value={model} onChange={(event) => { setModel(event.target.value); setShowResults(false); }} placeholder="e.g. 3 Series" className={fieldClass} />
+                  <input value={model} onChange={(event) => { setModel(event.target.value); setShowResults(false); }} placeholder={isMotorbikes ? "e.g. CBR600F or MT-07" : "e.g. 3 Series"} className={fieldClass} />
                 </label>
                 <label className="text-sm text-muted">
                   <span className="mb-2 block">Year <span className="text-subtle">(optional)</span></span>
@@ -562,7 +600,7 @@ export default function Home() {
                     {years.map((item) => <option key={item}>{item}</option>)}
                   </select>
                 </label>
-                <label className="text-sm text-muted">
+                {!isMotorbikes && <label className="text-sm text-muted">
                   <span className="mb-2 block">Postcode</span>
                   <input
                     value={postcode}
@@ -573,21 +611,21 @@ export default function Home() {
                     placeholder="B1 1AA"
                     className={fieldClass}
                   />
-                </label>
+                </label>}
               </div>
               <div className="mt-3 rounded-2xl border border-outline/10 bg-overlay/[0.025] p-4">
                 <div className="grid gap-4 sm:grid-cols-2 sm:items-center">
-                  <label className="text-sm text-muted"><span className="mb-2 block">Sort live cars</span>
+                  <label className="text-sm text-muted"><span className="mb-2 block">Sort live {vehiclePlural}</span>
                     <select value={carSort} onChange={event => { setCarSort(event.target.value as typeof carSort); setShowResults(false); }} className={fieldClass}>
                       <option value="price_asc">Lowest price first</option><option value="price_desc">Highest price first</option><option value="newest">Newly listed</option><option value="best_match">Best match</option>
                     </select>
                   </label>
                   <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm text-muted">
                     <input type="checkbox" checked={hideUnwanted} onChange={event => { setHideUnwanted(event.target.checked); setShowResults(false); }} className="mt-1 h-5 w-5 shrink-0 accent-sky-400" />
-                    <span><strong className="block font-semibold text-foreground">Hide parts, repair and deposit adverts</strong><span className="mt-1 block text-xs leading-5">Checks listing titles and condition. It cannot confirm a car’s history or roadworthiness.</span></span>
+                    <span><strong className="block font-semibold text-foreground">Hide parts, repair and deposit adverts</strong><span className="mt-1 block text-xs leading-5">Checks listing titles and condition. It cannot confirm a {isMotorbikes ? "motorbike’s" : "car’s"} history or roadworthiness.</span></span>
                   </label>
                 </div>
-                <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. Other sites may need their filters set again. Postcode is passed to other sites; it does not limit distance here.</p>
+                <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. {isMotorbikes ? "Results include listings located in the UK; distance is not filtered here." : "Other sites may need their filters set again. Postcode is passed to other sites; it does not limit distance here."}</p>
               </div>
               {error && (
                 <p role="alert" className="mt-4 text-sm text-danger">
@@ -599,9 +637,9 @@ export default function Home() {
                 onClick={handleCarSearch}
                 className="mt-5 w-full rounded-2xl bg-sky-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition hover:bg-sky-300"
               >
-                Search {platformNames[platform]}
+                {isMotorbikes ? "Search eBay motorbikes" : `Search ${platformNames[platform]}`}
               </button>
-              <p className="mt-3 text-center text-xs leading-5 text-muted">Browse live eBay cars here, or open your search on another marketplace.</p>
+              <p className="mt-3 text-center text-xs leading-5 text-muted">{isMotorbikes ? "Browse live eBay motorbikes here and open the original listing to check every detail." : "Browse live eBay cars here, or open your search on another marketplace."}</p>
             </>
           ) : (
             <>
@@ -905,7 +943,7 @@ export default function Home() {
         </section>
 
         {showResults && submittedSearch?.mode === "cars" && mode === "cars" && (
-          <section ref={resultsRef} tabIndex={-1} aria-label={`Car results for ${submittedSearch.title}`} className="mx-auto mt-6 max-w-4xl scroll-mt-3 outline-none">
+          <section ref={resultsRef} tabIndex={-1} aria-label={`${submittedSearch.vehicleType === "motorbikes" ? "Motorbike" : "Car"} results for ${submittedSearch.title}`} className="mx-auto mt-6 max-w-4xl scroll-mt-3 outline-none">
             <CarSearchResults key={carSearchRevision} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError} searchInfo={carSearchInfo}
               onSortChange={handleCarSortChange}
               onRetry={() => void searchEbay(submittedSearch)}

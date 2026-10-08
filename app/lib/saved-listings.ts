@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeEbayListingUrl } from "./car-recommendations";
-import { parseSavedSearchParams, safeSearchReturnUrl, withRequestDeadline } from "./saved-search";
-import { safeListingImage, type EbayListing, type Mode } from "./search";
+import { getSavedSearchUrl, parseSavedSearchParams, safeSearchReturnUrl, withRequestDeadline } from "./saved-search";
+import { safeListingImage, type EbayListing, type SearchType } from "./search";
 
 export type SavedListingData = {
   version: 1;
@@ -85,11 +85,29 @@ export function parseSavedListing(value: unknown): SavedListingItem | null {
   };
 }
 
-export function createSavedListing(item: EbayListing, mode: Mode, searchUrl?: string): SavedListingItem | null {
-  if (!item || (mode !== "cars" && mode !== "parts")) return null;
+export function createSavedListing(item: EbayListing, searchType: SearchType, searchUrl?: string): SavedListingItem | null {
+  if (!item || (searchType !== "cars" && searchType !== "motorbikes" && searchType !== "parts")) return null;
   const identity = listingIdentity(item.url, item.id);
   if (!identity) return null;
-  return parseSavedListing({ kind: mode === "cars" ? "car_listing" : "part_listing", title: item.title, data: { ...item, ...identity, version: 1, searchUrl } });
+  if (searchType === "motorbikes") {
+    const safe = safeSearchReturnUrl(searchUrl || null);
+    const restored = safe ? parseSavedSearchParams(new URL(safe, "https://mekivo.uk").searchParams) : null;
+    searchUrl = getSavedSearchUrl({ kind: "car_search", title: "Motorbike search", data: { ...(restored?.mode === "cars" ? restored : {}), vehicleType: "motorbikes", platform: "ebay" } });
+  }
+  return parseSavedListing({ kind: searchType === "parts" ? "part_listing" : "car_listing", title: item.title, data: { ...item, ...identity, version: 1, searchUrl } });
+}
+
+export function savedListingSearchType(item: SavedListingItem): SearchType {
+  if (item.kind === "part_listing") return "parts";
+  try {
+    const search = parseSavedSearchParams(new URL(item.data.searchUrl, "https://mekivo.uk").searchParams);
+    return search?.vehicleType === "motorbikes" ? "motorbikes" : "cars";
+  } catch { return "cars"; }
+}
+
+export function savedListingLabel(item: SavedListingItem): "car" | "motorbike" | "part" {
+  const type = savedListingSearchType(item);
+  return type === "motorbikes" ? "motorbike" : type === "cars" ? "car" : "part";
 }
 
 function bookmark(item: SavedListingItem) {
@@ -97,7 +115,7 @@ function bookmark(item: SavedListingItem) {
   const context = search ? [search.year, search.make, search.model, ...(item.kind === "part_listing" ? [search.partNumber || search.part || search.partCategory] : [])].filter(Boolean).join(" ") : "";
   return {
     kind: item.kind,
-    title: text(context, 160) || (item.kind === "car_listing" ? "Saved car" : "Saved part"),
+    title: text(context, 160) || `Saved ${savedListingLabel(item)}`,
     data: { version: 1 as const, id: item.data.id, url: item.data.url, searchUrl: item.data.searchUrl },
   };
 }

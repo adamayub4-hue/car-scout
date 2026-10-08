@@ -681,6 +681,55 @@ test('named marketplaces combine destination contexts while keeping car and part
   assert.equal(h.providerCalls().length, 5, 'named breakdown reuses the existing context query');
 });
 
+test('motorbike contexts keep marketplace totals reconciled without becoming cars, parts or unclassified', async () => {
+  const contexts = [
+    ['cars:ebay:listing', 2], ['parts:ebay:listing', 3],
+    ['motorbikes:ebay:listing', 4], ['motorbikes:ebay:search_results', 5], ['motorbikes:ebay:all_results', 1],
+    ['motorbikes:gumtree:search_results', 6], ['motorbikes:gumtree:listing', 2], ['motorbikes:autotrader:search_results', 7],
+    ['motorbikes:unknown-marketplace:listing', 4], ['motorcycle:ebay:listing', 3], ['motorbikes:ebay:unknown', 2],
+  ];
+  for (const column of ['eventData/context', 'eventData']) {
+    const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context'
+      ? { data: contexts.map(([context, count]) => ({ [column]: context, count })) }
+      : isFunnelEventsQuery(url) ? { data: [{ eventName: 'search_submitted', count: 29 }, { eventName: 'marketplace_outbound', count: 39 }] } : fixture(url)) });
+    const report = await (await h.get()).json();
+    assert.deepEqual(report.clicksByDestination, { ebayCars: 2, ebayParts: 3, ebayMotorbikes: 10, otherMarketplaces: 15, unclassified: 9 });
+    assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'ebay'), { marketplace: 'ebay', cars: 2, parts: 3, motorbikes: 10, clicks: 15 });
+    assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'gumtree'), { marketplace: 'gumtree', cars: 0, parts: 0, motorbikes: 8, clicks: 8 });
+    assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'autotrader'), { marketplace: 'autotrader', cars: 0, parts: 0, motorbikes: 7, clicks: 7 });
+    assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'unclassified'), { marketplace: 'unclassified', cars: null, parts: null, clicks: 9 });
+    assert.equal(report.marketplaceClicks.reduce((sum, row) => sum + row.clicks, 0), report.outboundClicks);
+    assert.equal(Object.values(report.clicksByDestination).reduce((sum, clicks) => sum + clicks, 0), report.outboundClicks);
+    assert.equal(report.searches, 29);
+    assert.equal(report.partial, false);
+    assert.deepEqual(h.diagnostics, []);
+    assert.equal(h.providerCalls().length, 5, 'motorbikes reuse the existing destination query');
+  }
+});
+
+test('motorbike breakdowns retain genuine zeros and reject invalid counts, duplicates or overflow', async () => {
+  const zero = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context'
+    ? { data: [{ eventData: 'motorbikes:ebay:listing', count: 0 }] }
+    : isFunnelEventsQuery(url) ? { data: [] } : fixture(url)) });
+  const empty = await (await zero.get()).json();
+  assert.equal(empty.partial, false);
+  assert.equal(empty.clicksByDestination.ebayMotorbikes, 0);
+  assert.deepEqual(empty.marketplaceClicks.find(row => row.marketplace === 'ebay'), { marketplace: 'ebay', cars: 0, parts: 0, motorbikes: 0, clicks: 0 });
+  for (const data of [
+    [{ eventData: 'motorbikes:ebay:listing', count: '11' }],
+    [{ eventData: 'motorbikes:ebay:listing', count: 5 }, { eventData: 'motorbikes:ebay:listing', count: 6 }],
+    [{ eventData: 'motorbikes:ebay:listing', count: Number.MAX_SAFE_INTEGER }, { eventData: 'motorbikes:gumtree:search_results', count: 1 }],
+  ]) {
+    const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context' ? { data } : fixture(url)) });
+    const report = await (await h.get()).json();
+    assert.equal(report.outboundClicks, 11);
+    assert.equal(report.clicksByDestination, null);
+    assert.equal(report.marketplaceClicks, null);
+    assert.equal(report.partial, true);
+    assert.deepEqual(report.warnings, ['The outbound-click breakdown is temporarily unavailable.']);
+  }
+});
+
 test('top-100 contexts plus the provider Others row retain all clicks as unclassified', async () => {
   const h = harness({ upstream: url => Response.json(url.searchParams.get('by') === 'eventData/context'
     ? { data: [...Array.from({ length: 100 }, (_, i) => ({ eventData: `legacy-${i}`, count: 1 })), { eventData: 'Others', count: 7 }] }

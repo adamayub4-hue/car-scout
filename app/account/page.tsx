@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSavedSearchUrl, safeSearchReturnUrl, withRequestDeadline } from "../lib/saved-search";
-import { clearPendingListing, getPendingListingExpiresAt, getPendingListingSnapshotExpiresAt, getPendingListingToken, parseSavedListing, readPendingListing, saveListingToAccount, type SavedListingItem } from "../lib/saved-listings";
+import { clearPendingListing, getPendingListingExpiresAt, getPendingListingSnapshotExpiresAt, getPendingListingToken, parseSavedListing, readPendingListing, savedListingLabel, saveListingToAccount, type SavedListingItem } from "../lib/saved-listings";
 import SavedListingCard from "../components/saved-listing-card";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "../lib/supabase";
@@ -258,10 +258,10 @@ export default function AccountPage() {
 
         {returnUrl && <div className="mt-6 rounded-2xl border border-sky-300/25 p-5 text-sm"><p>Your search is ready to resume. {user ? "Open it, then choose Save search." : "Sign in or create an account, then return to save it."}</p><Link href={returnUrl} className="mt-3 inline-block font-semibold text-link">Resume your search →</Link></div>}
         {pendingListing && <section aria-label="Listing waiting to be saved" className="mt-6 rounded-2xl border border-sky-300/25 p-4">
-          <p className="mb-2 font-bold">Your {pendingListing.item.kind === "car_listing" ? "car" : "part"} is ready to save</p>
+          <p className="mb-2 font-bold">Your {savedListingLabel(pendingListing.item)} is ready to save</p>
           <p className="mb-4 text-sm leading-6 text-muted">{user ? `Save this listing to ${user.email || "your signed-in account"}.` : "Sign in or create an account below, then choose Save. This selection stays in this browser for up to 24 hours while you confirm your email."}</p>
           <SavedListingCard item={pendingListing.item} action={<>
-            {user && <button type="button" onClick={savePending} disabled={Boolean(busyAction)} className="rounded-xl bg-sky-400 px-4 py-2.5 font-bold text-slate-950 disabled:opacity-60">{busyAction === "save-listing" ? "Saving…" : pendingListing.item.kind === "car_listing" ? "Save this car" : "Save this part"}</button>}
+            {user && <button type="button" onClick={savePending} disabled={Boolean(busyAction)} className="rounded-xl bg-sky-400 px-4 py-2.5 font-bold text-slate-950 disabled:opacity-60">{busyAction === "save-listing" ? "Saving…" : `Save this ${savedListingLabel(pendingListing.item)}`}</button>}
             <button type="button" onClick={dismissPending} disabled={Boolean(busyAction)} className="text-muted disabled:opacity-60">Dismiss</button>
           </>} />
         </section>}
@@ -278,7 +278,7 @@ export default function AccountPage() {
         ) : user ? (
           <section className="mt-12">
             <p className="text-xs font-bold uppercase tracking-wider text-link">Your account</p>
-            <h1 className="mt-2 text-3xl font-bold">Saved cars, parts and searches</h1>
+            <h1 className="mt-2 text-3xl font-bold">Saved cars, motorbikes, parts and searches</h1>
             <p className="mt-2 text-sm text-muted">Signed in as {user.email}</p>
             {isAdmin && (
               <Link href="/admin" className="mt-6 flex items-center justify-between rounded-2xl border border-amber-300/30 bg-amber-300/[0.08] p-5 transition hover:border-amber-200/60 hover:bg-amber-300/[0.12]">
@@ -287,7 +287,7 @@ export default function AccountPage() {
               </Link>
             )}
             {itemsLoading ? <p role="status" className="mt-8 text-muted">Loading your saved items…</p> : itemsError ? <div role="alert" className="mt-8 rounded-xl border border-rose-300/30 p-5"><p>{itemsError}</p><button type="button" onClick={() => void loadItems(user.id)} className="mt-3 font-semibold text-link">Retry saved items</button></div> : items.length === 0 ? (
-              <div className="mt-8 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-6 text-muted">Nothing saved yet. Search for cars or parts, then choose “Save car” or “Save part” on a listing. Choose “Save search” to keep your search filters too.</div>
+              <div className="mt-8 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-6 text-muted">Nothing saved yet. Search for cars, motorbikes or parts, then choose “Save car”, “Save motorbike” or “Save part” on a listing. Choose “Save search” to keep your search filters too.</div>
             ) : (
               <div className="mt-8 space-y-3">
                 {pageItems.map((item) => {
@@ -298,7 +298,7 @@ export default function AccountPage() {
                   return (
                   <article key={item.id} className="flex items-start justify-between gap-4 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5">
                     <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-link">{item.kind.replace("_", " ")}</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-link">{item.kind === "car_search" && item.data?.vehicleType === "motorbikes" ? "Motorbike search" : item.kind.replace("_", " ")}</span>
                       <h2 className="mt-2 font-bold">{item.title}</h2>
                       <p className="mt-1 text-xs text-subtle">Saved {new Date(item.created_at).toLocaleDateString("en-GB")}</p><Link href={getSavedSearchUrl({ kind: item.kind, title: item.title, data: item.data })} className="mt-3 inline-block text-sm font-semibold text-link">Run this search →</Link>
                     </div>

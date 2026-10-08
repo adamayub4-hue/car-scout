@@ -13,7 +13,9 @@ export default function CarRecommendations({ search, items, loading, error, comp
   search: SubmittedSearch; items: EbayListing[]; loading: boolean; error: string; compact?: boolean;
 }) {
   if (search.mode !== "cars") return null;
-  const hasLivePrices = search.platform === "all" || search.platform === "ebay";
+  const isMotorbikes = search.vehicleType === "motorbikes";
+  const searchType = isMotorbikes ? "motorbikes" : "cars";
+  const hasLivePrices = isMotorbikes || search.platform === "all" || search.platform === "ebay";
   const recommendations = !loading && !error ? getCarRecommendations(items, search) : [];
   return <section aria-labelledby="car-recommendations-heading" className="mb-5 rounded-2xl border border-sky-300/30 bg-sky-400/[0.06] p-4 sm:p-6">
     <p className="text-xs font-bold uppercase tracking-wider text-link">A starting point for your comparison</p>
@@ -21,15 +23,15 @@ export default function CarRecommendations({ search, items, loading, error, comp
     <p className="mt-2 text-sm font-semibold text-foreground">{search.title}</p>
     {!hasLivePrices ? <p className="mt-3 text-sm leading-6 text-muted">Open your chosen marketplace below and sort its results by price. Live price comparisons in Mekivo currently cover eBay only; other marketplaces may have a better offer.</p> : <>
       <p className="mt-2 text-sm leading-6 text-muted">Lowest advertised GBP prices among the matching eBay results returned for this search. Other marketplaces may have a better offer.</p>
-      {loading ? <p role="status" className="mt-4 text-sm text-muted">Checking the returned eBay listings for matching cars and clear asking prices…</p>
-        : error ? <p role="status" className="mt-4 text-sm text-warning">The price shortlist is temporarily unavailable. {compact ? "Choose Live cars to retry, or edit your search to try another marketplace." : "Use the marketplace links below or retry the eBay results."}</p>
-          : recommendations.length === 0 ? <p role="status" className="mt-4 text-sm leading-6 text-muted">We couldn’t identify a matching full-car listing with a clear GBP asking price in these results. {compact ? "Choose Live cars to browse all returned listings, or edit your search." : "Try another year or budget, or compare the marketplaces below."}</p>
+      {loading ? <p role="status" className="mt-4 text-sm text-muted">Checking the returned eBay listings for matching {isMotorbikes ? "motorbikes" : "cars"} and clear asking prices…</p>
+        : error ? <p role="status" className="mt-4 text-sm text-warning">The price shortlist is temporarily unavailable. {compact ? `Choose Live ${isMotorbikes ? "motorbikes" : "cars"} to retry, or edit your search${isMotorbikes ? "." : " to try another marketplace."}` : isMotorbikes ? "Retry the eBay results or edit your search." : "Use the marketplace links below or retry the eBay results."}</p>
+          : recommendations.length === 0 ? <p role="status" className="mt-4 text-sm leading-6 text-muted">We couldn’t identify a matching {isMotorbikes ? "complete motorbike" : "full-car"} listing with a clear GBP asking price in these results. {compact ? `Choose Live ${isMotorbikes ? "motorbikes" : "cars"} to browse all returned listings, or edit your search.` : isMotorbikes ? "Try another year or budget." : "Try another year or budget, or compare the marketplaces below."}</p>
             : <>
               <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {recommendations.map(({ item, url, pricePence, belowBudgetPence, purchaseFormat }, index) => <article key={item.id} className="flex min-w-0 flex-col rounded-2xl border border-outline/15 bg-panel p-3">
-                  <a href={withEbayAffiliateTracking(url, "mekivo-cars-shortlist")}
+                  <a href={withEbayAffiliateTracking(url, `mekivo-${searchType}-shortlist`)}
                   target="_blank" rel="sponsored noreferrer"
-                  onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: "cars", destination: "listing" })}
+                  onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: searchType, destination: "listing" })}
                   className={`${compact ? "grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-3 sm:flex sm:flex-col" : "flex flex-col"} min-w-0 flex-1 rounded-xl transition hover:text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400`}
                 >
                   <div className="w-full"><ListingPhoto item={item} sizes={compact ? "(max-width: 639px) 88px, (max-width: 1024px) 38vw, 240px" : undefined} /></div>
@@ -42,7 +44,7 @@ export default function CarRecommendations({ search, items, loading, error, comp
                   <p className="mt-2 text-xs leading-5 text-subtle">{[item.condition, item.location].filter(Boolean).join(" · ") || "Confirm condition and location with the seller"}</p>
                   <span className="mt-auto pt-4 text-sm font-bold text-link">View original eBay listing →</span>
                   </div>
-                  </a><SaveListingButton item={item} searchType="cars" searchUrl={getSavedSearchUrl(search.saveItem)} />
+                  </a><SaveListingButton item={item} searchType={searchType} searchUrl={getSavedSearchUrl(search.saveItem)} />
                 </article>)}
               </div>
               <p className="mt-4 text-xs leading-5 text-subtle">Up to 3 title matches from {items.length} returned eBay listings, ordered by advertised price. Delivery and extra fees are not included. Check the full asking price, mileage, history and availability with the seller. Mekivo may earn a commission.</p>

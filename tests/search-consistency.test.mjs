@@ -61,7 +61,7 @@ function carSubmitHarness(overrides = {}) {
   const requests = [], events = [];
   const state = { error: '', submitted: null, visible: false, revision: 0, searchInfo: null };
   const context = {
-    make: '', model: '', year: '', price: '5000', minPrice: '1000', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all',
+    vehicleType: 'cars', make: '', model: '', year: '', price: '5000', minPrice: '1000', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all',
     createCarSearch: search.createCarSearch,
     setError: value => { state.error = value; }, setSubmittedSearch: value => { state.submitted = value; },
     setShowResults: value => { state.visible = value; }, setCarSearchRevision: update => { state.revision = update(state.revision); },
@@ -131,6 +131,10 @@ function requestsHarness() {
     filterCarListings: carFilters.filterCarListings, ebayRequest: ref, setEbayLoading: value => { state.loading = value; }, setEbayError: value => { state.error = value; }, setEbayItems: value => { state.items = value; },
     setCarSearchInfo: value => { state.searchInfo = value; },
     setMode: value => { state.mode = value; }, setShowResults() {}, setError() {},
+    setVehicleType() {}, setPlatform() {}, setMake() {}, setModel() {}, setYear() {}, setEngine() {}, setFuel() {}, setBodyStyle() {},
+    setRegistration() {}, setVehicleLookup() {}, setSubmittedSearch() {}, setRestoredSearch() {}, setVehicleDetailsOpen() {},
+    setPartMethod() {}, setPartCategory() {}, setPart() {}, setPartNumber() {}, setVehicleLookupLoading() {},
+    vehicleLookupRequest: { current: { id: 0, controller: null } },
     trackGrowthEvent: (...args) => events.push(args),
     setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id),
     // Deliberately ignore AbortSignal: correctness must also rely on request identity.
@@ -300,6 +304,7 @@ test('an HTML registration rate limit clears loading and explains when to retry'
   let jsonCalls = 0, loading = false, error = '', vehicle = { make: 'Ford' };
   const lookup = handler('handleVehicleLookup', {
     registration: 'AB12CDE',
+    vehicleLookupRequest: { current: { id: 0, controller: null } },
     setVehicleLookupLoading: value => { loading = value; }, setVehicleLookup: value => { vehicle = value; }, setError: value => { error = value; },
     fetch: async () => ({ ok: false, status: 429, json: async () => { jsonCalls++; throw new SyntaxError('Unexpected token <'); } }),
   });
@@ -323,11 +328,11 @@ function restoreFromUrl(query) {
   visit(ast);
   assert.ok(expression);
   const state = {};
-  const setters = Object.fromEntries(['Mode', 'PartMethod', 'Make', 'Model', 'Year', 'Price', 'MinPrice', 'CarSort', 'HideUnwanted', 'Postcode', 'Platform', 'Engine', 'Fuel', 'BodyStyle', 'Part', 'PartCategory', 'PartNumber', 'VehicleDetailsOpen', 'RestoredSearch'].map(key => [`set${key}`, value => { state[key] = value; }]));
+  const setters = Object.fromEntries(['Mode', 'VehicleType', 'PartMethod', 'Make', 'Model', 'Year', 'Price', 'MinPrice', 'CarSort', 'HideUnwanted', 'Postcode', 'Platform', 'Engine', 'Fuel', 'BodyStyle', 'Part', 'PartCategory', 'PartNumber', 'VehicleDetailsOpen', 'RestoredSearch'].map(key => [`set${key}`, value => { state[key] = value; }]));
   const code = ts.transpileModule(`const restore = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
   const restore = vm.runInNewContext(`${code}\nrestore`, {
     URLSearchParams, parseSavedSearchParams: saved.parseSavedSearchParams, categories: guide.categories, validatedPartSelection: handler('validatedPartSelection', guide),
-    trackGrowthEvent() {}, ...setters, ebayRequest: { current: { id: 0, controller: null } }, guideLandingPending: { current: false },
+    trackGrowthEvent() {}, ...setters, ebayRequest: { current: { id: 0, controller: null } }, vehicleLookupRequest: { current: { id: 0, controller: null } }, guideLandingPending: { current: false },
     window: { location: { search: query }, requestAnimationFrame: fn => { fn(); return 1; }, cancelAnimationFrame() {} },
   });
   restore()();
@@ -410,6 +415,7 @@ test('registration lookup invalidates a retained diagram part when DVLA identifi
   const common = { partMethod: 'diagram', fuel: 'Petrol', setPartMethod() {}, setPartCategory: value => { state.category = value; }, setPart: value => { state.part = value; }, setPartNumber() {}, setShowResults() {}, setError() {} };
   const lookup = handler('handleVehicleLookup', {
     ...common, registration: 'AB12CDE', makes: handler('makes', {}), resetPartsBelowVehicle: handler('resetPartsBelowVehicle', common),
+    vehicleLookupRequest: { current: { id: 0, controller: null } },
     setVehicleLookupLoading() {}, setVehicleLookup() {}, setRegistration() {}, setMake() {}, setModel() {}, setYear() {}, setEngine() {}, setBodyStyle() {}, setFuel: value => { state.fuel = value; }, trackGrowthEvent() {}, trackActivity() {},
     fetch: async () => ({ ok: true, json: async () => ({ vehicle: { make: 'Tesla', model: 'Model 3', yearOfManufacture: 2021, fuelType: 'ELECTRICITY' } }) }),
   });

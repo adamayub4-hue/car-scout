@@ -6,9 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { createSavedListing, saveListingToAccount, stagePendingListing } from "../lib/saved-listings";
 import { withRequestDeadline } from "../lib/saved-search";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import type { EbayListing, Mode } from "../lib/search";
+import type { EbayListing, SearchType } from "../lib/search";
 
-type Props = { item: EbayListing; searchType: Mode; searchUrl?: string };
+type Props = { item: EbayListing; searchType: SearchType; searchUrl?: string };
 
 export default function SaveListingButton(props: Props) {
   // A different listing must never inherit another card's saved or pending state.
@@ -22,7 +22,7 @@ function SaveListingAction({ item, searchType, searchUrl }: Props) {
   const saving = useRef(false);
   const accountId = useRef<string | null | undefined>(undefined);
   const operation = useRef(0);
-  const label = searchType === "cars" ? "car" : "part";
+  const label = searchType === "motorbikes" ? "motorbike" : searchType === "cars" ? "car" : "part";
 
   useEffect(() => {
     const client = getSupabaseBrowserClient();

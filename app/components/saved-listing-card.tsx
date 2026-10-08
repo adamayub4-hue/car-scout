@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { formatListingPrice, withEbayAffiliateTracking } from "../lib/search";
-import { createSavedListing, type SavedListingItem } from "../lib/saved-listings";
+import { createSavedListing, savedListingLabel, savedListingSearchType, type SavedListingItem } from "../lib/saved-listings";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { withRequestDeadline } from "../lib/saved-search";
 import { partPostageLabel } from "../lib/part-recommendations";
@@ -23,6 +23,8 @@ export default function SavedListingCard({ item, savedAt, userId, action }: { it
   const [refresh, setRefresh] = useState(0);
   const [details, setDetails] = useState<ListingDetails | null>(null);
   const isCar = item.kind === "car_listing";
+  const searchType = savedListingSearchType(item);
+  const listingLabel = savedListingLabel(item);
   const savedDate = savedAt ? new Date(savedAt) : null;
   const key = `${userId || ""}:${item.data.id}`;
 
@@ -54,7 +56,7 @@ export default function SavedListingCard({ item, savedAt, userId, action }: { it
           setDetails({ key, status: "unavailable" });
           return;
         }
-        const fresh = createSavedListing(result.item, isCar ? "cars" : "parts", item.data.searchUrl);
+        const fresh = createSavedListing(result.item, searchType, item.data.searchUrl);
         const checkedAt = typeof result.checkedAt === "string" ? Date.parse(result.checkedAt) : NaN;
         if (!fresh || fresh.data.id !== item.data.id || !Number.isFinite(checkedAt) || checkedAt > Date.now() + 300_000 || Date.now() - checkedAt >= MAX_DETAILS_AGE) throw new Error("Listing details are out of date");
         expiresAt = checkedAt + MAX_DETAILS_AGE;
@@ -66,7 +68,7 @@ export default function SavedListingCard({ item, savedAt, userId, action }: { it
     };
     void load();
     return () => { active = false; controller.abort(); if (expiryTimer) clearTimeout(expiryTimer); document.removeEventListener("visibilitychange", visible); };
-  }, [savedAt, userId, key, item.data.id, item.data.searchUrl, isCar, refresh]);
+  }, [savedAt, userId, key, item.data.id, item.data.searchUrl, searchType, refresh]);
 
   const current = details?.key === key ? details : null;
   // Saved rows contain a bookmark only. Provider details must come from a fresh,
@@ -81,7 +83,7 @@ export default function SavedListingCard({ item, savedAt, userId, action }: { it
           {shown?.data.image && failedImage !== shown.data.image ? <Image src={shown.data.image} alt={shown.title} fill sizes="(max-width: 639px) 85vw, 144px" className="object-contain" onError={() => setFailedImage(shown.data.image || "")} /> : <span className="absolute inset-0 grid place-items-center px-4 text-center text-xs text-subtle">{savedAt && (!current || current.status === "loading") ? "Checking listing…" : "Photo unavailable"}</span>}
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wider text-link">{isCar ? "Car listing" : "Part listing"} · eBay</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-link">{listingLabel === "motorbike" ? "Motorbike listing" : isCar ? "Car listing" : "Part listing"} · eBay</p>
           <h2 className="mt-2 break-words font-bold">{shown?.title || item.title}</h2>
           {shown && <><p className="mt-2 text-lg font-bold">{formatListingPrice(shown.data.price, shown.data.currency)}</p><p className="mt-1 text-xs text-subtle">{savedAt ? "Latest checked price" : "Price shown when selected"}{!isCar ? " · Item price" : ""}</p>{savedAt && current?.checkedAt && <p className="mt-1 text-xs text-subtle">Checked {new Date(current.checkedAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</p>}{!isCar && <p className="mt-1 text-xs text-subtle">{partPostageLabel({ ...shown.data, title: shown.title })}</p>}<p className="mt-2 text-sm text-muted">{[shown.data.condition, shown.data.location].filter(Boolean).join(" · ") || "Condition: check the original listing"}</p></>}
           {savedDate && !Number.isNaN(savedDate.getTime()) && <p className="mt-2 text-xs text-subtle">Saved {savedDate.toLocaleDateString("en-GB")}</p>}
@@ -92,8 +94,8 @@ export default function SavedListingCard({ item, savedAt, userId, action }: { it
       </div>
       <p className="mt-4 text-xs leading-5 text-muted">Prices and availability can change, and listings may end. Confirm {isCar ? "the vehicle details" : "compatibility and postage"} with the seller. Mekivo may earn a commission.</p>
       <div className="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
-        <a href={withEbayAffiliateTracking(item.data.url, `mekivo-${isCar ? "cars" : "parts"}-saved`)} target="_blank" rel="sponsored noreferrer" onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: isCar ? "cars" : "parts", destination: "listing" })} className="text-link">View original listing →</a>
-        <Link href={item.data.searchUrl} className="text-link">Search for similar {isCar ? "cars" : "parts"} →</Link>
+        <a href={withEbayAffiliateTracking(item.data.url, `mekivo-${searchType}-saved`)} target="_blank" rel="sponsored noreferrer" onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: searchType, destination: "listing" })} className="text-link">View original listing →</a>
+        <Link href={item.data.searchUrl} className="text-link">Search for similar {searchType} →</Link>
         {savedAt && (current?.status === "error" || current?.status === "unavailable") && <button type="button" onClick={retry} className="text-link">Check listing again</button>}
         {action}
       </div>

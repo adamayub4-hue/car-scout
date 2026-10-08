@@ -34,7 +34,11 @@ function harness(reads, props = {}) {
       if (name === '../lib/search') return { formatListingPrice: (price, currency) => price ? `${currency} ${price}` : 'Price unavailable', withEbayAffiliateTracking: value => value };
       if (name === '../lib/saved-search') return { withRequestDeadline: value => Promise.resolve(value) };
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'session-token', user: { id: currentProps.userId } } }, error: null }) } }) };
-      if (name === '../lib/saved-listings') return { createSavedListing: (item, mode, searchUrl) => item?.url && item?.id ? ({ kind: mode === 'cars' ? 'car_listing' : 'part_listing', title: item.title, data: { ...item, searchUrl } }) : null };
+      if (name === '../lib/saved-listings') return {
+        createSavedListing: (item, mode, searchUrl) => item?.url && item?.id ? ({ kind: mode === 'parts' ? 'part_listing' : 'car_listing', title: item.title, data: { ...item, searchUrl } }) : null,
+        savedListingSearchType: item => item.kind === 'part_listing' ? 'parts' : item.data.searchUrl.includes('vehicle_type=motorbikes') ? 'motorbikes' : 'cars',
+        savedListingLabel: item => item.kind === 'part_listing' ? 'part' : item.data.searchUrl.includes('vehicle_type=motorbikes') ? 'motorbike' : 'car',
+      };
       if (name === '../lib/part-recommendations') return { partPostageLabel: item => item.postage ? `Postage ${item.postage.currency} ${item.postage.price}` : 'Check postage on eBay' };
       if (name === '../lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
       throw Error(name);
@@ -68,6 +72,20 @@ test('saved bookmark shows fresh authenticated price, condition, photo and check
   ready.nodes.find(node => node.type === 'a').props.onClick();
   assert.equal(h.events[0][0], 'marketplace_outbound');
   assert.equal(h.events[0][1].destination, 'listing');
+  h.unmount();
+});
+
+test('saved motorcycle cards retain motorcycle labels, similar-search links and outbound context after refreshing details', async () => {
+  const item = { ...bookmark, kind: 'car_listing', title: 'Saved motorbike', data: { ...bookmark.data, searchUrl: '/?restore=1&mode=cars&vehicle_type=motorbikes&platform=ebay' } };
+  const h = harness([async () => response({ item: { ...fresh, title: 'Honda CBR600 motorcycle' }, checkedAt: new Date().toISOString() })], { item });
+  assert.match(h.render().text, /Motorbike listing/);
+  await settle();
+  const ready = h.render();
+  assert.match(ready.text, /Motorbike listing/); assert.match(ready.text, /Search for similar\s+motorbikes/);
+  assert.doesNotMatch(ready.text, /Postage GBP/);
+  assert.equal(ready.nodes.find(node => node.type === 'link').props.href, item.data.searchUrl);
+  ready.nodes.find(node => node.type === 'a').props.onClick();
+  assert.equal(h.events[0][1].search_type, 'motorbikes');
   h.unmount();
 });
 

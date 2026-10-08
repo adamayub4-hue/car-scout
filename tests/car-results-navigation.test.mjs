@@ -368,6 +368,44 @@ test('car pagination reaches every returned listing once, with bounded controls 
   assert.deepEqual(app.events, []);
 });
 
+test('motorbike result views retain price picks, budget, sorting and sharing without car marketplace links', () => {
+  const submitted = carSearch({ vehicleType: 'motorbikes', make: 'Honda', model: 'CBR600F', platform: 'all', minPrice: '1000', price: '3000', sort: 'price_asc' });
+  const changes = [], app = results({ search: submitted, items: cars(4), onSortChange: value => changes.push(value) });
+  assert.deepEqual(tabs(app).map(text), ['Live motorbikes', 'Price picks']);
+  assertTabWiring(app, 'Live motorbikes');
+  assert.equal(app.one(node => node.props?.role === 'tablist').props['aria-label'], 'Motorbike results views');
+  assert.match(text(activePanel(app)), /4 matching motorbikes returned/);
+  assert.match(app.text(), /£1,000–£3,000/);
+  assert.equal(app.one(node => node.type === LiveListings).props.searchType, 'motorbikes');
+  assert.equal(app.one(node => node.type === Share).props.item, submitted.saveItem);
+  assert.equal(app.nodes().filter(node => node.type === 'a').length, 0, 'no prepared car marketplace links');
+  app.one(node => node.type === 'select').props.onChange({ target: { value: 'newest' } });
+  assert.deepEqual(changes, ['newest']);
+  app.key(selectedTab(app), 'ArrowRight');
+  assertTabWiring(app, 'Price picks');
+  assert.equal(nodes(activePanel(app)).find(node => node.type === PricePicks).props.search, submitted);
+  app.key(selectedTab(app), 'ArrowRight');
+  assertTabWiring(app, 'Live motorbikes');
+  assert.deepEqual(app.events, []);
+});
+
+test('motorbike pagination and outgoing clicks preserve bike attribution and vehicle copy', () => {
+  const app = listings({ searchType: 'motorbikes', items: cars(4) });
+  assert.equal(app.one(node => node.type === 'nav').props['aria-label'], 'Motorbike listings pages');
+  assert.match(app.text(), /vehicle details on eBay/);
+  assert.doesNotMatch(app.text(), /compatibility|Item price|Postage:/);
+  assert.deepEqual(shownTitles(app), app.props.items.slice(0, 3).map(item => item.title));
+  app.click(app.button('Next →'));
+  assert.deepEqual(shownTitles(app), [app.props.items[3].title]);
+  assert.equal(app.button('Next →').props.disabled, true);
+  const link = listingLinks(app)[0];
+  assert.equal(new URL(link.props.href).searchParams.get('customid'), 'mekivo-motorbikes-live');
+  assert.deepEqual(app.events, [], 'pagination sends no outbound event');
+  app.click(link);
+  assert.equal(app.events[0][1].search_type, 'motorbikes');
+  assert.equal(app.events[0][1].marketplace, 'ebay');
+});
+
 test('short and partial pages never show empty pages or allow navigation beyond the response', () => {
   for (const count of [1, 2, 3, 4, 8]) {
     const app = listings({ items: cars(count) });

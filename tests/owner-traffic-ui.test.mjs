@@ -368,13 +368,13 @@ test('marketplaces show names, car and part splits and highest totals first, wit
   const h = await loaded({ marketplaceClicks: rows });
   const html = h.html();
   assert.deepEqual(tableRows(html, 'Marketplace clicks, highest total first'), [
-    ['Facebook Marketplace', '8', '2', '10'],
-    ['Car & Classic', '4', '0', '4'],
-    ['eBay', '3', '1', '4'],
-    ['Unidentified destination', '—', '—', '1'],
+    ['Facebook Marketplace', '8', '0', '2', '10'],
+    ['Car & Classic', '4', '0', '0', '4'],
+    ['eBay', '3', '0', '1', '4'],
+    ['Unidentified destination', '—', '—', '—', '1'],
   ]);
   assert.equal(JSON.stringify(rows), before, 'rendering must not mutate the report');
-  assert.match(html, /Car clicks/); assert.match(html, /Part clicks/);
+  assert.match(html, /Car clicks/); assert.match(html, /Motorbike clicks/); assert.match(html, /Part clicks/);
   assert.match(html, /aria-label="Not known">—/);
   assert.match(html, /Same reporting period as the totals above/);
   assert.match(html, /not eBay-credited clicks or sales/);
@@ -384,9 +384,29 @@ test('marketplaces show names, car and part splits and highest totals first, wit
   assert.ok(collapsed); assert.doesNotMatch(collapsed[1], /open/);
   assert.match(collapsed[2], /Show 6 marketplaces with no clicks/);
   assert.deepEqual(tableRows(collapsed[2], 'Marketplaces with no clicks this period'), [
-    ['AA Cars', '0', '0', '0'], ['Auto Trader', '0', '0', '0'], ['CarGurus', '0', '0', '0'],
-    ['Gumtree', '0', '0', '0'], ['MOTORS', '0', '0', '0'], ['PistonHeads', '0', '0', '0'],
+    ['AA Cars', '0', '0', '0', '0'], ['Auto Trader', '0', '0', '0', '0'], ['CarGurus', '0', '0', '0', '0'],
+    ['Gumtree', '0', '0', '0', '0'], ['MOTORS', '0', '0', '0', '0'], ['PistonHeads', '0', '0', '0', '0'],
   ]);
+});
+
+test('owner marketplace rows show motorbike clicks separately and include them when ordering totals', async () => {
+  const rows = [
+    { marketplace: 'ebay', cars: 2, motorbikes: 11, parts: 3, clicks: 16 },
+    { marketplace: 'gumtree', cars: 4, motorbikes: 0, parts: 5, clicks: 9 },
+    { marketplace: 'facebook', cars: 0, motorbikes: 10, parts: 0, clicks: 10 },
+    { marketplace: 'unclassified', cars: null, parts: null, clicks: 1 },
+  ];
+  const before = JSON.stringify(rows);
+  const h = await loaded({ outboundClicks: 36, marketplaceClicks: rows });
+  const html = h.html();
+  assert.deepEqual(tableRows(html, 'Marketplace clicks, highest total first'), [
+    ['eBay', '2', '11', '3', '16'], ['Facebook Marketplace', '0', '10', '0', '10'],
+    ['Gumtree', '4', '0', '5', '9'], ['Unidentified destination', '—', '—', '—', '1'],
+  ]);
+  assert.equal(card(html, 'Listing clicks'), '36');
+  assert.match(html, /Car, motorbike and parts searches made/);
+  assert.match(html, /car, motorbike or part type is not known/);
+  assert.equal(JSON.stringify(rows), before);
 });
 
 test('a genuine zero-click period stays distinct from unavailable and older report payloads', () => {

@@ -85,6 +85,33 @@ test('every existing funnel event keeps its name and exactly two useful Pro prop
   assert.equal(app.timers.size, 0);
 });
 
+test('motorbike funnel contexts use vehicle marketplaces and retain only approved labels', () => {
+  const app = load();
+  const cases = [
+    ['campaign_landing', { landing_mode: 'motorbikes' }, 'motorbikes'],
+    ['search_submitted', { search_type: 'motorbikes', marketplace: 'ebay', search_method: 'vehicle' }, 'motorbikes:ebay'],
+    ['search_submitted', { search_type: 'motorbikes', marketplace: 'all', search_method: 'vehicle' }, 'motorbikes:all'],
+    ['results_shown', { search_type: 'motorbikes', search_method: 'vehicle', result_count: 12 }, 'motorbikes:vehicle'],
+    ['results_shown', { search_type: 'motorbikes', result_kind: 'marketplace_links' }, 'motorbikes:marketplace_links'],
+    ['results_empty', { search_type: 'motorbikes', search_method: 'vehicle', result_count: 0 }, 'motorbikes:vehicle'],
+    ['results_error', { search_type: 'motorbikes', search_method: 'vehicle', reason: 'timeout' }, 'motorbikes:vehicle:timeout'],
+    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'ebay', destination: 'listing' }, 'motorbikes:ebay:listing'],
+    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'gumtree', destination: 'search_results' }, 'motorbikes:gumtree:search_results'],
+    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'ebay', destination: 'all_results' }, 'motorbikes:ebay:all_results'],
+  ];
+  for (const [name, properties, context] of cases) {
+    app.track(name, { ...properties, query: 'PRIVATE model', vehicleType: 'PRIVATE', registration: 'PRIVATE', context: 'PRIVATE', campaign: 'PRIVATE' });
+    assert.deepEqual(app.events.at(-1), { name, properties: { campaign: 'direct', context } });
+  }
+  assert.equal(app.events.length, cases.length);
+  assert.ok(!JSON.stringify(app.events).includes('PRIVATE'));
+  const excluded = load({ audience: 'excluded', query: paidCampaign });
+  for (const [name, properties] of cases) excluded.track(name, properties);
+  assert.equal(excluded.events.length, 0);
+  assert.equal(excluded.storage.size, 0);
+  assert.equal(excluded.timers.size, 0);
+});
+
 test('all car platforms in the current UI have distinct submission context, including More platforms', () => {
   const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
   const ast = ts.createSourceFile('page.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

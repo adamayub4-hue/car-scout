@@ -29,13 +29,16 @@ export default function CarSearchResults({ search, items, loading, error, search
   onRetry: () => void; onEdit: () => void;
   onSortChange?: (sort: "best_match" | "price_asc" | "price_desc" | "newest") => void;
 }) {
-  const hasLiveListings = search.platform === "all" || search.platform === "ebay";
+  const isMotorbikes = search.vehicleType === "motorbikes";
+  const searchType = isMotorbikes ? "motorbikes" : "cars";
+  const vehiclePlural = isMotorbikes ? "motorbikes" : "cars";
+  const hasLiveListings = isMotorbikes || search.platform === "all" || search.platform === "ebay";
   const [view, setView] = useState<View>(hasLiveListings ? "live" : "marketplaces");
   const toolbarRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<View, HTMLButtonElement>>>({});
   const tabs: { id: View; label: string }[] = [
-    ...(hasLiveListings ? [{ id: "live" as const, label: "Live cars" }, { id: "prices" as const, label: "Price picks" }] : []),
-    ...(search.platform !== "ebay" ? [{ id: "marketplaces" as const, label: "Other sites" }] : []),
+    ...(hasLiveListings ? [{ id: "live" as const, label: `Live ${vehiclePlural}` }, { id: "prices" as const, label: "Price picks" }] : []),
+    ...(!isMotorbikes && search.platform !== "ebay" ? [{ id: "marketplaces" as const, label: "Other sites" }] : []),
   ];
   const selectedMarketplaces = marketplaces.filter(item => search.platform === "all" || search.platform === item.id || (search.platform === "more" && moreMarketplaceIds.includes(item.id)));
   const money = (value: string) => `£${Number(value).toLocaleString("en-GB")}`;
@@ -70,7 +73,7 @@ export default function CarSearchResults({ search, items, loading, error, search
           <ShareSearchButton item={search.saveItem} />
         </div>
       </div>
-      <div role="tablist" aria-label="Car results views" className="mt-3 flex gap-1">
+      <div role="tablist" aria-label={isMotorbikes ? "Motorbike results views" : "Car results views"} className="mt-3 flex gap-1">
         {tabs.map((tab, index) => <button key={tab.id} type="button" role="tab" id={`car-tab-${tab.id}`} aria-controls={`car-panel-${tab.id}`}
           aria-selected={view === tab.id} tabIndex={view === tab.id ? 0 : -1}
           ref={element => { tabRefs.current[tab.id] = element || undefined; }}
@@ -88,10 +91,10 @@ export default function CarSearchResults({ search, items, loading, error, search
           </label>
           {search.hideUnwanted && <p className="text-xs text-muted">Parts, repair and deposit adverts hidden</p>}
         </div>}
-        {!loading && !error && searchInfo?.partial && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm text-warning">eBay stopped responding before this search finished. {items.length > 0 ? "These cars were returned successfully. " : "No matching cars have been returned yet. "}<button type="button" onClick={onRetry} className="font-semibold underline underline-offset-4">Try again for more</button>.</div>}
-        {!loading && !error && items.length === 0 && <p className="mt-4 text-sm text-muted">No cars remain in the checked results with your filters. Try a different budget or make, choose Best match, or use Edit search to include repair adverts.</p>}
-        {!loading && !error && items.length > 0 && <p className="mt-4 text-sm font-semibold text-muted">{items.length} matching {items.length === 1 ? "car" : "cars"} returned{items.length > 3 ? " · Use Next below to browse more" : ""}</p>}
-        <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="cars" onRetry={onRetry} />
+        {!loading && !error && searchInfo?.partial && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm text-warning">eBay stopped responding before this search finished. {items.length > 0 ? `These ${vehiclePlural} were returned successfully. ` : `No matching ${vehiclePlural} have been returned yet. `}<button type="button" onClick={onRetry} className="font-semibold underline underline-offset-4">Try again for more</button>.</div>}
+        {!loading && !error && items.length === 0 && <p className="mt-4 text-sm text-muted">No {vehiclePlural} remain in the checked results with your filters. Try a different budget or make, choose Best match, or use Edit search to include repair adverts.</p>}
+        {!loading && !error && items.length > 0 && <p className="mt-4 text-sm font-semibold text-muted">{items.length} matching {items.length === 1 ? (isMotorbikes ? "motorbike" : "car") : vehiclePlural} returned{items.length > 3 ? " · Use Next below to browse more" : ""}</p>}
+        <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType={searchType} onRetry={onRetry} />
         <p className="mt-3 text-xs leading-5 text-subtle">{!loading && !error && searchInfo ? `${searchInfo.checkedCount} eBay listings checked across ${searchInfo.pagesChecked} ${searchInfo.pagesChecked === 1 ? "batch" : "batches"}. ${searchInfo.hasMore ? "More listings may be available on eBay. " : ""}` : "Up to 192 eBay listings located in the UK checked per search, returning up to 48 matches. "}Budgets and price sorts use advertised purchase prices, not auction bids; delivery and fees may be extra. This does not compare every UK marketplace.</p>
       </>}
       {tab.id === "prices" && <div className="pt-4"><CarRecommendations search={search} items={items} loading={loading} error={error} compact /></div>}
@@ -101,7 +104,7 @@ export default function CarSearchResults({ search, items, loading, error, search
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {selectedMarketplaces.map(item => <div key={item.id} className="rounded-xl border border-outline/10 bg-overlay/[0.035] p-3 sm:p-4">
             <a href={search.carLinks?.[item.id]} target="_blank" rel="noreferrer"
-              onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: item.id, search_type: "cars", destination: "search_results" })}
+              onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: item.id, search_type: searchType, destination: "search_results" })}
               className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">
               <h4 className="min-h-10 text-sm font-bold sm:min-h-0">{item.name}</h4>
               <span className="mt-2 inline-block text-xs font-semibold text-link">Open search ↗</span>

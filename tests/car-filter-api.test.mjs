@@ -57,6 +57,48 @@ test('selected make and model reject unrelated suggestions and keep their cache 
   assert.equal(h.calls.length, 2, 'case-normalized criteria reuse the correct cache');
 });
 
+test('UK motorbike searches use their own category, budget, criteria and cache', async () => {
+  const items = ['Honda CBR125 motorcycle full MOT', 'Honda CB125F scooter', 'Honda CBR125 fairing replacement', 'Honda CBR125 deposit'].map((title, index) => ({
+    itemId: String(index), title, itemWebUrl: `https://www.ebay.co.uk/itm/${123456789000 + index}`,
+    price: { value: '450', currency: 'GBP' }, buyingOptions: ['FIXED_PRICE'],
+  }));
+  const h = harness(items);
+  const q = 'type=cars&vehicleType=motorbikes&make=Honda&model=CBR125&maxPrice=500&sort=price_asc&hideUnwanted=1';
+  const body = await (await h.get(q)).json();
+  assert.deepEqual(body.items.map(item => item.id), ['0']);
+  assert.equal(h.calls[0].searchParams.get('category_ids'), '422');
+  assert.equal(h.calls[0].searchParams.has('q'), false);
+  assert.equal(h.calls[0].searchParams.get('filter'), 'itemLocationCountry:GB,price:[..500],priceCurrency:GBP');
+  assert.equal(h.calls[0].searchParams.get('sort'), 'price');
+  assert.equal(h.calls[0].searchParams.get('limit'), '48');
+  await h.get(q);
+  assert.equal(h.calls.length, 2, 'model codes resembling registrations keep existing no-cache protection');
+  await h.get(q.replace('vehicleType=motorbikes&', ''));
+  assert.equal(h.calls.at(-1).searchParams.get('category_ids'), '9801');
+  const broad = 'type=cars&q=Honda&vehicleType=motorbikes&maxPrice=500';
+  await h.get(broad);
+  const before = h.calls.length;
+  await h.get(broad);
+  assert.equal(h.calls.length, before);
+  await h.get(broad.replace('vehicleType=motorbikes&', ''));
+  assert.equal(h.calls.length, before + 1, 'car and motorcycle category caches remain separate');
+  assert.equal((await h.get('type=cars&vehicleType=__proto__')).status, 400);
+});
+
+test('all-make motorbike budgets and backfill retain several purchase-price matches', async () => {
+  const items = [500, 750, 1000, 2500, 5000, 6000].map((price, index) => ({
+    itemId: String(index), title: `Honda motorcycle ${index}`, itemWebUrl: `https://www.ebay.co.uk/itm/${123456789000 + index}`,
+    price: { value: String(price), currency: 'GBP' }, buyingOptions: ['FIXED_PRICE'],
+  }));
+  const h = harness(items);
+  for (const [budget, expected] of [[500, 1], [1000, 3], [5000, 5]]) {
+    const body = await (await h.get(`type=cars&vehicleType=motorbikes&maxPrice=${budget}&hideUnwanted=1&sort=price_asc`)).json();
+    assert.equal(body.items.length, expected);
+    assert.ok(body.items.every(item => Number(item.price) <= budget));
+    assert.equal(body.searchInfo.pagesChecked, 1);
+  }
+});
+
 test('overlong explicit car criteria are rejected before eBay; parts ignore them', async () => {
   const h = harness();
   for (const field of ['make', 'model']) {

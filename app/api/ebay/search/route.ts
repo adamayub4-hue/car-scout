@@ -3,7 +3,7 @@ import { getApplicationToken, clearEbayApplicationToken } from "../../../lib/ser
 import { createHash } from "node:crypto";
 import { BoundedTtlCache } from "../../../lib/server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "../../../lib/server-upstream";
-import { filterCarListings } from "../../../lib/car-filters";
+import { filterCarListings, type CarListingFilters } from "../../../lib/car-filters";
 
 export const runtime = "nodejs";
 
@@ -32,14 +32,14 @@ const resultsCache = new BoundedTtlCache<SearchResult>(100, 30_000);
 const maxCarPages = 4;
 const carSorts = { best_match: "", price_asc: "price", price_desc: "-price", newest: "newlyListed" } as const;
 
-function cacheKey(query: string, type: string, minPrice: string, maxPrice: string, sort: string, hideUnwanted: boolean, make: string, model: string) {
+function cacheKey(query: string, type: string, minPrice: string, maxPrice: string, sort: string, hideUnwanted: boolean, make: string, model: string, vehicleType: string) {
   // Do not retain searches resembling a registration or VIN. Keys for ordinary
   // catalogue searches are hashed; no caller identity is included in the cache.
   const searchTerms = [query, make, model].join(" ");
   if (/\b[A-HJ-NPR-Z0-9]{17}\b|\b[A-Z]{2}\d{2}\s?[A-Z]{3}\b|\b[A-Z]\d{1,3}\s?[A-Z]{3}\b|\b[A-Z]{3}\s?\d{1,3}[A-Z]\b/i.test(searchTerms)) return null;
   const registrationCandidates = searchTerms.matchAll(/\b(?:[A-Z]{1,3}\s?\d{1,4}|\d{1,4}\s?[A-Z]{1,3})\b/gi);
   if ([...registrationCandidates].some(([candidate]) => candidate.replace(/\s/g, "").length >= 5)) return null;
-  return createHash("sha256").update(JSON.stringify([query.toLowerCase(), type, minPrice, maxPrice, sort, hideUnwanted, make.toLowerCase(), model.toLowerCase()])).digest("hex");
+  return createHash("sha256").update(JSON.stringify([query.toLowerCase(), type, minPrice, maxPrice, sort, hideUnwanted, make.toLowerCase(), model.toLowerCase(), vehicleType])).digest("hex");
 }
 
 function json(body: unknown, status = 200) {
@@ -52,6 +52,9 @@ function json(body: unknown, status = 200) {
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim().replace(/\s+/g, " ") ?? "";
   const type = request.nextUrl.searchParams.get("type") ?? "parts";
+  const vehicleInput = type === "cars" ? request.nextUrl.searchParams.get("vehicleType") ?? "cars" : "cars";
+  if (vehicleInput !== "cars" && vehicleInput !== "motorbikes") return json({ error: "Choose cars or motorbikes." }, 400);
+  const vehicleType = vehicleInput;
   const priceInput = type === "cars" ? request.nextUrl.searchParams.get("maxPrice")?.trim() ?? "" : "";
   const minimumInput = type === "cars" ? request.nextUrl.searchParams.get("minPrice")?.trim() ?? "" : "";
   const sortInput = type === "cars" ? request.nextUrl.searchParams.get("sort") ?? "best_match" : "best_match";
@@ -81,14 +84,14 @@ export async function GET(request: NextRequest) {
   const sort = carSorts[sortInput as keyof typeof carSorts];
   const hideUnwanted = hideInput === "1" || hideInput === "true";
   const limit = type === "cars" ? 48 : 12;
-  const key = cacheKey(query, type, minPrice, maxPrice, sort, hideUnwanted, make, model);
+  const key = cacheKey(query, type, minPrice, maxPrice, sort, hideUnwanted, make, model, vehicleType);
   const cachedResult = key ? resultsCache.get(key) : undefined;
   if (cachedResult) return json(cachedResult);
   const collected: PublicListing[] = [];
   const searchInfo: SearchInfo | undefined = type === "cars"
     ? { checkedCount: 0, pagesChecked: 0, hasMore: false, partial: false }
     : undefined;
-  const carFilters = { minPrice, maxPrice, sort: sortInput as keyof typeof carSorts, hideUnwanted, make, model };
+  const carFilters: CarListingFilters = { minPrice, maxPrice, sort: sortInput as keyof typeof carSorts, hideUnwanted, make, model, vehicleType };
   const result = (): SearchResult => ({
     items: (type === "cars" ? filterCarListings(collected, carFilters) as PublicListing[] : collected).slice(0, limit),
     ...(searchInfo ? { searchInfo } : {}),
@@ -99,8 +102,9 @@ export async function GET(request: NextRequest) {
     const url = new URL("https://api.ebay.com/buy/browse/v1/item_summary/search");
     if (query) url.searchParams.set("q", query);
     url.searchParams.set("limit", String(limit));
-    // eBay UK: Cars (9801) and Vehicle Parts & Accessories (6030).
-    url.searchParams.set("category_ids", type === "cars" ? "9801" : "6030");
+    // eBay UK: Cars (9801), Motorcycles & Scooters (422), Car Parts (6030).
+    // Category 32073 belongs to a different marketplace, not the UK bike tree.
+    url.searchParams.set("category_ids", type === "cars" ? vehicleType === "motorbikes" ? "422" : "9801" : "6030");
     if (type === "cars") {
       // Selecting the UK marketplace alone can include overseas listings.
       // Restrict the provider's candidate set before sorting or taking a page.

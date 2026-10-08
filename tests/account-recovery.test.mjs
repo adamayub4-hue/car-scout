@@ -53,7 +53,15 @@ function accountHarness(reads, options = {}) {
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
       if (name === 'next/link') return { default: 'a' };
       if (name === '../lib/saved-search') return { ...helper, withRequestDeadline: request => Promise.resolve(request) };
-      if (name === '../lib/saved-listings') return { getPendingListingExpiresAt: () => null, getPendingListingSnapshotExpiresAt: () => null, getPendingListingToken: () => options.pendingToken || null, readPendingListing: token => token === options.pendingToken ? options.pendingItem : null, clearPendingListing: token => cleared.push(token), parseSavedListing: item => item.data?.id ? item : null, saveListingToAccount: async (_client, userId, item) => { saved.push({ userId, item }); return options.save ? options.save() : { id: 'saved-listing', alreadySaved: false }; } };
+      if (name === '../lib/saved-listings') return {
+        getPendingListingExpiresAt: () => null, getPendingListingSnapshotExpiresAt: () => null,
+        getPendingListingToken: () => options.pendingToken || null,
+        readPendingListing: token => token === options.pendingToken ? options.pendingItem : null,
+        clearPendingListing: token => cleared.push(token),
+        parseSavedListing: item => item.data?.id ? item : null,
+        savedListingLabel: item => item.kind === 'part_listing' ? 'part' : helper.parseSavedSearchParams(new URL(item.data.searchUrl, 'https://mekivo.uk').searchParams)?.vehicleType === 'motorbikes' ? 'motorbike' : 'car',
+        saveListingToAccount: async (_client, userId, item) => { saved.push({ userId, item }); return options.save ? options.save() : { id: 'saved-listing', alreadySaved: false }; },
+      };
       if (name === '../components/saved-listing-card') return { default: props => jsx('article', { children: [props.item.title, props.action] }) };
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => client, isSupabaseConfigured: () => true };
       throw Error(name);
@@ -229,6 +237,35 @@ test('pending listing survives signup and email confirmation and needs an explic
   assert.ok(button(current, 'Save this car'));
   assert.match(current.text, /created@example.test/);
   assert.equal(h.saved.length, 0, 'auth alone must never import a listing');
+});
+
+test('a pending motorbike keeps its label and search subtype through sign-in and explicit save confirmation', async () => {
+  const pendingMotorbike = {
+    ...pendingCar, title: 'Yamaha MT-07 motorbike',
+    data: { ...pendingCar.data, searchUrl: '/?restore=1&mode=cars&vehicle_type=motorbikes&make=Yamaha&model=MT-07&platform=ebay' },
+  };
+  const h = accountHarness([async () => ({ data: [], error: null }), async () => ({ data: [], error: null })], {
+    user: null, search: '?saveListing=motorbike-token', pendingToken: 'motorbike-token', pendingItem: pendingMotorbike,
+  });
+  h.render(); await settle();
+  let current = h.render();
+  assert.match(current.text, /Your\s+motorbike\s+is ready to save/);
+  assert.match(current.text, /Yamaha MT-07 motorbike/);
+  assert.equal(button(current, 'Save this motorbike'), undefined, 'confirmation waits for sign-in');
+  assert.equal(h.saved.length, 0);
+  h.switchUser({ id: 'rider', email: 'rider@example.test' }); await settle();
+  current = h.render();
+  assert.ok(button(current, 'Save this motorbike'));
+  assert.equal(button(current, 'Save this car'), undefined);
+  assert.equal(h.saved.length, 0, 'sign-in alone never saves a pending motorcycle');
+  await button(current, 'Save this motorbike').props.onClick(); await settle();
+  assert.equal(h.saved.length, 1); assert.equal(h.saved[0].userId, 'rider');
+  assert.equal(h.saved[0].item.kind, 'car_listing', 'motorcycles retain the existing vehicle listing kind');
+  const restored = helper.parseSavedSearchParams(new URL(h.saved[0].item.data.searchUrl, 'https://mekivo.uk').searchParams);
+  assert.equal(restored.vehicleType, 'motorbikes'); assert.equal(restored.model, 'MT-07'); assert.equal(restored.platform, 'ebay');
+  assert.deepEqual(h.cleared, ['motorbike-token']);
+  assert.match(h.render().text, /Listing saved to your account/);
+  assert.equal(button(h.render(), 'Save this motorbike'), undefined);
 });
 
 test('same-browser pending token recovery remains explicit and rejects a mismatched supplied token', async () => {
