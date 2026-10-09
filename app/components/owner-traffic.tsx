@@ -89,6 +89,21 @@ function AppUsage({ report }: { report: OwnerTrafficReport }) {
   </section>;
 }
 
+function ReturnVisits({ report }: { report: OwnerTrafficReport }) {
+  const beforeTracking = ownerTrafficUKDate(Date.parse(report.until)) < "2026-10-09";
+  return <section aria-labelledby="return-visits-heading" className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
+    <h3 id="return-visits-heading" className="font-bold">People coming back</h3>
+    {beforeTracking ? <p className="mt-3 text-sm text-muted">Return visits were not measured during this period. Counting starts with the update on 9 October 2026.</p> : <>
+      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+        <div className="min-w-36"><p className="text-sm font-semibold text-muted">Return visits</p><p className={`mt-2 font-bold ${report.returnVisits == null ? "text-base" : "text-3xl"}`}>{report.returnVisits == null ? "Unavailable" : number.format(report.returnVisits)}</p></div>
+        <p className="max-w-2xl text-sm leading-6 text-muted">A remembered browser coming back after at least 30 minutes without activity. Counts return visits, not different people; one person can return several times.</p>
+      </div>
+      {report.returnVisits == null && <p className="mt-3 text-sm text-muted">This figure could not be loaded. It does not mean nobody came back.</p>}
+      <p className="mt-3 text-xs leading-5 text-subtle">Optional counting starts on 9 October 2026 and includes only browsers that allow it. The first measured visit sets the starting point. Earlier returns cannot be recovered. Remembered visit times older than 30 days are not used; clearing browser data, changing devices or declining counting means returns cannot be recognised. Existing visitor totals are separate and unchanged. Do not divide this number by Visitors to calculate a return rate.</p>
+    </>}
+  </section>;
+}
+
 // Kept separate from loading so the real dashboard layout can be reviewed locally.
 export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCustomDates, hasCustomDates = false }: {
   range: OwnerTrafficRange;
@@ -140,6 +155,7 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCus
         ].map(({ label, value, detail }) => <div key={label} className="rounded-xl border border-outline/10 bg-panel p-4 sm:p-5"><p className="text-sm font-semibold text-muted">{label}</p><p className={`mt-2 font-bold ${value === null ? "text-base" : "text-3xl sm:text-4xl"}`}>{value === null ? "Unavailable" : number.format(value)}</p><p className="mt-2 text-xs leading-5 text-subtle">{detail}</p></div>)}
       </div>
       {report.partial && <p role="status" className="mt-4 text-sm text-warning">Some sections could not be loaded. The available figures are shown; try refreshing in a few minutes.</p>}
+      <ReturnVisits report={report} />
       <AppUsage report={report} />
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
         <h3 className="font-bold">Where listing clicks went</h3>

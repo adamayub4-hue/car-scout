@@ -36,7 +36,7 @@ function productionHost(hostname: string) {
 }
 
 function internalPath(pathname: string) {
-  return ["/admin", "/traffic-settings", "/account", "/forgot-password", "/reset-password"]
+  return ["/admin", "/traffic-settings", "/return-visit-settings", "/account", "/forgot-password", "/reset-password"]
     .some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 

@@ -1002,6 +1002,7 @@ export default function Home() {
           <p className="mt-2">Mekivo participates in the eBay Partner Network and may earn a commission from qualifying purchases made through eBay links, at no additional cost to you.</p>
           <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
             <a href="/privacy" className="hover:text-muted">Privacy</a>
+            <a href="/return-visit-settings" className="hover:text-muted">Return visit settings</a>
             <a href="/terms" className="hover:text-muted">Terms</a>
             <a href="/guides" className="hover:text-muted">Guides</a>
             <a href="/support" className="hover:text-muted">Suggestions and support</a>

@@ -6,6 +6,12 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { analyticsAudience, filterAnalyticsEvent, initializeAnalyticsAudience, subscribeAnalyticsAudience } from "../lib/analytics-audience";
 import { initializeAppUsage, trackAppOpen } from "../lib/app-usage";
+import { filterReturnVisitEvent, initializeReturnVisits, trackReturnVisitActivity } from "../lib/return-visits";
+
+export function filterSiteAnalyticsEvent<T extends { url: string }>(event: T): T | null {
+  const included = filterAnalyticsEvent(event);
+  return included ? filterReturnVisitEvent(included) : null;
+}
 
 export function SiteAnalytics() {
   const pathname = usePathname();
@@ -13,6 +19,8 @@ export function SiteAnalytics() {
   const [enabled, setEnabled] = useState(false);
   useEffect(initializeAnalyticsAudience, []);
   useEffect(initializeAppUsage, []);
+  useEffect(initializeReturnVisits, []);
+  useEffect(trackReturnVisitActivity, [pathname, audience]);
   // An excluded first route must not consume the document's open event.
   useEffect(trackAppOpen, [pathname, audience]);
   useEffect(() => {
@@ -23,5 +31,5 @@ export function SiteAnalytics() {
   // Keep an initialized SDK mounted: remounting on token refresh duplicates pageviews.
   // The live beforeSend guard still blocks every pending/excluded event.
   if (!enabled) return null;
-  return <><Analytics beforeSend={filterAnalyticsEvent} /><SpeedInsights beforeSend={filterAnalyticsEvent} /></>;
+  return <><Analytics beforeSend={filterSiteAnalyticsEvent} /><SpeedInsights beforeSend={filterAnalyticsEvent} /></>;
 }

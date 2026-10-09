@@ -142,6 +142,18 @@ test('ordinary anonymous visitors are included without an owner-table query', as
   assert.equal(h.calls.sessions, 1, 'initialization remains a singleton');
 });
 
+test('return preference settings and descendants stay excluded without changing ordinary analytics', async () => {
+  const h = await anonymous();
+  for (const route of ['/return-visit-settings', '/return-visit-settings/details']) {
+    h.navigate(route);
+    assert.equal(h.api.analyticsAudience(), 'excluded');
+    assert.equal(h.api.filterAnalyticsEvent({ type: 'pageview', url: `https://mekivo.uk${route}` }), null);
+  }
+  h.navigate('/');
+  assert.equal(h.api.analyticsAudience(), 'included');
+  assert.strictEqual(h.api.filterAnalyticsEvent(pageview), pageview);
+});
+
 test('a signed-in customer stays pending until their nonowner status is confirmed', async () => {
   const h = harness(); h.api.initializeAnalyticsAudience();
   h.initial.resolve(sessionResult('customer')); await settle();

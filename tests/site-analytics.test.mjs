@@ -15,6 +15,7 @@ function harness(initialAudience = 'pending') {
   const Fragment = Symbol('Fragment');
   let cursor = 0, nextTimer = 0, audience = initialAudience, initialized = 0, pathname = '/';
   const usage = { initialized: 0, opens: [] };
+  const returns = { initialized: 0, activity: [] };
   const counts = { analyticsMounts: 0, speedMounts: 0, unmounts: 0 };
   let previousSdkTypes = [];
   const filter = event => audience === 'included' ? event : null;
@@ -64,6 +65,11 @@ function harness(initialAudience = 'pending') {
         initializeAppUsage() { usage.initialized++; },
         trackAppOpen() { usage.opens.push({ pathname, audience }); },
       };
+      if (name === '../lib/return-visits') return {
+        initializeReturnVisits() { returns.initialized++; },
+        trackReturnVisitActivity() { returns.activity.push({ pathname, audience }); },
+        filterReturnVisitEvent(event) { return event.payload?.name === 'return_visit' && returns.allowed !== true ? null : event; },
+      };
       throw new Error(`Unexpected import: ${name}`);
     },
   });
@@ -90,7 +96,7 @@ function harness(initialAudience = 'pending') {
     return { tree, nodes };
   }
   return {
-    render, counts, filter, timers, usage,
+    render, counts, filter, timers, usage, returns,
     get initialized() { return initialized; },
     audience(value) { audience = value; listeners.forEach(listener => listener()); },
     navigate(path) { pathname = path; },
@@ -117,6 +123,7 @@ test('pending and owner-excluded audiences never mount either analytics SDK', ()
 test('usage registration stays mounted and launch checks follow route and audience changes', () => {
   const h = harness('excluded'); h.navigate('/account'); h.render();
   assert.equal(h.usage.initialized, 1);
+  assert.equal(h.returns.initialized, 1);
   assert.deepEqual(h.usage.opens, [{ pathname: '/account', audience: 'excluded' }]);
   h.render(); h.flushTimers(); h.render();
   assert.equal(h.usage.opens.length, 1, 'ordinary renders do not repeat launch checks');
@@ -130,6 +137,8 @@ test('usage registration stays mounted and launch checks follow route and audien
     { pathname: '/guides', audience: 'included' },
   ]);
   assert.equal(h.usage.initialized, 1);
+  assert.equal(h.returns.initialized, 1);
+  assert.deepEqual(h.returns.activity, h.usage.opens);
   assert.deepEqual(h.counts, { analyticsMounts: 1, speedMounts: 1, unmounts: 0 });
 });
 
@@ -143,7 +152,7 @@ test('both SDKs mount once after inclusion and live filters block subsequent pen
   assert.equal(mounted.length, 2);
   const pageview = { type: 'pageview', url: 'https://mekivo.uk/' };
   for (const node of mounted) {
-    assert.strictEqual(node.props.beforeSend, h.filter);
+    if (node.type.name === 'SpeedInsights') assert.strictEqual(node.props.beforeSend, h.filter);
     assert.strictEqual(node.props.beforeSend(pageview), pageview);
   }
   for (const nextAudience of ['pending', 'excluded', 'included', 'pending', 'included']) {
@@ -159,4 +168,22 @@ test('both SDKs mount once after inclusion and live filters block subsequent pen
   }
   assert.deepEqual(h.counts, { analyticsMounts: 1, speedMounts: 1, unmounts: 0 });
   assert.equal(h.initialized, 1);
+});
+
+test('return permission affects only the optional custom event, never existing pageviews or events', () => {
+  const h = harness('included'); h.render(); h.flushTimers();
+  const [analytics, speed] = h.render().nodes;
+  const existing = { type: 'event', url: 'https://mekivo.uk/?mode=parts', payload: { name: 'search_submitted' } };
+  const returning = { type: 'event', url: 'https://mekivo.uk/', payload: { name: 'return_visit' } };
+  assert.strictEqual(analytics.props.beforeSend(existing), existing);
+  assert.equal(analytics.props.beforeSend(returning), null);
+  assert.strictEqual(speed.props.beforeSend(existing), existing);
+  h.returns.allowed = true;
+  assert.strictEqual(analytics.props.beforeSend(returning), returning);
+  h.returns.allowed = false;
+  assert.equal(analytics.props.beforeSend(returning), null);
+  assert.strictEqual(analytics.props.beforeSend(existing), existing);
+  h.audience('excluded');
+  assert.equal(analytics.props.beforeSend(existing), null);
+  assert.equal(analytics.props.beforeSend(returning), null);
 });

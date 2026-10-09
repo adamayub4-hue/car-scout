@@ -78,6 +78,7 @@ export type OwnerTrafficReport = {
   clicksByDestination: OwnerTrafficClicks | null;
   marketplaceClicks: OwnerTrafficMarketplaceRow[] | null;
   appUsage: OwnerTrafficAppUsage | null;
+  returnVisits?: number | null;
   calendarDates?: OwnerTrafficDates;
   sources: OwnerTrafficSource[] | null;
   partial: boolean;

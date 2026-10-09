@@ -18,6 +18,8 @@ const defaultEnv = {
   MEKIVO_ANALYTICS_VERCEL_TOKEN: 'private-vercel-test-token',
 };
 const APP_USAGE_FILTER = "environment eq 'production' and (eventName eq 'app_open' or eventName eq 'browser_open' or eventName eq 'app_install')";
+const RETURN_VISITS_FILTER = "environment eq 'production' and eventName eq 'return_visit'";
+const isReturnVisitsQuery = url => new URL(url).searchParams.get('filter') === RETURN_VISITS_FILTER;
 const FUNNEL_EVENTS_FILTER = "environment eq 'production' and (eventName eq 'search_submitted' or eventName eq 'marketplace_outbound')";
 const isAppUsageQuery = url => new URL(url).searchParams.get('filter') === APP_USAGE_FILTER;
 const isFunnelEventsQuery = url => new URL(url).searchParams.get('filter') === FUNNEL_EVENTS_FILTER;
@@ -31,7 +33,7 @@ function fixture(url) {
       { referrerHostname: null, visitors: 50, pageviews: 70 },
       { referrerHostname: 'l.facebook.com', visitors: 45, pageviews: 54 },
     ] };
-    case 'eventName': return { data: isAppUsageQuery(url) ? [
+    case 'eventName': return { data: isReturnVisitsQuery(url) ? [{ eventName: 'return_visit', count: 9, visitors: 4 }] : isAppUsageQuery(url) ? [
       { eventName: 'app_open', count: 41, visitors: 14 },
       { eventName: 'browser_open', count: 88, visitors: 69 },
       { eventName: 'app_install', count: 6, visitors: 5 },
@@ -48,6 +50,52 @@ function fixture(url) {
     default: throw new Error('Unexpected analytics grouping');
   }
 }
+
+test('return reporting counts occasions independently of provider visitor IDs and existing totals', async () => {
+  const h = harness();
+  const response = await h.get();
+  const report = await response.json();
+  assert.equal(report.returnVisits, 9, 'one browser can return several times');
+  assert.equal(report.visitors, 75);
+  assert.equal(report.pageviews, 124);
+  assert.equal(report.searches, 29);
+  const calls = h.providerCalls().filter(call => isReturnVisitsQuery(call.url));
+  assert.equal(calls.length, 1);
+  const params = new URL(calls[0].url).searchParams;
+  assert.equal(params.get('by'), 'eventName');
+  assert.equal(params.get('limit'), '1');
+  assert.equal(params.get('since'), report.since);
+  assert.equal(params.get('until'), report.until);
+});
+
+test('empty return data means zero while missing, malformed and failed data remains unavailable', async () => {
+  const empty = harness({ upstream: url => Response.json(isReturnVisitsQuery(url) ? { data: [] } : fixture(url)) });
+  assert.equal((await (await empty.get()).json()).returnVisits, 0);
+  for (const payload of [
+    {}, { data: null }, { data: [{}] },
+    { data: [{ eventName: 'app_open', count: 9 }] },
+    { data: [{ eventName: 'return_visit', count: -1 }] },
+    { data: [{ eventName: 'return_visit', count: '9' }] },
+    { data: [{ eventName: 'return_visit', count: 1.5 }] },
+    { data: [{ eventName: 'return_visit', count: Number.MAX_SAFE_INTEGER + 1 }] },
+    { data: [{ eventName: 'return_visit', count: 1 }, { eventName: 'return_visit', count: 2 }] },
+  ]) {
+    let failing = true;
+    const h = harness({ upstream: url => Response.json(failing && isReturnVisitsQuery(url) ? payload : fixture(url)) });
+    const report = await (await h.get()).json();
+    assert.equal(report.returnVisits, null);
+    assert.equal(report.visitors, 75);
+    assert.equal(report.searches, 29);
+    assert.deepEqual(report.warnings, ['Return visits are temporarily unavailable.']);
+    failing = false;
+    assert.equal((await (await h.get()).json()).returnVisits, 9, 'partial results never prevent a fresh retry');
+  }
+  const failed = harness({ upstream: url => isReturnVisitsQuery(url) ? new Response('', { status: 503 }) : Response.json(fixture(url)) });
+  const report = await (await failed.get()).json();
+  assert.equal(report.returnVisits, null);
+  assert.equal(report.partial, true);
+  assert.equal(report.visitors, 75);
+});
 
 function harness({ env: overrides = {}, upstream, authFetch, timerLimit } = {}) {
   const env = { ...defaultEnv, ...overrides };
@@ -168,7 +216,7 @@ test('Vercel requests use fixed production groups and no caller-supplied project
   const h = harness();
   const response = await h.get('projectId=attacker&slug=other&filter=anything&token=leak');
   assert.equal(response.status, 200);
-  assert.equal(h.providerCalls().length, 5);
+  assert.equal(h.providerCalls().length, 6);
   for (const { url, headers, options } of h.providerCalls()) {
     const query = new URL(url);
     assert.equal(query.origin, 'https://api.vercel.com');
@@ -181,8 +229,8 @@ test('Vercel requests use fixed production groups and no caller-supplied project
     assert.ok(!url.includes('token'));
     if (query.searchParams.get('by') === 'eventName') {
       assert.equal(query.pathname, '/v1/query/web-analytics/events/aggregate');
-      assert.ok(isFunnelEventsQuery(query) || isAppUsageQuery(query));
-      assert.equal(query.searchParams.get('limit'), isAppUsageQuery(query) ? '3' : '10');
+      assert.ok(isFunnelEventsQuery(query) || isAppUsageQuery(query) || isReturnVisitsQuery(query));
+      assert.equal(query.searchParams.get('limit'), isReturnVisitsQuery(query) ? '1' : isAppUsageQuery(query) ? '3' : '10');
     } else if (query.searchParams.get('by') === 'eventData/context') {
       assert.equal(query.pathname, '/v1/query/web-analytics/events/aggregate');
       assert.equal(query.searchParams.get('filter'), "environment eq 'production' and eventName eq 'marketplace_outbound'");
@@ -223,7 +271,7 @@ test('cached reports never bypass a fresh session or admin check', async () => {
   assert.equal((await h.get()).status, 403);
   h.state.adminId = customerId;
   assert.equal((await h.get()).status, 403);
-  assert.equal(h.providerCalls().length, 5);
+  assert.equal(h.providerCalls().length, 6);
 });
 
 test('auth and membership failures fail closed without exposing upstream details', async () => {
@@ -247,7 +295,7 @@ test('missing analytics configuration is explicit and cannot expose a cached sna
   assert.equal(response.status, 503);
   assert.equal((await response.json()).code, 'not_configured');
   assertPrivate(response);
-  assert.equal(h.providerCalls().length, 5);
+  assert.equal(h.providerCalls().length, 6);
 });
 
 test('missing authentication configuration fails closed', async () => {
@@ -268,13 +316,13 @@ test('rolling ranges retain independent cached snapshots and reject unknown or d
     assert.equal(Date.parse(report.until) - Date.parse(report.since), days * 86400_000);
     await h.get(`range=${range}`);
   }
-  assert.equal(h.providerCalls().length, 15);
+  assert.equal(h.providerCalls().length, 18);
   for (const query of ['range=', 'range=all', 'range=__proto__', 'range=365d', 'range=7d&range=30d']) {
     const response = await h.get(query);
     assert.equal(response.status, 400);
     assertPrivate(response);
   }
-  assert.equal(h.providerCalls().length, 15);
+  assert.equal(h.providerCalls().length, 18);
 });
 
 test('snapshot cache expires at five minutes without extending expiry on reads', async () => {
@@ -283,11 +331,11 @@ test('snapshot cache expires at five minutes without extending expiry on reads',
   h.advance(299_999);
   const cached = await (await h.get()).json();
   assert.deepEqual(cached, first);
-  assert.equal(h.providerCalls().length, 5);
+  assert.equal(h.providerCalls().length, 6);
   h.advance(1);
   const refreshed = await (await h.get()).json();
   assert.notEqual(refreshed.fetchedAt, first.fetchedAt);
-  assert.equal(h.providerCalls().length, 10);
+  assert.equal(h.providerCalls().length, 12);
   assert.equal(h.authCalls().length, 3);
 });
 
@@ -304,7 +352,7 @@ test('changing project, team or token invalidates the cached snapshot', async ()
     const response = await h.get();
     assert.equal(response.status, 200);
     assert.ok(!(await response.text()).includes(value));
-    assert.equal(h.providerCalls().length - before, 5);
+    assert.equal(h.providerCalls().length - before, 6);
   }
 });
 
@@ -317,7 +365,7 @@ test('the snapshot cache stays bounded when server configuration changes', async
   h.env.MEKIVO_ANALYTICS_PROJECT_ID = 'project-0';
   assert.equal((await h.get()).status, 200);
   // The thirteenth distinct snapshot evicted the oldest from the 12-entry cache.
-  assert.equal(h.providerCalls().length, 14 * 5);
+  assert.equal(h.providerCalls().length, 14 * 6);
 });
 
 test('an empty valid provider dataset means zero, including missing event groups', async () => {
@@ -360,7 +408,7 @@ test('app usage uses each event visitor count directly and zero-fills only absen
     assert.deepEqual(report.warnings, []);
     assert.deepEqual(h.diagnostics, []);
     await h.get();
-    assert.equal(h.providerCalls().length, 5, 'successful app usage shares the normal report cache');
+    assert.equal(h.providerCalls().length, 6, 'successful app usage shares the normal report cache');
   }
 });
 
@@ -403,7 +451,7 @@ test('malformed app usage stays unavailable and retryable while website totals r
     const recovered = await (await h.get()).json();
     assert.equal(recovered.partial, false);
     assert.deepEqual(recovered.appUsage, { appVisitors: 14, browserVisitors: 69, appOpens: 41, confirmedInstalls: 6 });
-    assert.equal(h.providerCalls().length, 10);
+    assert.equal(h.providerCalls().length, 12);
   }
 });
 
@@ -445,7 +493,7 @@ test('app usage HTTP, JSON, network and timeout failures produce safe diagnostic
     for (const sensitive of ['private-event-name', 'secret', '115', 'owner-session-token', 'private-vercel-test-token', 'api.vercel.com', 'app_open', APP_USAGE_FILTER]) assert.ok(!log.includes(sensitive), sensitive);
     failing = false;
     assert.equal((await (await h.get()).json()).partial, false);
-    assert.equal(h.providerCalls().length, 10);
+    assert.equal(h.providerCalls().length, 12);
   }
 });
 
@@ -476,7 +524,7 @@ test('malformed core totals never become zeros or get cached', async () => {
     assert.equal((await response.json()).code, 'provider_unavailable');
     failed = false;
     assert.equal((await h.get()).status, 200);
-    assert.equal(h.providerCalls().length, 10);
+    assert.equal(h.providerCalls().length, 12);
   }
 });
 
@@ -521,7 +569,7 @@ test('failed optional sections remain null with warnings and Retry immediately r
     }
     failing = false;
     assert.equal((await (await h.get()).json()).partial, false);
-    assert.equal(h.providerCalls().length, 10);
+    assert.equal(h.providerCalls().length, 12);
   }
 });
 
@@ -571,7 +619,7 @@ for (const phase of ['headers', 'body']) {
     const response = await h.get();
     assert.equal(response.status, 504);
     assert.equal((await response.json()).code, 'provider_timeout');
-    assert.equal(signals.length, 5);
+    assert.equal(signals.length, 6);
     assert.ok(signals.every(signal => signal.aborted));
     assertPrivate(response);
   });
@@ -604,9 +652,9 @@ test('custom dates are inclusive UK calendar days, capped at 31 days with indepe
     assert.equal(query.get('since'), report.since); assert.equal(query.get('until'), report.until);
   }
   await h.get('range=custom&from=2026-09-14&to=2026-09-27');
-  assert.equal(h.providerCalls().length, 5);
+  assert.equal(h.providerCalls().length, 6);
   await h.get('range=custom&from=2026-09-15&to=2026-09-27');
-  assert.equal(h.providerCalls().length, 10);
+  assert.equal(h.providerCalls().length, 12);
   const today = await (await h.get('range=custom&from=2026-09-29&to=2026-09-29')).json();
   assert.equal(today.until, today.fetchedAt, 'today stops at the report time');
   assert.equal((await h.get('range=custom&from=2026-08-30&to=2026-09-29')).status, 200);
@@ -678,7 +726,7 @@ test('named marketplaces combine destination contexts while keeping car and part
   assert.deepEqual(report.clicksByDestination, { ebayCars: 9, ebayParts: 12, otherMarketplaces: 54, unclassified: 65 });
   assert.equal(report.marketplaceClicks.reduce((sum, row) => sum + row.clicks, 0), report.outboundClicks);
   assert.equal(report.partial, false);
-  assert.equal(h.providerCalls().length, 5, 'named breakdown reuses the existing context query');
+  assert.equal(h.providerCalls().length, 6, 'named breakdown reuses the existing context query');
 });
 
 test('motorbike contexts keep marketplace totals reconciled without becoming cars, parts or unclassified', async () => {
@@ -703,7 +751,7 @@ test('motorbike contexts keep marketplace totals reconciled without becoming car
     assert.equal(report.searches, 29);
     assert.equal(report.partial, false);
     assert.deepEqual(h.diagnostics, []);
-    assert.equal(h.providerCalls().length, 5, 'motorbikes reuse the existing destination query');
+    assert.equal(h.providerCalls().length, 6, 'motorbikes reuse the existing destination query');
   }
 });
 
@@ -761,7 +809,7 @@ test('failed, malformed or unreconciled click breakdowns are unavailable and ret
     assert.equal(report.marketplaceClicks, null);
     failing = false;
     assert.equal((await (await h.get()).json()).partial, false);
-    assert.equal(h.providerCalls().length, 10);
+    assert.equal(h.providerCalls().length, 12);
   }
   const h = harness({ upstream: url => url.searchParams.get('by') === 'eventData/context' ? new Response('fail', { status: 503 }) : Response.json(fixture(url)) });
   const report = await (await h.get()).json();

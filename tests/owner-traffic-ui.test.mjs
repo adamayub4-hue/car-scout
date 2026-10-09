@@ -158,6 +158,32 @@ test('successful report shows real totals, genuine zero actions and explanatory 
 const appDates = { since: '2026-10-01T12:00:00.000Z', until: '2026-10-08T12:00:00.000Z', fetchedAt: '2026-10-08T12:00:00.000Z' };
 const appLabels = ['App visitors', 'Browser visitors', 'App opens', 'Confirmed installs'];
 
+test('return occasions have their own honest optional reporting card without changing totals', async () => {
+  const h = await loaded({ since: '2026-10-09T09:00:00.000Z', until: '2026-10-09T12:00:00.000Z', returnVisits: 17 });
+  const html = h.html();
+  assert.equal(card(html, 'Return visits'), '17');
+  assert.equal(card(html, 'Visitors'), '1,234');
+  assert.match(html, /30 minutes without activity/);
+  assert.match(html, /not different people/);
+  assert.match(html, /only browsers that allow it/);
+  assert.match(html, /Do not divide this number by Visitors/);
+});
+
+test('return section distinguishes historic periods, genuine zero and unavailable counts', () => {
+  const h = harness();
+  const view = changes => h.view({ report: report(changes), loading: false, error: null });
+  const modern = { since: '2026-10-09T09:00:00.000Z', until: '2026-10-09T12:00:00.000Z' };
+  assert.equal(card(view({ ...modern, returnVisits: 0 }), 'Return visits'), '0');
+  for (const value of [null, undefined]) {
+    const html = view({ ...modern, returnVisits: value });
+    assert.equal(card(html, 'Return visits'), 'Unavailable');
+    assert.match(html, /does not mean nobody came back/);
+  }
+  const historical = view({ returnVisits: 0 });
+  assert.equal(card(historical, 'Return visits'), undefined);
+  assert.match(historical, /Return visits were not measured during this period/);
+});
+
 test('app usage shows independent overlapping visitor groups without changing website totals', async () => {
   const h = await loaded({ ...appDates, appUsage: { appVisitors: 800, browserVisitors: 900, appOpens: 1200, confirmedInstalls: 5 } });
   const html = h.html();

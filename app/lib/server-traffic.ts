@@ -13,6 +13,7 @@ const RANGE_MS: Record<Exclude<OwnerTrafficRange, "custom">, number> = {
 const PRODUCTION_FILTER = "environment eq 'production'";
 const EVENT_FILTER = `${PRODUCTION_FILTER} and (eventName eq 'search_submitted' or eventName eq 'marketplace_outbound')`;
 const APP_USAGE_FILTER = `${PRODUCTION_FILTER} and (eventName eq 'app_open' or eventName eq 'browser_open' or eventName eq 'app_install')`;
+const RETURN_VISITS_FILTER = `${PRODUCTION_FILTER} and eventName eq 'return_visit'`;
 
 export class OwnerTrafficError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) {
@@ -168,6 +169,15 @@ function parseAppUsage(payload: unknown): OwnerTrafficAppUsage {
   return usage;
 }
 
+function parseReturnVisits(payload: unknown): number {
+  const data = rows(payload, 1);
+  if (data.length === 0) return 0;
+  if (data[0].eventName !== "return_visit") throw new Error("Unknown analytics event");
+  // Count return occasions, not Vercel's daily visitor IDs. No cross-day
+  // unique-person total can be inferred from this aggregate.
+  return count(data[0].count);
+}
+
 function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; marketplaces: OwnerTrafficMarketplaceRow[]; total: number } {
   const summary: OwnerTrafficClicks = { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 };
   const marketplaces: { marketplace: typeof OWNER_TRAFFIC_MARKETPLACES[number]; cars: number; parts: number; motorbikes?: number; clicks: number }[] = OWNER_TRAFFIC_MARKETPLACES.map(marketplace => ({ marketplace, cars: 0, parts: 0, clicks: 0 }));
@@ -246,12 +256,13 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
     });
   }
 
-  const [totals, sources, events, destinations, appUsage] = await Promise.allSettled([
+  const [totals, sources, events, destinations, appUsage, returnVisits] = await Promise.allSettled([
     query("visits", "environment", PRODUCTION_FILTER, 1, parseTotals),
     query("visits", "referrerHostname", PRODUCTION_FILTER, 8, parseSources),
     query("events", "eventName", EVENT_FILTER, 10, parseEvents),
     query("events", "eventData/context", `${PRODUCTION_FILTER} and eventName eq 'marketplace_outbound'`, 100, parseDestinations),
     query("events", "eventName", APP_USAGE_FILTER, 3, parseAppUsage),
+    query("events", "eventName", RETURN_VISITS_FILTER, 1, parseReturnVisits),
   ]);
   if (totals.status === "rejected") {
     const timedOut = totals.reason instanceof UpstreamTimeoutError;
@@ -261,6 +272,7 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
   const warnings: string[] = [];
   if (sources.status === "rejected") warnings.push("Traffic sources are temporarily unavailable.");
   if (events.status === "rejected") warnings.push("Search and outbound-click totals are temporarily unavailable.");
+  if (returnVisits.status === "rejected") warnings.push("Return visits are temporarily unavailable.");
   if (appUsage.status === "rejected") {
     warnings.push("App usage is temporarily unavailable.");
     const failure = appUsage.reason;
@@ -295,6 +307,7 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
     outboundClicks: events.status === "fulfilled" ? events.value.outboundClicks : null,
     clicksByDestination, marketplaceClicks,
     appUsage: appUsage.status === "fulfilled" ? appUsage.value : null,
+    returnVisits: returnVisits.status === "fulfilled" ? returnVisits.value : null,
     ...(range === "custom" && dates ? { calendarDates: dates } : {}),
     partial: warnings.length > 0, warnings,
   };

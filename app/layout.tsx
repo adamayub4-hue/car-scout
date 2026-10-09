@@ -3,6 +3,7 @@ import "./globals.css";
 import { Suspense } from "react";
 import { SiteAnalytics } from "./components/site-analytics";
 import { AppearanceRuntime } from "./components/appearance";
+import { ReturnVisitPreference } from "./components/return-visit-preference";
 import { siteName, siteUrl, siteTitle, siteDescription, siteStructuredData } from "./lib/site-brand";
 
 export const metadata: Metadata = {
@@ -50,7 +51,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <AppearanceRuntime />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData).replace(/</g, "\\u003c") }} />
-        {children}<Suspense fallback={null}><SiteAnalytics /></Suspense>
+        {children}<Suspense fallback={null}><ReturnVisitPreference /><SiteAnalytics /></Suspense>
       </body>
     </html>
   );
