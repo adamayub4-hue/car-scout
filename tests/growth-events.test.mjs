@@ -220,6 +220,49 @@ test('eBay demo labels remain bounded and excluded visits do not emit or retain 
   }
 });
 
+test('organic follow-on videos retain distinct attribution through searches, outbound clicks, and reloads', () => {
+  for (const [content, mode, method] of [['followon_shape_v1', 'parts', 'diagram'], ['followon_budget_v1', 'cars', 'vehicle']]) {
+    for (const source of ['facebook', 'instagram', 'tiktok']) {
+      const campaign = `${source}|organic_social|october_followon|${content}`;
+      const labels = { utm_source: source, utm_medium: 'organic_social', utm_campaign: 'october_followon', utm_content: content };
+      const app = load({ query: `?${new URLSearchParams(labels)}` });
+      app.track('campaign_landing', { landing_mode: mode });
+      assert.deepEqual(app.events[0].properties, { campaign, context: mode });
+      assert.deepEqual([...app.storage], [[storageKey, campaign]]);
+
+      app.window.location.search = '';
+      app.track('search_submitted', { search_type: mode, marketplace: 'ebay', search_method: method });
+      assert.deepEqual(app.events.at(-1).properties, { campaign, context: `${mode}:${mode === 'cars' ? 'ebay' : method}` });
+      const reloaded = load({ storage: app.storage });
+      reloaded.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
+      assert.deepEqual(reloaded.events[0].properties, { campaign, context: `${mode}:ebay:listing` });
+
+      const excluded = load({ query: `?${new URLSearchParams(labels)}`, audience: 'excluded' });
+      excluded.track('campaign_landing', { landing_mode: mode });
+      excluded.track('search_submitted', { search_type: mode, marketplace: 'ebay', search_method: method });
+      excluded.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
+      assert.equal(excluded.events.length, 0);
+      assert.equal(excluded.storage.size, 0);
+      assert.equal(excluded.timers.size, 0);
+    }
+  }
+});
+
+test('follow-on admission does not accept unapproved campaign or creative variants', () => {
+  for (const content of ['followon_shape_v1', 'followon_budget_v1']) {
+    const labels = { utm_source: 'facebook', utm_medium: 'organic_social', utm_campaign: 'october_followon', utm_content: content };
+    for (const [key, input, expected] of [
+      ['utm_campaign', 'october_followon_v2', `facebook|organic_social|unknown|${content}`],
+      ['utm_content', content.replace('_v1', '_v2'), 'facebook|organic_social|october_followon|unknown'],
+      ['utm_content', `${content}_2`, 'facebook|organic_social|october_followon|unknown'],
+    ]) {
+      const app = load({ query: `?${new URLSearchParams({ ...labels, [key]: input })}` });
+      app.track('campaign_landing', { landing_mode: content === 'followon_shape_v1' ? 'parts' : 'cars' });
+      assert.equal(app.events[0].properties.campaign, expected);
+    }
+  }
+});
+
 test('approving new creatives does not accept unknown variants or new campaign, source, and medium labels', () => {
   const approved = { utm_source: 'meta', utm_medium: 'paid_social', utm_campaign: 'september_validation', utm_content: 'car_shortlist_v1' };
   const cases = [
