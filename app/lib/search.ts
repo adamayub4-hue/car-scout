@@ -28,13 +28,37 @@ export type SubmittedSearch = {
 };
 export type EbayListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
+  affiliateUrl?: string | null;
   currency: string | null; condition: string | null; location: string | null;
   buyingOptions?: string[]; itemEndDate?: string | null;
   buyingFormat?: EbayBuyingFormat;
   postage?: { price: string; currency: string } | null;
 };
 
-const ebayAffiliateParams = { mkcid: "1", mkrid: "710-53481-19255-0", siteid: "3", campid: "5339201924", toolid: "10001", mkevt: "1" };
+export const ebayAffiliateCampaignId = "5339201924";
+const ebayAffiliateParams = { mkcid: "1", mkrid: "710-53481-19255-0", siteid: "3", campid: ebayAffiliateCampaignId, toolid: "10001", mkevt: "1" };
+
+/** Keep eBay's native tracking payload, bound to the same listing and campaign. */
+export function safeNativeEbayAffiliateUrl(value: unknown, listingUrl: string): string | null {
+  if (typeof value !== "string" || value.length > 4096) return null;
+  try {
+    const affiliate = new URL(value);
+    const listing = new URL(listingUrl);
+    const hosts = ["ebay.co.uk", "www.ebay.co.uk", "ebay.com", "www.ebay.com", "m.ebay.co.uk", "m.ebay.com"];
+    const itemId = (url: URL) => url.pathname.match(/^\/itm\/(?:[^/]+\/)?(\d{9,15})\/?$/)?.[1];
+    for (const url of [affiliate, listing]) {
+      if (url.protocol !== "https:" || !hosts.includes(url.hostname) || url.port || url.username || url.password || url.hash) return null;
+    }
+    if (!itemId(listing) || itemId(affiliate) !== itemId(listing)) return null;
+    if (affiliate.searchParams.getAll("campid").length !== 1 || affiliate.searchParams.get("campid") !== ebayAffiliateCampaignId) return null;
+    // Preserve the provider's hash, tracking payload and custom ID intact.
+    return value;
+  } catch { return null; }
+}
+
+export function ebayListingHref(item: EbayListing, fallbackCustomId: string) {
+  return safeNativeEbayAffiliateUrl(item.affiliateUrl, item.url) ?? withEbayAffiliateTracking(item.url, fallbackCustomId);
+}
 
 export function withEbayAffiliateTracking(url: string, customId: string) {
   try {

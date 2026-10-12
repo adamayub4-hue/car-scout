@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { BoundedTtlCache } from "../../../lib/server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "../../../lib/server-upstream";
 import { filterCarListings, type CarListingFilters } from "../../../lib/car-filters";
-import { ebayBuyingFormat, type EbayBuyingFormat } from "../../../lib/search";
+import { ebayAffiliateCampaignId, ebayBuyingFormat, safeNativeEbayAffiliateUrl, type EbayBuyingFormat } from "../../../lib/search";
 
 export const runtime = "nodejs";
 
@@ -12,6 +12,7 @@ type EbayItemSummary = {
   itemId?: string;
   title?: string;
   itemWebUrl?: string;
+  itemAffiliateWebUrl?: string;
   image?: { imageUrl?: string };
   price?: { value?: string; currency?: string };
   buyingOptions?: string[];
@@ -23,6 +24,7 @@ type EbayItemSummary = {
 
 type PublicListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
+  affiliateUrl: string | null;
   currency: string | null; condition: string | null; location: string | null;
   buyingOptions: string[]; itemEndDate: string | null;
   buyingFormat: EbayBuyingFormat;
@@ -136,6 +138,7 @@ export async function GET(request: NextRequest) {
           headers: {
             Authorization: `Bearer ${token}`,
             "X-EBAY-C-MARKETPLACE-ID": "EBAY_GB",
+            "X-EBAY-C-ENDUSERCTX": `affiliateCampaignId=${ebayAffiliateCampaignId},affiliateReferenceId=mekivo-${type === "parts" ? "parts" : vehicleType === "motorbikes" ? "motorbikes" : "cars"}-live`,
             "Accept-Language": "en-GB",
           },
           cache: "no-store",
@@ -165,6 +168,7 @@ export async function GET(request: NextRequest) {
             id: item.itemId ?? item.itemWebUrl!,
             title: item.title!,
             url: item.itemWebUrl!,
+            affiliateUrl: safeNativeEbayAffiliateUrl(item.itemAffiliateWebUrl, item.itemWebUrl!),
             image: item.image?.imageUrl ?? null,
             price: item.price?.value ?? null,
             currency: item.price?.currency ?? null,
