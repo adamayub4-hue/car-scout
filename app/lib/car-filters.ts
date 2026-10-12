@@ -32,9 +32,15 @@ const BMW_COMPONENT_CODE_ONLY = /^bmw\s+(?![135]series$)(?=[a-z0-9]{7}$)(?=[a-z0
 const bikeMakes = ["royal enfield", "harley davidson", "harley", "honda", "yamaha", "suzuki", "kawasaki", "triumph", "bmw", "ducati", "ktm", "aprilia", "lexmoto", "vespa", "piaggio", "lambretta", "benelli", "bsa", "norton", "husqvarna", "kymco", "sym", "keeway", "moto guzzi"];
 const compactBikeMake = new RegExp(`\\b(?:${bikeMakes.join("|")})(?=[a-z0-9])`, "gi");
 const EXCLUDED_BIKE_PRODUCT = /\b(?:project\s+(?:bike|motorbike|motorcycle)|mobility\s+scooter|kick\s+scooter|e[ -]?scooter|bicycle|push\s*bike|pedal\s+bike|toy\s+(?:bike|motorcycle)|balance\s+bike)\b|^(?:(?:new|used|genuine|oem|motorcycle|motorbike|bike)[\s-]+)*(?:helmets?|gloves?|jackets?|boots?|fairings?|sprockets?|chains?|sidecars?|exhausts?|fuel\s+tanks?|engines?|frames?)\b|\b(?:fairings?|sprockets?|chains?|sidecars?|exhausts?|fuel\s+tanks?|engines?|frames?)\s+(?:only|for|replacement|removed|bare|assembly)\b/i;
-const bikeComponentPattern = "gps|sat[\\s-]*nav|satellite[\\s-]+navigation|navigators?|air[\\s-]*box(?:es)?|top[\\s-]*box(?:es)?|chargers?|fuel[\\s-]*x|apes|ape[\\s-]+hangers?|handlebars?|(?:(?:heated|front|rear|pillion)[\\s-]+)+seats?|fairings?|sprockets?|chains?|sidecars?|exhausts?|exhuasts?|fuel[\\s-]+tanks?|engines?|frames?";
+// Rider gear and bolt-on equipment also leak into the motorcycle category.
+// A bike make or MOT in an accessory's compatibility text does not make it a
+// whole bike; preserve these names only in explicit fitted/included context.
+const bikeAccessoryPattern = "masks?|helmets?|gloves?|jackets?|boots?|goggles?|visors?|neck[\\s-]+warmers?|grab[\\s-]*(?:bars?|rails?|handles?)|handle[\\s-]*rails?|foot[\\s-]*(?:boards?|pegs?|rests?)|sissy[\\s-]*bars?|panniers?|saddle[\\s-]*bags?|luggage[\\s-]+racks?";
+const BIKE_ACCESSORY_NAME = new RegExp(`\\b(?:${bikeAccessoryPattern})\\b`, "i");
+const BIKE_ACCESSORY_AT_START = new RegExp(`^(?:(?:new|used|genuine|oem|motorcycles?|motorbikes?|bike|rider|full|face|black|chrome|front|rear|passenger|pillion)[\\s-]+)*(?:${bikeAccessoryPattern})\\b`, "i");
+const bikeComponentPattern = `gps|sat[\\s-]*nav|satellite[\\s-]+navigation|navigators?|air[\\s-]*box(?:es)?|top[\\s-]*box(?:es)?|chargers?|fuel[\\s-]*x|apes|ape[\\s-]+hangers?|handlebars?|(?:(?:heated|front|rear|pillion)[\\s-]+)+seats?|fairings?|sprockets?|chains?|sidecars?|exhausts?|exhuasts?|fuel[\\s-]+tanks?|engines?|frames?|${bikeAccessoryPattern}`;
 const BIKE_COMPONENT_NAME = new RegExp(`\\b(?:${bikeComponentPattern})\\b`, "i");
-const BIKE_FITTED_EQUIPMENT = new RegExp(`\\b(?:with|includes?|including|replaced|rebuilt|reconditioned)\\s+(?:[a-z-]+\\s+){0,4}(?:${bikeComponentPattern})\\b|\\b(?:${bikeComponentPattern})\\s+(?:fitted|included|replaced|rebuilt|reconditioned)\\b`, "i");
+const BIKE_FITTED_EQUIPMENT = new RegExp(`\\b(?:with|includes?|including|replaced|rebuilt|reconditioned)\\s+(?:(?:[a-z-]+|\\d+)\\s+){0,4}(?:${bikeComponentPattern})\\b|\\b(?:${bikeComponentPattern})\\s+(?:fitted|included|replaced|rebuilt|reconditioned)\\b`, "i");
 const CLEAR_CAR_IN_BIKE_CATEGORY = /\b(?:honda\s+(?:jazz|civic|accord|cr[\s-]*v|hr[\s-]*v)|suzuki\s+(?:swift|ignis|alto|jimny|vitara|sx[\s-]*4)|bmw\s+(?:[135]\s*series|[1357]\d{2}(?:i|d|e|ci|cd|ti|tds)|x[1-7]))\b/i;
 
 function isUnclearOrComponentBikeTitle(title: string) {
@@ -48,6 +54,7 @@ function isUnclearOrComponentBikeTitle(title: string) {
     /\b(?:motorcycles?|motorbikes?|scooters?|mopeds?|pit\s*bikes?|dirt\s*bikes?|\d+\s*cc|vfr\s*\d+)\b/i.test(text);
   // "Brand new" is normal component-advert wording, not evidence of fitting.
   const equipmentTitle = title.replace(/\bbrand[\s-]+new\b/gi, "");
+  if (BIKE_ACCESSORY_NAME.test(title) && (BIKE_ACCESSORY_AT_START.test(equipmentTitle.trim()) || !(bikeEvidence && BIKE_FITTED_EQUIPMENT.test(equipmentTitle)))) return true;
   if (BIKE_COMPONENT_NAME.test(title) && !(bikeEvidence && (COMPLETE_CAR_EVIDENCE.test(title) || BIKE_FITTED_EQUIPMENT.test(equipmentTitle)))) return true;
   return false;
 }
