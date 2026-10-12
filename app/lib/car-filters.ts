@@ -35,16 +35,19 @@ const EXCLUDED_BIKE_PRODUCT = /\b(?:project\s+(?:bike|motorbike|motorcycle)|mobi
 // Rider gear and bolt-on equipment also leak into the motorcycle category.
 // A bike make or MOT in an accessory's compatibility text does not make it a
 // whole bike; preserve these names only in explicit fitted/included context.
-const bikeAccessoryPattern = "masks?|helmets?|gloves?|jackets?|boots?|goggles?|visors?|neck[\\s-]+warmers?|grab[\\s-]*(?:bars?|rails?|handles?)|handle[\\s-]*rails?|foot[\\s-]*(?:boards?|pegs?|rests?)|sissy[\\s-]*bars?|panniers?|saddle[\\s-]*bags?|luggage[\\s-]+racks?";
+const bikeAccessoryPattern = "masks?|helmets?|gloves?|jackets?|boots?|goggles?|visors?|neck[\\s-]+warmers?|grab[\\s-]*(?:bars?|rails?|handles?)|handle[\\s-]*rails?|foot[\\s-]*(?:boards?|pegs?|rests?)|sissy[\\s-]*bars?|panniers?|saddle[\\s-]*bags?|luggage[\\s-]+racks?|side[\\s-]*(?:panels?|covers?)";
 const BIKE_ACCESSORY_NAME = new RegExp(`\\b(?:${bikeAccessoryPattern})\\b`, "i");
 const BIKE_ACCESSORY_AT_START = new RegExp(`^(?:(?:new|used|genuine|oem|motorcycles?|motorbikes?|bike|rider|full|face|black|chrome|front|rear|passenger|pillion)[\\s-]+)*(?:${bikeAccessoryPattern})\\b`, "i");
 const bikeComponentPattern = `gps|sat[\\s-]*nav|satellite[\\s-]+navigation|navigators?|air[\\s-]*box(?:es)?|top[\\s-]*box(?:es)?|chargers?|fuel[\\s-]*x|apes|ape[\\s-]+hangers?|handlebars?|(?:(?:heated|front|rear|pillion)[\\s-]+)+seats?|fairings?|sprockets?|chains?|sidecars?|exhausts?|exhuasts?|fuel[\\s-]+tanks?|engines?|frames?|${bikeAccessoryPattern}`;
 const BIKE_COMPONENT_NAME = new RegExp(`\\b(?:${bikeComponentPattern})\\b`, "i");
 const BIKE_FITTED_EQUIPMENT = new RegExp(`\\b(?:with|includes?|including|replaced|rebuilt|reconditioned)\\s+(?:(?:[a-z-]+|\\d+)\\s+){0,4}(?:${bikeComponentPattern})\\b|\\b(?:${bikeComponentPattern})\\s+(?:fitted|included|replaced|rebuilt|reconditioned)\\b`, "i");
 const CLEAR_CAR_IN_BIKE_CATEGORY = /\b(?:honda\s+(?:jazz|civic|accord|cr[\s-]*v|hr[\s-]*v)|suzuki\s+(?:swift|ignis|alto|jimny|vitara|sx[\s-]*4)|bmw\s+(?:[135]\s*series|[1357]\d{2}(?:i|d|e|ci|cd|ti|tds)|x[1-7]))\b/i;
+// This mode searches motorcycles and scooters; explicit quad/ATV adverts are
+// a different vehicle kind, regardless of engine size or advertised condition.
+const OTHER_BIKE_VEHICLE_KIND = /\b(?:quad[\s-]*bikes?|atvs?)\b/i;
 
 function isUnclearOrComponentBikeTitle(title: string) {
-  if (/\bproject\b/i.test(title) || CLEAR_CAR_IN_BIKE_CATEGORY.test(title)) return true;
+  if (/\bproject\b/i.test(title) || CLEAR_CAR_IN_BIKE_CATEGORY.test(title) || OTHER_BIKE_VEHICLE_KIND.test(title)) return true;
   if (/^(?:please\s+)?(?:(?:check|see|view)\s+(?:the\s+)?(?:photos|pictures)|for\s+sale|new\s+listing|item|vehicle)\s*[.!]*$/i.test(title.trim())) return true;
   const text = normalizedBikeText(title);
   // The provider's category also contains unrelated goods. A make/year alone

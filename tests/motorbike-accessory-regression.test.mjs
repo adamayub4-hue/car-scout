@@ -16,6 +16,11 @@ const liveAccessories = [
   ['Motorbike Grab Bar Handle Rail Aluminum Alloy For 400X Scrumbler Triumph', '30'],
   ['Genuine Harley Davidson Footboards Chrome Softail, Touring Road.', '90'],
 ];
+const liveFollowup = [
+  ['Honda 400 four Side Panels', '150'],
+  ['Mini Quad Bike 50cc Petrol ATV for Ages 5-10', '170'],
+  ['Aprilia Sr 50', '200'],
+];
 const listing = (title, price = '600', index = 0) => ({
   id: `v1|${123456789000 + index}|0`, title, price, currency: 'GBP',
   url: `https://www.ebay.co.uk/itm/${123456789000 + index}`, condition: 'Used',
@@ -74,6 +79,25 @@ test('the three observed live accessories are hidden from motorbike results and 
   }
 });
 
+test('the live follow-up hides side panels and quad adverts while preserving the sparse Aprilia bike', () => {
+  const items = liveFollowup.map(([title, price], index) => listing(title, price, index));
+  assert.deepEqual(ids(h.filterCarListings(items, { vehicleType: 'motorbikes', hideUnwanted: true, maxPrice: '1000', sort: 'price_asc' })), [items[2].id]);
+  assert.deepEqual(Array.from(h.pricePicks(items), result => result.item.id), [items[2].id]);
+  assert.deepEqual(ids(h.filterCarListings(items, { vehicleType: 'motorbikes', hideUnwanted: false, maxPrice: '1000', sort: 'price_asc' })), items.map(item => item.id));
+});
+
+test('side-panel products and explicitly different quad/ATV vehicle kinds are excluded in motorbike mode', () => {
+  for (const title of [
+    'Honda CB400 side panels', 'Honda motorcycle side-covers', 'Motorbike SidePanel for Honda',
+    'Honda side cover full MOT compatibility', 'Side panels with 2 side covers for Honda motorcycle',
+    'Mini quad-bike 50cc', 'Honda ATV 250cc full MOT', 'Yamaha ATVs',
+  ]) {
+    const item = listing(title, '200');
+    assert.equal(h.filterCarListings([item], { vehicleType: 'motorbikes', hideUnwanted: true }).length, 0, title);
+    assert.equal(h.pricePicks([item]).length, 0, title);
+  }
+});
+
 test('rider gear, rails, foot equipment and luggage are products rather than complete bikes', () => {
   for (const title of [
     'Full FaceMask motorcycle black', 'Full-face helmet for Honda CBR125',
@@ -99,6 +123,7 @@ test('whole-bike titles, sparse unfamiliar makes and explicit fitted equipment r
     'Honda CBR125 motorcycle with full-face helmet', 'Triumph Bonneville grab rail fitted',
     'Harley Davidson Softail with chrome footboards', 'BMW R1200GS with panniers',
     'BMW R1200GS motorcycle with 2 panniers', 'Honda CBR125 motorcycle with 2 helmets',
+    'Aprilia Sr 50', 'Honda 400 four side panels fitted', 'Honda CB400 motorcycle with 2 side covers',
     'Yamaha motorcycle luggage rack fitted', 'Royal Enfield Meteor exhaust fitted',
     'Honda PCX 125 with topbox', 'BMW R1300GS with heated low front seat',
   ];
@@ -117,8 +142,10 @@ test('the optional hide filter can be disabled without admitting accessories int
 });
 
 test('new accessory checks apply only to the motorbike vehicle mode', () => {
-  const item = listing('2018 Ford Focus with grab bar full MOT');
-  assert.deepEqual(ids(h.filterCarListings([item], { vehicleType: 'cars', hideUnwanted: true, maxPrice: '1000' })), [item.id]);
+  for (const title of ['2018 Ford Focus with grab bar full MOT', '2018 Ford Focus side panels fitted full MOT', '2018 Ford Focus ATV edition']) {
+    const item = listing(title);
+    assert.deepEqual(ids(h.filterCarListings([item], { vehicleType: 'cars', hideUnwanted: true, maxPrice: '1000' })), [item.id]);
+  }
 });
 
 test('an accessory-filled first provider page is backfilled with matching bikes within the existing budget', async () => {
@@ -127,11 +154,13 @@ test('an accessory-filled first provider page is backfilled with matching bikes 
     itemWebUrl: `https://www.ebay.co.uk/itm/${123456789000 + index}`,
     price: { value: price, currency: 'GBP' }, buyingOptions: ['FIXED_PRICE'],
   });
-  const first = Array.from({ length: 48 }, (_, index) => apiItem(...liveAccessories[index % 3], index));
+  const hidden = [...liveAccessories, ...liveFollowup.slice(0, 2)];
+  const first = Array.from({ length: 48 }, (_, index) => apiItem(...hidden[index % hidden.length], index));
   const second = [
     apiItem('Honda CBR125 motorcycle full MOT', '950', 48),
     apiItem('Gabbiano Turismo 50cc Moped', '700', 49),
     apiItem('Yamaha motorcycle', '1000.01', 50),
+    apiItem('Aprilia Sr 50', '200', 51),
   ];
   const api = harness(url => Number(url.searchParams.get('offset')) === 0
     ? Response.json({ itemSummaries: first, next: 'https://api.ebay.com/buy/browse/v1/item_summary/search?offset=48' })
@@ -139,8 +168,8 @@ test('an accessory-filled first provider page is backfilled with matching bikes 
   const response = await api.get();
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.deepEqual(body.items.map(item => item.title), ['Gabbiano Turismo 50cc Moped', 'Honda CBR125 motorcycle full MOT']);
-  assert.deepEqual(body.searchInfo, { checkedCount: 51, pagesChecked: 2, hasMore: false, partial: false });
+  assert.deepEqual(body.items.map(item => item.title), ['Aprilia Sr 50', 'Gabbiano Turismo 50cc Moped', 'Honda CBR125 motorcycle full MOT']);
+  assert.deepEqual(body.searchInfo, { checkedCount: 52, pagesChecked: 2, hasMore: false, partial: false });
   assert.deepEqual(api.calls.map(call => call.url.searchParams.get('offset')), ['0', '48']);
   for (const { url } of api.calls) {
     assert.equal(url.origin, 'https://api.ebay.com');
