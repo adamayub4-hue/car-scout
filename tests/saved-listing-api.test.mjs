@@ -198,3 +198,21 @@ test('stalled authentication and provider responses receive private retryable ti
     assert.match((await result.json()).error, /try again/i);
   }
 });
+
+test('authenticated current saved details preserve safe offer format without adding a new provider request', async () => {
+  const h = harness({ provider: async () => Response.json(payload({ buyingOptions: ['CLASSIFIED_AD', 'CLASSIFIED_AD'] })) });
+  const response = await h.GET(request());
+  assert.equal(response.status, 200);
+  const details = await response.json();
+  assert.deepEqual(details.item.buyingOptions, ['CLASSIFIED_AD']);
+  assert.ok(!JSON.stringify(details).includes('PRIVATE'));
+  assert.equal(h.calls.fetch.filter(call => call.url.includes('/buy/browse/')).length, 1);
+});
+
+test('invalid mixed provider option members cannot become a confident saved format', async () => {
+  for (const buyingOptions of [['CLASSIFIED_AD', 'UNRECOGNIZED'], ['FIXED_PRICE', 7]]) {
+    const h = harness({ provider: async () => Response.json(payload({ buyingOptions })) });
+    const details = await (await h.GET(request())).json();
+    assert.equal(details.item.buyingOptions, undefined);
+  }
+});

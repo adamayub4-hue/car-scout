@@ -488,3 +488,23 @@ test('custom dates wait for Apply, validate before fetching, and ignore older pe
   h.respond(1, report({ range: 'custom', visitors: 999 })); await h.flush();
   assert.equal(card(h.html(), 'Visitors'), '55');
 });
+
+test('format detail labels older actions unknown and distinguishes result links from listings without claiming commission', () => {
+  const h = harness();
+  const html = h.view({ loading: false, error: null, report: report({ outboundDetails: [
+    { searchType: 'cars', marketplace: 'ebay', destination: 'listing', buyingFormat: 'unknown', measurement: 'legacy', clicks: 4 },
+    { searchType: 'parts', marketplace: 'ebay', destination: 'listing', buyingFormat: 'fixed_price', measurement: 'v2', clicks: 2 },
+    { searchType: 'cars', marketplace: 'ebay', destination: 'all_results', buyingFormat: 'unknown', measurement: 'v2', clicks: 1 },
+    { searchType: 'cars', marketplace: 'ebay', destination: 'listing', buyingFormat: 'classified', measurement: 'v2', clicks: 1 },
+  ] }) });
+  assert.match(html, /Unknown \(older action\)/);
+  assert.match(html, /Individual listing/);
+  assert.match(html, /All results/);
+  assert.match(html, /Fixed price/);
+  assert.match(html, /Classified ad/);
+  assert.match(html, /does not confirm a purchase, commission eligibility or earnings/);
+  const old = h.view({ loading: false, error: null, report: report() });
+  assert.match(old, /Offer-format details are unavailable/);
+  assert.doesNotMatch(old, /No outbound actions recorded/);
+  h.unmount();
+});

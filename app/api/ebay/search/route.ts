@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { BoundedTtlCache } from "../../../lib/server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "../../../lib/server-upstream";
 import { filterCarListings, type CarListingFilters } from "../../../lib/car-filters";
+import { ebayBuyingFormat, type EbayBuyingFormat } from "../../../lib/search";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,7 @@ type PublicListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
   currency: string | null; condition: string | null; location: string | null;
   buyingOptions: string[]; itemEndDate: string | null;
+  buyingFormat: EbayBuyingFormat;
   postage: { price: string; currency: string } | null;
 };
 type SearchInfo = { checkedCount: number; pagesChecked: number; hasMore: boolean; partial: boolean };
@@ -169,6 +171,9 @@ export async function GET(request: NextRequest) {
             // price is the advertised purchase price. Never substitute the
             // separate currentBidPrice when building a price comparison.
             buyingOptions: Array.isArray(item.buyingOptions) ? item.buyingOptions.filter((option): option is string => typeof option === "string") : [],
+            // Classify the raw provider array before the existing display/filter
+            // normalization can remove malformed members. Matching is unchanged.
+            buyingFormat: ebayBuyingFormat(item.buyingOptions),
             itemEndDate: typeof item.itemEndDate === "string" ? item.itemEndDate : null,
             condition: item.condition ?? null,
             location: item.itemLocation?.postalCode ?? item.itemLocation?.country ?? null,

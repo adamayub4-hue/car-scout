@@ -3,6 +3,17 @@ import type { SavedSearchItem } from "./saved-search";
 export type Mode = "cars" | "parts";
 export type VehicleType = "cars" | "motorbikes";
 export type SearchType = VehicleType | "parts";
+export type EbayBuyingFormat = "fixed_price" | "auction" | "classified" | "mixed" | "unknown";
+
+/** Observe the provider's offer format, never whether a commission is payable. */
+export function ebayBuyingFormat(options: unknown): EbayBuyingFormat {
+  if (!Array.isArray(options) || options.length > 16 || options.some(option => !["FIXED_PRICE", "AUCTION", "CLASSIFIED_AD", "BEST_OFFER"].includes(option))) return "unknown";
+  const formats: EbayBuyingFormat[] = [];
+  if (options.includes("FIXED_PRICE")) formats.push("fixed_price");
+  if (options.includes("AUCTION")) formats.push("auction");
+  if (options.includes("CLASSIFIED_AD")) formats.push("classified");
+  return formats.length > 1 ? "mixed" : formats[0] ?? "unknown";
+}
 export type MarketplaceId = "autotrader" | "facebook" | "ebay" | "motors" | "gumtree" | "cargurus" | "pistonheads" | "aacars" | "carandclassic";
 export type Platform = "all" | "more" | MarketplaceId;
 export type VehicleFields = { make: string; model: string; year: string; engine: string; fuel: string; bodyStyle: string };
@@ -19,6 +30,7 @@ export type EbayListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
   currency: string | null; condition: string | null; location: string | null;
   buyingOptions?: string[]; itemEndDate?: string | null;
+  buyingFormat?: EbayBuyingFormat;
   postage?: { price: string; currency: string } | null;
 };
 

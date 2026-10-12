@@ -260,7 +260,7 @@ export default function AccountPage() {
         {pendingListing && <section aria-label="Listing waiting to be saved" className="mt-6 rounded-2xl border border-sky-300/25 p-4">
           <p className="mb-2 font-bold">Your {savedListingLabel(pendingListing.item)} is ready to save</p>
           <p className="mb-4 text-sm leading-6 text-muted">{user ? `Save this listing to ${user.email || "your signed-in account"}.` : "Sign in or create an account below, then choose Save. This selection stays in this browser for up to 24 hours while you confirm your email."}</p>
-          <SavedListingCard item={pendingListing.item} action={<>
+          <SavedListingCard item={pendingListing.item} pendingToken={pendingListing.token} action={<>
             {user && <button type="button" onClick={savePending} disabled={Boolean(busyAction)} className="rounded-xl bg-sky-400 px-4 py-2.5 font-bold text-slate-950 disabled:opacity-60">{busyAction === "save-listing" ? "Saving…" : `Save this ${savedListingLabel(pendingListing.item)}`}</button>}
             <button type="button" onClick={dismissPending} disabled={Boolean(busyAction)} className="text-muted disabled:opacity-60">Dismiss</button>
           </>} />

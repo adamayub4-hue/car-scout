@@ -226,3 +226,16 @@ test('parts retain 12 results and ignore car-only options; purchase prices never
   const carResponse = await h.get('type=cars&q=Ford&sort=price_asc&hideUnwanted=1');
   assert.equal((await carResponse.json()).items[0].price, '5000');
 });
+
+test('raw malformed provider buying options are unknown for measurement without changing established listing filtering', async () => {
+  const items = [
+    ['FIXED_PRICE'], ['FIXED_PRICE', 7], ['FIXED_PRICE', 'UNRECOGNIZED'], ['FIXED_PRICE', 'BEST_OFFER'], ['FIXED_PRICE', 'AUCTION'],
+  ].map((buyingOptions, index) => ({ itemId: `format-${index}`, title: 'Ford Fiesta 2018 full car', itemWebUrl: `https://www.ebay.co.uk/itm/${index}`, price: { value: '2000', currency: 'GBP' }, buyingOptions }));
+  const h = harness(items);
+  const response = await h.get('type=cars&q=Ford+Fiesta&hideUnwanted=1');
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.items.length, 5);
+  assert.deepEqual(result.items.map(item => item.buyingFormat), ['fixed_price', 'unknown', 'unknown', 'fixed_price', 'mixed']);
+  assert.deepEqual(result.items[1].buyingOptions, ['FIXED_PRICE'], 'existing display/filter normalization is unchanged');
+});

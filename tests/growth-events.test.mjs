@@ -70,9 +70,9 @@ test('every existing funnel event keeps its name and exactly two useful Pro prop
     ['results_empty', { search_type: 'parts', search_method: 'catalogue', result_count: 0 }, 'parts:catalogue'],
     ['results_error', { search_type: 'parts', search_method: 'search', reason: 'timeout' }, 'parts:search:timeout'],
     ['results_error', { search_type: 'cars', search_method: 'vehicle', reason: 'unavailable' }, 'cars:vehicle:unavailable'],
-    ['marketplace_outbound', { search_type: 'cars', marketplace: 'autotrader', destination: 'search_results' }, 'cars:autotrader:search_results'],
-    ['marketplace_outbound', { search_type: 'parts', marketplace: 'ebay', destination: 'listing' }, 'parts:ebay:listing'],
-    ['marketplace_outbound', { search_type: 'parts', marketplace: 'ebay', destination: 'all_results' }, 'parts:ebay:all_results'],
+    ['marketplace_outbound', { search_type: 'cars', marketplace: 'autotrader', destination: 'search_results' }, 'v2:cars:autotrader:search_results:unknown'],
+    ['marketplace_outbound', { search_type: 'parts', marketplace: 'ebay', destination: 'listing' }, 'v2:parts:ebay:listing:unknown'],
+    ['marketplace_outbound', { search_type: 'parts', marketplace: 'ebay', destination: 'all_results' }, 'v2:parts:ebay:all_results:unknown'],
   ];
   for (const [name, properties, context] of cases) {
     app.track(name, properties);
@@ -95,9 +95,9 @@ test('motorbike funnel contexts use vehicle marketplaces and retain only approve
     ['results_shown', { search_type: 'motorbikes', result_kind: 'marketplace_links' }, 'motorbikes:marketplace_links'],
     ['results_empty', { search_type: 'motorbikes', search_method: 'vehicle', result_count: 0 }, 'motorbikes:vehicle'],
     ['results_error', { search_type: 'motorbikes', search_method: 'vehicle', reason: 'timeout' }, 'motorbikes:vehicle:timeout'],
-    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'ebay', destination: 'listing' }, 'motorbikes:ebay:listing'],
-    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'gumtree', destination: 'search_results' }, 'motorbikes:gumtree:search_results'],
-    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'ebay', destination: 'all_results' }, 'motorbikes:ebay:all_results'],
+    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'ebay', destination: 'listing' }, 'v2:motorbikes:ebay:listing:unknown'],
+    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'gumtree', destination: 'search_results' }, 'v2:motorbikes:gumtree:search_results:unknown'],
+    ['marketplace_outbound', { search_type: 'motorbikes', marketplace: 'ebay', destination: 'all_results' }, 'v2:motorbikes:ebay:all_results:unknown'],
   ];
   for (const [name, properties, context] of cases) {
     app.track(name, { ...properties, query: 'PRIVATE model', vehicleType: 'PRIVATE', registration: 'PRIVATE', context: 'PRIVATE', campaign: 'PRIVATE' });
@@ -163,7 +163,7 @@ test('new September creative labels survive landing, clean navigation, and reloa
       app.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
       const reloaded = load({ storage: app.storage });
       reloaded.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
-      const expected = { campaign, context: `${mode}:ebay:listing` };
+      const expected = { campaign, context: `v2:${mode}:ebay:listing:unknown` };
       assert.deepEqual(app.events.at(-1).properties, expected);
       assert.deepEqual(reloaded.events[0].properties, expected);
     }
@@ -197,7 +197,7 @@ test('organic eBay demos retain distinct attribution through searches, outbound 
       app.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
       const reloaded = load({ storage: app.storage });
       reloaded.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
-      assert.deepEqual(app.events.at(-1).properties, { campaign, context: `${mode}:ebay:listing` });
+      assert.deepEqual(app.events.at(-1).properties, { campaign, context: `v2:${mode}:ebay:listing:unknown` });
       assert.deepEqual(reloaded.events[0].properties, app.events.at(-1).properties);
     }
   }
@@ -235,7 +235,7 @@ test('organic follow-on videos retain distinct attribution through searches, out
       assert.deepEqual(app.events.at(-1).properties, { campaign, context: `${mode}:${mode === 'cars' ? 'ebay' : method}` });
       const reloaded = load({ storage: app.storage });
       reloaded.track('marketplace_outbound', { search_type: mode, marketplace: 'ebay', destination: 'listing' });
-      assert.deepEqual(reloaded.events[0].properties, { campaign, context: `${mode}:ebay:listing` });
+      assert.deepEqual(reloaded.events[0].properties, { campaign, context: `v2:${mode}:ebay:listing:unknown` });
 
       const excluded = load({ query: `?${new URLSearchParams(labels)}`, audience: 'excluded' });
       excluded.track('campaign_landing', { landing_mode: mode });
@@ -410,7 +410,7 @@ test('free-text, identifiers, arbitrary context fields, and unknown event names 
     search_type: 'person@example.test', marketplace: 'private listing', destination: 'https://private.test',
     campaign: 'override', context: 'override', user_id: '123', query: 'Ford AB12CDE', postcode: 'SW1A1AA',
   });
-  assert.deepEqual(app.events[0].properties, { campaign: 'direct', context: 'unknown:unknown:unknown' });
+  assert.deepEqual(app.events[0].properties, { campaign: 'direct', context: 'v2:unknown:unknown:unknown:unknown' });
   app.track('person@example.test', { anything: 'private' });
   assert.equal(app.events.length, 1);
 });
@@ -526,4 +526,27 @@ test('opting out clears SDK startup events instead of sending them later', () =>
   app.advance(50);
   assert.equal(app.events.length, 0);
   assert.equal(app.timers.size, 0);
+});
+
+test('future outbound formats stay enums, preserve destination kind, and never retain item or person data', () => {
+  const app = load();
+  for (const format of ['fixed_price', 'auction', 'classified', 'mixed', 'unknown']) {
+    app.track('marketplace_outbound', { search_type: 'cars', marketplace: 'ebay', destination: 'listing', buying_format: format, item_id: 'PRIVATE', url: 'https://PRIVATE.test', price: 'PRIVATE', user_id: 'PRIVATE', buyingOptions: 'PRIVATE' });
+    assert.deepEqual(app.events.at(-1).properties, { campaign: 'direct', context: `v2:cars:ebay:listing:${format}` });
+  }
+  for (const [marketplace, destination, format] of [
+    ['ebay', 'all_results', 'unknown'], ['ebay', 'search_results', 'unknown'], ['autotrader', 'listing', 'unknown'], ['ebay', 'listing', 'fixed_price'],
+  ]) {
+    app.track('marketplace_outbound', { marketplace, destination, search_type: 'parts', buying_format: 'fixed_price' });
+    assert.equal(app.events.at(-1).properties.context, `v2:parts:${marketplace}:${destination}:${format}`);
+  }
+  for (const unsafe of ['PRIVATE', 'FIXED_PRICE', 'classified:PRIVATE', '', false, 7]) {
+    app.track('marketplace_outbound', { marketplace: 'ebay', destination: 'listing', search_type: 'motorbikes', buying_format: unsafe });
+    assert.equal(app.events.at(-1).properties.context, 'v2:motorbikes:ebay:listing:unknown');
+  }
+  assert.ok(!JSON.stringify(app.events).includes('PRIVATE'));
+  assert.ok(app.events.every(event => Object.keys(event.properties).sort().join(',') === 'campaign,context'));
+  const excluded = load({ audience: 'excluded' });
+  excluded.track('marketplace_outbound', { marketplace: 'ebay', search_type: 'cars', destination: 'listing', buying_format: 'classified' });
+  assert.equal(excluded.events.length, 0);
 });

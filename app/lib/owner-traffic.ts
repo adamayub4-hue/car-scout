@@ -1,3 +1,5 @@
+import type { EbayBuyingFormat, SearchType } from "./search";
+
 export const OWNER_TRAFFIC_RANGES = ["24h", "7d", "30d", "custom"] as const;
 
 export type OwnerTrafficRange = (typeof OWNER_TRAFFIC_RANGES)[number];
@@ -22,6 +24,15 @@ export type OwnerTrafficMarketplaceRow = {
   cars: number | null;
   motorbikes?: number | null;
   parts: number | null;
+  clicks: number;
+};
+
+export type OwnerTrafficOutboundRow = {
+  searchType: SearchType | null;
+  marketplace: OwnerTrafficMarketplace;
+  destination: "listing" | "search_results" | "all_results" | "unknown";
+  buyingFormat: EbayBuyingFormat;
+  measurement: "legacy" | "v2" | "unknown";
   clicks: number;
 };
 
@@ -77,6 +88,7 @@ export type OwnerTrafficReport = {
   outboundClicks: number | null;
   clicksByDestination: OwnerTrafficClicks | null;
   marketplaceClicks: OwnerTrafficMarketplaceRow[] | null;
+  outboundDetails?: OwnerTrafficOutboundRow[] | null;
   appUsage: OwnerTrafficAppUsage | null;
   returnVisits?: number | null;
   calendarDates?: OwnerTrafficDates;

@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { formatListingPrice, withEbayAffiliateTracking } from "../lib/search";
-import { createSavedListing, savedListingLabel, savedListingSearchType, type SavedListingItem } from "../lib/saved-listings";
+import { ebayBuyingFormat, formatListingPrice, withEbayAffiliateTracking } from "../lib/search";
+import { createSavedListing, getPendingListingSnapshotExpiresAt, savedListingLabel, savedListingSearchType, type SavedListingItem } from "../lib/saved-listings";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 import { withRequestDeadline } from "../lib/saved-search";
 import { partPostageLabel } from "../lib/part-recommendations";
@@ -18,7 +18,7 @@ type ListingDetails = {
 };
 const MAX_DETAILS_AGE = 6 * 60 * 60 * 1_000;
 
-export default function SavedListingCard({ item, savedAt, userId, action }: { item: SavedListingItem; savedAt?: string; userId?: string; action?: ReactNode }) {
+export default function SavedListingCard({ item, savedAt, userId, pendingToken, action }: { item: SavedListingItem; savedAt?: string; userId?: string; pendingToken?: string; action?: ReactNode }) {
   const [failedImage, setFailedImage] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [details, setDetails] = useState<ListingDetails | null>(null);
@@ -74,6 +74,14 @@ export default function SavedListingCard({ item, savedAt, userId, action }: { it
   // Saved rows contain a bookmark only. Provider details must come from a fresh,
   // authenticated check, never an old database snapshot.
   const shown = savedAt ? current?.status === "ready" ? current.item : null : item;
+  const trackOutbound = () => {
+    const now = Date.now();
+    const pendingExpiresAt = !savedAt && pendingToken ? getPendingListingSnapshotExpiresAt(pendingToken) : null;
+    const fresh = savedAt ? current?.status === "ready" && current.checkedAt !== undefined
+      && current.checkedAt <= now + 300_000 && now - current.checkedAt < MAX_DETAILS_AGE
+      : pendingExpiresAt !== null && now < pendingExpiresAt;
+    trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: searchType, destination: "listing", buying_format: ebayBuyingFormat(fresh ? shown?.data.buyingOptions : undefined) });
+  };
   const retry = () => { setDetails({ key, status: "loading" }); setRefresh(value => value + 1); };
 
   return (
@@ -94,7 +102,7 @@ export default function SavedListingCard({ item, savedAt, userId, action }: { it
       </div>
       <p className="mt-4 text-xs leading-5 text-muted">Prices and availability can change, and listings may end. Confirm {isCar ? "the vehicle details" : "compatibility and postage"} with the seller. Mekivo may earn a commission.</p>
       <div className="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
-        <a href={withEbayAffiliateTracking(item.data.url, `mekivo-${searchType}-saved`)} target="_blank" rel="sponsored noreferrer" onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: searchType, destination: "listing" })} className="text-link">View original listing →</a>
+        <a href={withEbayAffiliateTracking(item.data.url, `mekivo-${searchType}-saved`)} target="_blank" rel="sponsored noreferrer" onClick={trackOutbound} className="text-link">View original listing →</a>
         <Link href={item.data.searchUrl} className="text-link">Search for similar {searchType} →</Link>
         {savedAt && (current?.status === "error" || current?.status === "unavailable") && <button type="button" onClick={retry} className="text-link">Check listing again</button>}
         {action}

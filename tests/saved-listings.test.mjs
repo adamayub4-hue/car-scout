@@ -196,3 +196,18 @@ test('database migration scopes identity uniqueness to new kinds and preserves e
   assert.match(migration, /'vehicle', 'car_search', 'part_search', 'car_listing', 'part_listing'/);
   assert.doesNotMatch(migration, /delete\s+from|update\s+public\.saved_items|create\s+policy[\s\S]*for\s+update/i);
 });
+
+test('saved display format remains bounded while durable bookmarks contain no provider format', async () => {
+  const item = saved({ buyingOptions: ['FIXED_PRICE', 'AUCTION', 'BEST_OFFER', 'FIXED_PRICE'] });
+  assert.deepEqual(plain(item.data.buyingOptions), ['FIXED_PRICE', 'AUCTION', 'BEST_OFFER']);
+  assert.equal(saved({ buyingOptions: ['PRIVATE'] }).data.buyingOptions, undefined);
+  assert.equal(saved({ buyingOptions: ['FIXED_PRICE', 'PRIVATE'] }).data.buyingOptions, undefined);
+  assert.equal(saved({ buyingOptions: ['FIXED_PRICE'], buyingFormat: 'unknown' }).data.buyingOptions, undefined);
+  for (const buyingFormat of ['PRIVATE', null, 7, 'classified']) assert.equal(saved({ buyingOptions: ['FIXED_PRICE'], buyingFormat }).data.buyingOptions, undefined);
+  assert.deepEqual(plain(saved({ buyingOptions: ['FIXED_PRICE'], buyingFormat: 'fixed_price' }).data.buyingOptions), ['FIXED_PRICE']);
+  assert.equal(saved({ buyingOptions: ['FIXED_PRICE', 7] }).data.buyingOptions, undefined);
+  assert.equal(saved({ buyingOptions: Array(17).fill('FIXED_PRICE') }).data.buyingOptions, undefined);
+  const database = db();
+  await h.saveListingToAccount(database.client, 'test-user', item);
+  assert.equal(database.state.rows[0].data.buyingOptions, undefined);
+});

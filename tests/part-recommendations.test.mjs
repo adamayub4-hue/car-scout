@@ -124,7 +124,7 @@ test('rendered shortlist states price scope, fitment caveats and correct parts a
   assert.equal(url.searchParams.get('campid'), '5339201924');
   assert.equal(url.searchParams.get('customid'), 'mekivo-parts-shortlist');
   links[0].props.onClick();
-  assert.deepEqual({ ...h.events.at(-1)[1] }, { marketplace: 'ebay', search_type: 'parts', destination: 'listing' });
+  assert.deepEqual({ ...h.events.at(-1)[1] }, { marketplace: 'ebay', search_type: 'parts', destination: 'listing', buying_format: 'fixed_price' });
   for (const override of [{ loading: true }, { error: 'Provider unavailable' }, { items: [] }]) {
     const state = h.render(props(override)).html;
     assert.doesNotMatch(state, /£25.99|\/itm\//);

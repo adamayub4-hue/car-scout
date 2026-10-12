@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeEbayListingUrl } from "./car-recommendations";
 import { getSavedSearchUrl, parseSavedSearchParams, safeSearchReturnUrl, withRequestDeadline } from "./saved-search";
-import { safeListingImage, type EbayListing, type SearchType } from "./search";
+import { ebayBuyingFormat, safeListingImage, type EbayListing, type SearchType } from "./search";
 
 export type SavedListingData = {
   version: 1;
@@ -14,6 +14,7 @@ export type SavedListingData = {
   location: string | null;
   postage: { price: string; currency: string } | null;
   itemEndDate: string | null;
+  buyingOptions?: string[];
   searchUrl: string;
 };
 export type SavedListingItem = {
@@ -71,6 +72,12 @@ export function parseSavedListing(value: unknown): SavedListingItem | null {
   if (!identity || !title || data.id !== identity.id) return null;
   const shipping = object(data.postage);
   const shippingPrice = money(shipping?.price), shippingCurrency = currency(shipping?.currency);
+  // Preserve only provider format enums in the bounded display snapshot.
+  // Durable account bookmarks below still omit provider details.
+  const sourceFormatConsistent = !Object.hasOwn(data, "buyingFormat") || data.buyingFormat === ebayBuyingFormat(data.buyingOptions);
+  const buyingOptions = sourceFormatConsistent && Array.isArray(data.buyingOptions) && data.buyingOptions.length <= 16
+    && data.buyingOptions.every(option => ["FIXED_PRICE", "AUCTION", "CLASSIFIED_AD", "BEST_OFFER"].includes(option))
+    ? [...new Set(data.buyingOptions)] : [];
   return {
     kind: item.kind,
     title,
@@ -80,6 +87,7 @@ export function parseSavedListing(value: unknown): SavedListingItem | null {
       condition: text(data.condition, 120) || null, location: text(data.location, 120) || null,
       postage: shippingPrice !== null && shippingCurrency ? { price: shippingPrice, currency: shippingCurrency } : null,
       itemEndDate: endDate(data.itemEndDate),
+      ...(buyingOptions.length ? { buyingOptions } : {}),
       searchUrl: safeSearchReturnUrl(typeof data.searchUrl === "string" && data.searchUrl.length <= 4_096 ? data.searchUrl : null) || `/?mode=${item.kind === "car_listing" ? "cars" : "parts"}`,
     },
   };

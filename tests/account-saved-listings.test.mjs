@@ -6,13 +6,15 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../app/components/saved-listing-card.tsx', import.meta.url), 'utf8');
 const component = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+const searchHelpers = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/search.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: searchHelpers, URL, URLSearchParams });
 const url = 'https://www.ebay.co.uk/itm/123456789012';
 const bookmark = { kind: 'part_listing', title: 'My Ford brake search', data: { version: 1, id: '123456789012', url, searchUrl: '/?restore=1&mode=parts&part=Brake' } };
 const fresh = { id: '123456789012', title: 'Current eBay brake listing', url, price: '29.00', currency: 'GBP', image: 'https://i.ebayimg.com/images/test.jpg', condition: 'New', location: 'London', postage: { price: '3.00', currency: 'GBP' } };
 const settle = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 const response = (body, ok = true) => ({ ok, json: async () => body });
 
-function harness(reads, props = {}) {
+function harness(reads, props = {}, clock = Date) {
   const slots = [], effectSlots = [], queue = [], exports = {}, requests = [], events = [], timers = new Map();
   let cursor = 0, timerId = 0, readIndex = 0;
   let currentProps = { item: bookmark, savedAt: '2026-09-29T09:00:00Z', userId: 'first', ...props };
@@ -22,7 +24,7 @@ function harness(reads, props = {}) {
     useEffect(callback, deps) { const i = cursor++; const previous = effectSlots[i]; if (!previous || deps.some((value, index) => value !== previous.deps[index])) { queue.push(() => { previous?.cleanup?.(); effectSlots[i] = { deps, cleanup: callback() }; }); } },
   };
   vm.runInNewContext(component, {
-    exports, AbortController, Date, encodeURIComponent,
+    exports, AbortController, Date: clock, encodeURIComponent,
     setTimeout(callback, delay) { const id = ++timerId; timers.set(id, { callback, delay }); return id; }, clearTimeout(id) { timers.delete(id); },
     document: { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} },
     fetch: (path, options) => { requests.push({ path, options }); return reads[readIndex++](); },
@@ -31,11 +33,12 @@ function harness(reads, props = {}) {
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
       if (name === 'next/link') return { default: 'link' };
       if (name === 'next/image') return { default: 'image' };
-      if (name === '../lib/search') return { formatListingPrice: (price, currency) => price ? `${currency} ${price}` : 'Price unavailable', withEbayAffiliateTracking: value => value };
+      if (name === '../lib/search') return { ebayBuyingFormat: searchHelpers.ebayBuyingFormat, formatListingPrice: (price, currency) => price ? `${currency} ${price}` : 'Price unavailable', withEbayAffiliateTracking: value => value };
       if (name === '../lib/saved-search') return { withRequestDeadline: value => Promise.resolve(value) };
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'session-token', user: { id: currentProps.userId } } }, error: null }) } }) };
       if (name === '../lib/saved-listings') return {
         createSavedListing: (item, mode, searchUrl) => item?.url && item?.id ? ({ kind: mode === 'parts' ? 'part_listing' : 'car_listing', title: item.title, data: { ...item, searchUrl } }) : null,
+        getPendingListingSnapshotExpiresAt: token => token === currentProps.pendingToken ? currentProps.pendingSnapshotExpiresAt ?? null : null,
         savedListingSearchType: item => item.kind === 'part_listing' ? 'parts' : item.data.searchUrl.includes('vehicle_type=motorbikes') ? 'motorbikes' : 'cars',
         savedListingLabel: item => item.kind === 'part_listing' ? 'part' : item.data.searchUrl.includes('vehicle_type=motorbikes') ? 'motorbike' : 'car',
       };
@@ -153,5 +156,44 @@ test('an unsigned pending card does not fetch protected details or save on its o
   await settle();
   assert.equal(h.requests.length, 0);
   assert.equal(h.events.length, 0);
+  h.unmount();
+});
+
+test('saved outbound format uses current authenticated details and becomes unknown at expiry or failed refresh', async () => {
+  let now = Date.now();
+  class ClockDate extends Date { static now() { return now; } }
+  const h = harness([async () => response({ item: { ...fresh, buyingOptions: ['CLASSIFIED_AD'] }, checkedAt: new Date(now).toISOString() })], {}, ClockDate);
+  const initial = h.render();
+  initial.nodes.find(node => node.type === 'a').props.onClick();
+  assert.equal(h.events.at(-1)[1].buying_format, 'unknown');
+  await settle();
+  const ready = h.render();
+  ready.nodes.find(node => node.type === 'a').props.onClick();
+  assert.equal(h.events.at(-1)[1].buying_format, 'classified');
+  now += 6 * 60 * 60 * 1000;
+  ready.nodes.find(node => node.type === 'a').props.onClick();
+  assert.equal(h.events.at(-1)[1].buying_format, 'unknown', 'click-time expiry must not depend on an already-fired timer');
+  h.unmount();
+  const old = { ...bookmark, data: { ...bookmark.data, buyingOptions: ['FIXED_PRICE'] } };
+  const failed = harness([async () => response({}, false)], { item: old });
+  failed.render(); await settle();
+  failed.render().nodes.find(node => node.type === 'a').props.onClick();
+  assert.equal(failed.events[0][1].buying_format, 'unknown', 'old database snapshot cannot establish current offer format');
+  failed.unmount();
+});
+
+test('pending selection click-time expiry does not depend on timer, visibility refresh or rerender', () => {
+  let now = Date.now();
+  class ClockDate extends Date { static now() { return now; } }
+  const item = { ...bookmark, data: { ...bookmark.data, buyingOptions: ['FIXED_PRICE'] } };
+  const h = harness([], { item, savedAt: undefined, userId: undefined, pendingToken: 'fictional-pending-token', pendingSnapshotExpiresAt: now + 6 * 60 * 60 * 1000 }, ClockDate);
+  const heldClick = h.render().nodes.find(node => node.type === 'a').props.onClick;
+  heldClick();
+  assert.equal(h.events.at(-1)[1].buying_format, 'fixed_price');
+  now += 6 * 60 * 60 * 1000;
+  heldClick();
+  assert.equal(h.events.at(-1)[1].buying_format, 'unknown');
+  assert.equal(h.requests.length, 0);
+  assert.ok(!JSON.stringify(h.events).includes('fictional-pending-token'));
   h.unmount();
 });

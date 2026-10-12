@@ -82,8 +82,14 @@ function eventContext(name: string, properties: EventProperties) {
       return `${type}:${properties.result_kind === "marketplace_links" ? "marketplace_links" : method}`;
     case "results_error":
       return `${type}:${method}:${choice(properties.reason, ["timeout", "unavailable"])}`;
-    case "marketplace_outbound":
-      return `${type}:${marketplace}:${choice(properties.destination, ["search_results", "listing", "all_results"])}`;
+    case "marketplace_outbound": {
+      const destination = choice(properties.destination, ["search_results", "listing", "all_results"]);
+      // Search-result pages do not identify an item. Unknown is also the safe
+      // fallback when fresh saved-listing details are unavailable.
+      const format = marketplace === "ebay" && destination === "listing"
+        ? choice(properties.buying_format, ["fixed_price", "auction", "classified", "mixed", "unknown"]) : "unknown";
+      return `v2:${type}:${marketplace}:${destination}:${format}`;
+    }
     default:
       return null;
   }

@@ -2,7 +2,7 @@
 
 import { getCarRecommendations } from "../lib/car-recommendations";
 import { trackGrowthEvent } from "../lib/growth-events";
-import { withEbayAffiliateTracking, type EbayListing, type SubmittedSearch } from "../lib/search";
+import { ebayBuyingFormat, withEbayAffiliateTracking, type EbayListing, type SubmittedSearch } from "../lib/search";
 import { ListingPhoto } from "./ebay-results";
 import SaveListingButton from "./save-listing-button";
 import { getSavedSearchUrl } from "../lib/saved-search";
@@ -31,7 +31,7 @@ export default function CarRecommendations({ search, items, loading, error, comp
                 {recommendations.map(({ item, url, pricePence, belowBudgetPence, purchaseFormat }, index) => <article key={item.id} className="flex min-w-0 flex-col rounded-2xl border border-outline/15 bg-panel p-3">
                   <a href={withEbayAffiliateTracking(url, `mekivo-${searchType}-shortlist`)}
                   target="_blank" rel="sponsored noreferrer"
-                  onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: searchType, destination: "listing" })}
+                  onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: searchType, destination: "listing", buying_format: item.buyingFormat ?? ebayBuyingFormat(item.buyingOptions) })}
                   className={`${compact ? "grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-3 sm:flex sm:flex-col" : "flex flex-col"} min-w-0 flex-1 rounded-xl transition hover:text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400`}
                 >
                   <div className="w-full"><ListingPhoto item={item} sizes={compact ? "(max-width: 639px) 88px, (max-width: 1024px) 38vw, 240px" : undefined} /></div>

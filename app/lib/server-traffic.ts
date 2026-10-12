@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { OWNER_TRAFFIC_MARKETPLACES, ownerTrafficDateWindow, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks, type OwnerTrafficMarketplaceRow, type OwnerTrafficAppUsage } from "./owner-traffic";
+import { OWNER_TRAFFIC_MARKETPLACES, ownerTrafficDateWindow, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks, type OwnerTrafficMarketplaceRow, type OwnerTrafficAppUsage, type OwnerTrafficOutboundRow } from "./owner-traffic";
 import { BoundedTtlCache } from "./server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "./server-upstream";
 
@@ -178,11 +178,12 @@ function parseReturnVisits(payload: unknown): number {
   return count(data[0].count);
 }
 
-function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; marketplaces: OwnerTrafficMarketplaceRow[]; total: number } {
+function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; marketplaces: OwnerTrafficMarketplaceRow[]; details: OwnerTrafficOutboundRow[]; total: number } {
   const summary: OwnerTrafficClicks = { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 };
   const marketplaces: { marketplace: typeof OWNER_TRAFFIC_MARKETPLACES[number]; cars: number; parts: number; motorbikes?: number; clicks: number }[] = OWNER_TRAFFIC_MARKETPLACES.map(marketplace => ({ marketplace, cars: 0, parts: 0, clicks: 0 }));
   const marketplaceRows = new Map<string, (typeof marketplaces)[number]>(marketplaces.map(row => [row.marketplace, row]));
   let total = 0;
+  const details: OwnerTrafficOutboundRow[] = [];
   const seen = new Set<string | null>();
   // Production returns a literal "eventData/context" column. Vercel's guide
   // instead documents "eventData". Accept both, but never conflicting values.
@@ -196,11 +197,23 @@ function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; mar
       if (seen.has(context as string | null)) throw new Error("Duplicate analytics context");
       seen.add(context as string | null);
       const parts = typeof context === "string" ? context.split(":") : [];
-      const [type, marketplace, destination] = parts;
-      const known = parts.length === 3 && ["cars", "motorbikes", "parts"].includes(type) && ["listing", "search_results", "all_results"].includes(destination);
+      const versioned = parts.length === 5 && parts[0] === "v2";
+      const [type, marketplace, destination, format = "unknown"] = versioned ? parts.slice(1) : parts;
+      const legacy = parts.length === 3;
+      const knownFormat = ["fixed_price", "auction", "classified", "mixed", "unknown"].includes(format);
+      const known = (legacy || (versioned && knownFormat && (marketplace === "ebay" && destination === "listing" || format === "unknown")))
+        && ["cars", "motorbikes", "parts"].includes(type) && ["listing", "search_results", "all_results"].includes(destination);
       const clicks = count(row.count);
       total = count(total + clicks);
       const marketplaceRow = known ? marketplaceRows.get(marketplace) : undefined;
+      details.push({
+        searchType: marketplaceRow ? type as OwnerTrafficOutboundRow["searchType"] : null,
+        marketplace: marketplaceRow?.marketplace ?? "unclassified",
+        destination: marketplaceRow ? destination as OwnerTrafficOutboundRow["destination"] : "unknown",
+        buyingFormat: marketplaceRow && versioned ? format as OwnerTrafficOutboundRow["buyingFormat"] : "unknown",
+        measurement: marketplaceRow ? versioned ? "v2" : "legacy" : "unknown",
+        clicks,
+      });
       const group = marketplaceRow && marketplace === "ebay" ? (type === "cars" ? "ebayCars" : type === "motorbikes" ? "ebayMotorbikes" : "ebayParts")
         : marketplaceRow ? "otherMarketplaces" : "unclassified";
       summary[group] = count((summary[group] ?? 0) + clicks);
@@ -214,6 +227,7 @@ function parseDestinations(payload: unknown): { summary: OwnerTrafficClicks; mar
   return {
     summary,
     marketplaces: [...marketplaces, { marketplace: "unclassified", cars: null, parts: null, clicks: summary.unclassified }],
+    details,
     total,
   };
 }
@@ -305,7 +319,7 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
     sources: sources.status === "fulfilled" ? sources.value : null,
     searches: events.status === "fulfilled" ? events.value.searches : null,
     outboundClicks: events.status === "fulfilled" ? events.value.outboundClicks : null,
-    clicksByDestination, marketplaceClicks,
+    clicksByDestination, marketplaceClicks, outboundDetails: confirmedDestinations?.details ?? null,
     appUsage: appUsage.status === "fulfilled" ? appUsage.value : null,
     returnVisits: returnVisits.status === "fulfilled" ? returnVisits.value : null,
     ...(range === "custom" && dates ? { calendarDates: dates } : {}),

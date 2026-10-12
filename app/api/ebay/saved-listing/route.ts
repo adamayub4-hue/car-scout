@@ -62,6 +62,7 @@ async function loadDetails(id: string): Promise<Details> {
       image: payload.image?.imageUrl ?? null, price: payload.price?.value ?? null, currency: payload.price?.currency ?? null,
       condition: payload.condition ?? null, location: payload.itemLocation?.postalCode ?? payload.itemLocation?.country ?? null,
       itemEndDate: payload.itemEndDate ?? null,
+      buyingOptions: Array.isArray(payload.buyingOptions) ? payload.buyingOptions : [],
       postage: shipping?.shippingCostType === "FIXED" ? { price: shipping.shippingCost?.value, currency: shipping.shippingCost?.currency } : null,
     }, "parts");
     if (!normalized || normalized.data.id !== id) throw new ListingError(502, "eBay returned incomplete listing details.");

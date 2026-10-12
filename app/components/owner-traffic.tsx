@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { OWNER_TRAFFIC_MARKETPLACE_LABELS, ownerTrafficDateWindow, ownerTrafficUKDate, type OwnerTrafficDates, type OwnerTrafficMarketplaceRow, type OwnerTrafficRange, type OwnerTrafficReport } from "../lib/owner-traffic";
+import { OWNER_TRAFFIC_MARKETPLACE_LABELS, ownerTrafficDateWindow, ownerTrafficUKDate, type OwnerTrafficDates, type OwnerTrafficMarketplaceRow, type OwnerTrafficOutboundRow, type OwnerTrafficRange, type OwnerTrafficReport } from "../lib/owner-traffic";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
 const RANGE_LABELS: Record<OwnerTrafficRange, string> = {
@@ -62,6 +62,22 @@ function MarketplaceClicks({ rows }: { rows: OwnerTrafficMarketplaceRow[] | null
       <MarketplaceClicksTable rows={zero} caption="Marketplaces with no clicks this period" />
     </details>}
   </>;
+}
+
+function OutboundDetails({ rows }: { rows: OwnerTrafficOutboundRow[] | null | undefined }) {
+  const destinations = { listing: "Individual listing", search_results: "Search results", all_results: "All results", unknown: "Unknown destination" };
+  const formats = { fixed_price: "Fixed price", auction: "Auction", classified: "Classified ad", mixed: "Multiple formats", unknown: "Unknown" };
+  const types = { cars: "Cars", motorbikes: "Motorbikes", parts: "Parts" };
+  const active = rows?.filter(row => row.clicks > 0).sort((a, b) => b.clicks - a.clicks);
+  return <details className="mt-4 border-t border-outline/10 pt-3">
+    <summary className="cursor-pointer text-sm font-medium text-link">View destination and offer formats</summary>
+    {rows == null ? <p className="mt-3 text-sm text-muted">Offer-format details are unavailable. Earlier clicks cannot be reconstructed.</p> : active?.length ? <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm">
+      <caption className="sr-only">Outbound actions by destination and observed offer format</caption>
+      <thead><tr className="text-xs text-subtle"><th scope="col" className="py-2 pr-3">Search</th><th scope="col" className="py-2 pr-3">Marketplace</th><th scope="col" className="py-2 pr-3">Destination</th><th scope="col" className="py-2 pr-3">Offer format</th><th scope="col" className="py-2 text-right">Actions</th></tr></thead>
+      <tbody>{active.map((row, index) => <tr key={index} className="border-t border-outline/10"><th scope="row" className="py-2.5 pr-3 font-medium">{row.searchType ? types[row.searchType] : "Unknown"}</th><td className="py-2.5 pr-3">{OWNER_TRAFFIC_MARKETPLACE_LABELS[row.marketplace]}</td><td className="py-2.5 pr-3">{destinations[row.destination]}</td><td className="py-2.5 pr-3">{formats[row.buyingFormat]}{row.measurement === "legacy" && " (older action)"}</td><td className="py-2.5 text-right tabular-nums">{number.format(row.clicks)}</td></tr>)}</tbody>
+    </table></div> : <p className="mt-3 text-sm text-muted">No outbound actions recorded for this period.</p>}
+    <p className="mt-3 text-xs leading-5 text-subtle">Offer formats are recorded only after this update is deployed. Older actions remain unknown. Search-result links do not identify an offer. Format comes from the provider details available at the click; checked saved details can be up to six hours old. It does not confirm a purchase, commission eligibility or earnings. Repeated actions count.</p>
+  </details>;
 }
 
 function AppUsage({ report }: { report: OwnerTrafficReport }) {
@@ -160,6 +176,7 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCus
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">
         <h3 className="font-bold">Where listing clicks went</h3>
         <MarketplaceClicks rows={report.marketplaceClicks} />
+        <OutboundDetails rows={report.outboundDetails} />
         <p className="mt-3 text-xs leading-5 text-subtle">Same reporting period as the totals above. Includes links to individual listings and marketplace search results; repeated clicks are counted. Unidentified destination means older or unknown labels could not identify the marketplace; a dash means the car, motorbike or part type is not known. Website actions are not eBay-credited clicks or sales, and the two services can count differently.</p>
       </div>
       <div className="mt-6 rounded-xl border border-outline/10 bg-panel p-4 sm:p-5">

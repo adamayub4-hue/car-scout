@@ -2,7 +2,7 @@
 
 import { getPartRecommendations, partPostageLabel } from "../lib/part-recommendations";
 import { trackGrowthEvent } from "../lib/growth-events";
-import { withEbayAffiliateTracking, type EbayListing, type SubmittedSearch } from "../lib/search";
+import { ebayBuyingFormat, withEbayAffiliateTracking, type EbayListing, type SubmittedSearch } from "../lib/search";
 import { ListingPhoto } from "./ebay-results";
 import SaveListingButton from "./save-listing-button";
 import { getSavedSearchUrl } from "../lib/saved-search";
@@ -25,7 +25,7 @@ export default function PartRecommendations({ search, items, loading, error }: {
             {recommendations.map(({ item, url, pricePence }, index) => <article key={item.id} className="flex min-w-0 flex-col rounded-2xl border border-outline/15 bg-panel p-3">
               <a
               href={withEbayAffiliateTracking(url, "mekivo-parts-shortlist")} target="_blank" rel="sponsored noreferrer"
-              onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: "parts", destination: "listing" })}
+              onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: "parts", destination: "listing", buying_format: item.buyingFormat ?? ebayBuyingFormat(item.buyingOptions) })}
               className="grid min-w-0 flex-1 grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-3 rounded-xl transition hover:text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400 sm:flex sm:flex-col">
               <div className="w-full"><ListingPhoto item={item} sizes="(max-width: 639px) 88px, (max-width: 1024px) 28vw, 240px" /></div>
               <div className="flex min-w-0 flex-1 flex-col">

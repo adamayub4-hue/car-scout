@@ -222,7 +222,7 @@ test('rendered shortlist states price scope, original seller, fees and budget di
   links[0].props.onClick();
   assert.equal(h.events.length, before + 1);
   assert.equal(h.events.at(-1)[0], 'marketplace_outbound');
-  assert.deepEqual({ ...h.events.at(-1)[1] }, { marketplace: 'ebay', search_type: 'cars', destination: 'listing' });
+  assert.deepEqual({ ...h.events.at(-1)[1] }, { marketplace: 'ebay', search_type: 'cars', destination: 'listing', buying_format: 'fixed_price' });
 });
 
 test('loading and failed comparisons hide any older priced cards and preserve clear next steps', () => {

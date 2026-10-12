@@ -874,3 +874,41 @@ test('conflicting grouping aliases and duplicate contexts across response format
     assert.ok(['conflicting_context', 'duplicate_context'].includes(h.diagnostics[0][1].reason));
   }
 });
+
+test('mixed legacy and future format groups retain exact totals without reconstructing older clicks', async () => {
+  const groups = [
+    ['cars:ebay:listing', 4],
+    ['v2:parts:ebay:listing:fixed_price', 2],
+    ['v2:cars:ebay:listing:classified', 3],
+    ['v2:motorbikes:ebay:listing:mixed', 1],
+    ['v2:cars:ebay:listing:auction', 2],
+    ['v2:parts:ebay:search_results:unknown', 1],
+    ['v2:cars:gumtree:search_results:unknown', 2],
+    ['v2:cars:ebay:all_results:unknown', 1],
+    [null, 1],
+  ];
+  const h = harness({ upstream: url => Response.json(new URL(url).searchParams.get('by') === 'eventData/context'
+    ? { data: groups.map(([eventData, count]) => ({ eventData, count })) }
+    : isFunnelEventsQuery(url) ? { data: [{ eventName: 'marketplace_outbound', count: 17 }] } : fixture(url)) });
+  const report = await (await h.get()).json();
+  assert.equal(report.outboundClicks, 17);
+  assert.equal(report.outboundDetails.reduce((sum, row) => sum + row.clicks, 0), 17);
+  assert.deepEqual(report.clicksByDestination, { ebayCars: 10, ebayParts: 3, ebayMotorbikes: 1, otherMarketplaces: 2, unclassified: 1 });
+  assert.deepEqual(report.outboundDetails[0], { searchType: 'cars', marketplace: 'ebay', destination: 'listing', buyingFormat: 'unknown', measurement: 'legacy', clicks: 4 });
+  assert.equal(report.outboundDetails[1].buyingFormat, 'fixed_price');
+  assert.equal(report.outboundDetails[5].destination, 'search_results');
+  assert.equal(report.outboundDetails[7].destination, 'all_results');
+  assert.deepEqual(report.outboundDetails[8], { searchType: null, marketplace: 'unclassified', destination: 'unknown', buyingFormat: 'unknown', measurement: 'unknown', clicks: 1 });
+  assert.equal(h.providerCalls().filter(call => new URL(call.url).searchParams.get('by') === 'eventData/context').length, 1);
+});
+
+test('impossible or arbitrary future formats remain unclassified and cannot leak raw context', async () => {
+  const invalid = ['v2:cars:ebay:listing:PRIVATE', 'v2:cars:ebay:search_results:fixed_price', 'v2:cars:gumtree:listing:classified', 'v2:cars:ebay:listing:fixed_price:PRIVATE'];
+  const h = harness({ upstream: url => Response.json(new URL(url).searchParams.get('by') === 'eventData/context'
+    ? { data: invalid.map(eventData => ({ eventData, count: 1 })) }
+    : isFunnelEventsQuery(url) ? { data: [{ eventName: 'marketplace_outbound', count: 4 }] } : fixture(url)) });
+  const report = await (await h.get()).json();
+  assert.equal(report.clicksByDestination.unclassified, 4);
+  assert.ok(report.outboundDetails.every(row => row.buyingFormat === 'unknown' && row.destination === 'unknown'));
+  assert.ok(!JSON.stringify(report).includes('PRIVATE'));
+});
