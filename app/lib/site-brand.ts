@@ -5,10 +5,13 @@ export const siteDescription = "Search UK used cars and car parts across marketp
 
 // These are Mekivo's previously verified public accounts. Same-name profiles
 // on other networks must not be linked without confirming ownership.
-export const officialProfiles = [
-  "https://www.instagram.com/mekivo.uk/",
-  "https://www.tiktok.com/@mekivo.uk",
-];
+export const socialProfiles = [
+  { id: "facebook", name: "Facebook", url: "https://www.facebook.com/profile.php?id=61593568512387" },
+  { id: "instagram", name: "Instagram", url: "https://www.instagram.com/mekivo.uk/" },
+  { id: "tiktok", name: "TikTok", url: "https://www.tiktok.com/@mekivo.uk" },
+] as const;
+
+export const officialProfiles = socialProfiles.map((profile) => profile.url);
 
 export const siteStructuredData = {
   "@context": "https://schema.org",

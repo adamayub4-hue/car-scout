@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 const root = new URL('../', import.meta.url);
 const svg = readFileSync(new URL('app/icon.svg', root));
 const canonicalUrl = 'https://mekivo.uk/';
-const verifiedProfiles = ['https://www.instagram.com/mekivo.uk/', 'https://www.tiktok.com/@mekivo.uk'];
+const verifiedProfiles = ['https://www.facebook.com/profile.php?id=61593568512387', 'https://www.instagram.com/mekivo.uk/', 'https://www.tiktok.com/@mekivo.uk'];
 
 function load(path, overrides = {}) {
   const exports = {};
@@ -175,7 +175,7 @@ test('rendered branding graph links one WebSite to Mekivo with only recorded own
   assert.equal(organization.url, canonicalUrl);
   assert.equal(website.publisher['@id'], organization['@id']);
   assert.notEqual(website['@id'], organization['@id']);
-  assert.deepEqual(organization.sameAs, verifiedProfiles, 'do not associate same-name Facebook or YouTube accounts without verified ownership');
+  assert.deepEqual(organization.sameAs, verifiedProfiles, 'associate only the verified Mekivo accounts');
   const logo = organization.logo;
   assert.equal(logo['@type'], 'ImageObject');
   const info = await sharp(readFileSync(publicAsset(logo.url))).metadata();

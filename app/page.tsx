@@ -11,6 +11,7 @@ import { parseSavedSearchParams } from "./lib/saved-search";
 import PartSearchResults from "./components/part-search-results";
 import CarSearchResults, { type CarSearchInfo } from "./components/car-search-results";
 import InstallMekivo from "./components/install-mekivo";
+import SocialLinks from "./components/social-links";
 import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type VehicleType, type EbayListing } from "./lib/search";
 import { filterCarListings } from "./lib/car-filters";
 import AppearanceControl from "./components/appearance";
@@ -458,6 +459,7 @@ export default function Home() {
           </p>
         </section>
 
+        <SocialLinks />
         <InstallMekivo />
 
         <div className="mx-auto mb-3 grid max-w-lg grid-cols-3 rounded-2xl border border-outline/10 bg-overlay/[0.05] p-1.5 shadow-2xl shadow-black/20">
