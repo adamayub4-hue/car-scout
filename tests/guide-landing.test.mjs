@@ -8,9 +8,16 @@ import * as jsxRuntime from 'react/jsx-runtime';
 const compile = path => ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
+const modules = new Map();
 function pureModule(path) {
+  const file = new URL(path, import.meta.url);
+  if (modules.has(file.href)) return modules.get(file.href);
   const exports = {};
-  vm.runInNewContext(compile(path), { exports, URL, URLSearchParams });
+  modules.set(file.href, exports);
+  vm.runInNewContext(compile(file.href), { exports, URL, URLSearchParams, require(name) {
+    if (name === './car-extras') return pureModule(new URL(`${name}.ts`, file).href);
+    throw new Error(`Unexpected pure helper import: ${name}`);
+  } });
   return exports;
 }
 const guideData = pureModule('../app/lib/parts-guide-data.ts');

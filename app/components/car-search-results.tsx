@@ -8,6 +8,7 @@ import EbayResults from "./ebay-results";
 import SaveButton from "./save-button";
 import ShareSearchButton from "./share-search-button";
 import { getSavedSearchUrl } from "../lib/saved-search";
+import { carExtraLabels } from "../lib/car-extras";
 
 const marketplaces = [
   { id: "autotrader", name: "Auto Trader" },
@@ -44,6 +45,7 @@ export default function CarSearchResults({ search, items, loading, error, search
   const money = (value: string) => `£${Number(value).toLocaleString("en-GB")}`;
   const budget = search.minPrice && search.maxPrice ? `${money(search.minPrice)}–${money(search.maxPrice)}` : search.maxPrice ? `Up to ${money(search.maxPrice)}` : search.minPrice ? `From ${money(search.minPrice)}` : "Any budget";
   const postcode = typeof search.saveItem.data.postcode === "string" ? search.saveItem.data.postcode : "";
+  const requestedExtras = isMotorbikes ? [] : carExtraLabels(search.carExtras);
 
   const changeView = (next: View) => {
     setView(next);
@@ -67,6 +69,7 @@ export default function CarSearchResults({ search, items, loading, error, search
         <div className="min-w-0">
           <h2 className="break-words text-lg font-bold sm:text-xl">{search.title}</h2>
           <p className="mt-1 text-xs text-muted">{budget}{postcode ? ` · ${postcode}` : ""}</p>
+          {requestedExtras.length > 0 && <p className="mt-2 text-xs leading-5 text-link">Requested extras: {requestedExtras.join(" · ")}</p>}
         </div>
         <div className="flex min-w-0 flex-wrap items-start gap-2 sm:shrink-0">
           <button type="button" onClick={onEdit} className="min-h-11 shrink-0 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link hover:bg-overlay/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">Edit search</button>
@@ -92,7 +95,8 @@ export default function CarSearchResults({ search, items, loading, error, search
           {search.hideUnwanted && <p className="text-xs text-muted">Parts, repair and deposit adverts hidden</p>}
         </div>}
         {!loading && !error && searchInfo?.partial && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm text-warning">eBay stopped responding before this search finished. {items.length > 0 ? `These ${vehiclePlural} were returned successfully. ` : `No matching ${vehiclePlural} have been returned yet. `}<button type="button" onClick={onRetry} className="font-semibold underline underline-offset-4">Try again for more</button>.</div>}
-        {!loading && !error && items.length === 0 && <p className="mt-4 text-sm text-muted">No {vehiclePlural} remain in the checked results with your filters. Try a different budget or make, choose Best match, or use Edit search to include repair adverts.</p>}
+        {!loading && !error && items.length === 0 && <p className="mt-4 text-sm text-muted">No {vehiclePlural} remain in the checked results with your filters. {requestedExtras.length > 0 ? "Use Edit search to try fewer extras or a different budget. " : "Try a different budget or make, choose Best match, or use Edit search to include repair adverts."}</p>}
+        {requestedExtras.length > 0 && <p className="mt-3 text-xs leading-5 text-subtle">Extras are matched from advert titles and returned summaries. Equipment can be omitted or described differently; confirm the exact specification and working condition with the seller.</p>}
         {!loading && !error && items.length > 0 && <p className="mt-4 text-sm font-semibold text-muted">{items.length} matching {items.length === 1 ? (isMotorbikes ? "motorbike" : "car") : vehiclePlural} returned{items.length > 3 ? " · Use Next below to browse more" : ""}</p>}
         <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType={searchType} onRetry={onRetry} />
         <p className="mt-3 text-xs leading-5 text-subtle">{!loading && !error && searchInfo ? `${searchInfo.checkedCount} eBay listings checked across ${searchInfo.pagesChecked} ${searchInfo.pagesChecked === 1 ? "batch" : "batches"}. ${searchInfo.hasMore ? "More listings may be available on eBay. " : ""}` : "Up to 192 eBay listings located in the UK checked per search, returning up to 48 matches. "}Budgets and price sorts use advertised purchase prices, not auction bids; delivery and fees may be extra. This does not compare every UK marketplace.</p>
@@ -109,7 +113,7 @@ export default function CarSearchResults({ search, items, loading, error, search
               <h4 className="min-h-10 text-sm font-bold sm:min-h-0">{item.name}</h4>
               <span className="mt-2 inline-block text-xs font-semibold text-link">Open search ↗</span>
             </a>
-            <details className="mt-3 text-xs leading-5 text-subtle"><summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-sky-400">Filters carried across</summary><p className="mt-2">{marketplaceFilterNote(item.id)}</p></details>
+            <details className="mt-3 text-xs leading-5 text-subtle"><summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-sky-400">Filters carried across</summary><p className="mt-2">{marketplaceFilterNote(item.id, requestedExtras.length > 0)}</p></details>
           </div>)}
         </div>
       </section>}

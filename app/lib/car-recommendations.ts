@@ -49,7 +49,7 @@ export function getCarRecommendations(items: readonly EbayListing[], search: Sub
   const seen = new Set<string>();
   const candidates: CarRecommendation[] = [];
 
-  for (const item of filterCarListings(items, { minPrice: search.minPrice, maxPrice: search.maxPrice, vehicleType: search.vehicleType, ...(search.vehicleType === "motorbikes" ? { make, model } : {}) })) {
+  for (const item of filterCarListings(items, { minPrice: search.minPrice, maxPrice: search.maxPrice, vehicleType: search.vehicleType, carExtras: search.carExtras, ...(search.vehicleType === "motorbikes" ? { make, model } : {}) })) {
     if (typeof item.title !== "string" || item.currency !== "GBP") continue;
     const pricePence = carPriceInPence(item.price);
     if (pricePence === null || (maximum !== null && pricePence > maximum)) continue;

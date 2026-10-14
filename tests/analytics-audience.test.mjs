@@ -9,6 +9,8 @@ const compile = file => ts.transpileModule(readFileSync(new URL(file, import.met
 }).outputText;
 const audienceCode = compile('../app/lib/analytics-audience.ts');
 const savedCode = compile('../app/lib/saved-search.ts');
+const carExtras = {};
+vm.runInNewContext(compile('../app/lib/car-extras.ts'), { exports: carExtras });
 const marker = 'mekivo_internal_traffic';
 const session = id => id ? { user: { id } } : null;
 const sessionResult = id => ({ data: { session: session(id) }, error: null });
@@ -72,7 +74,10 @@ function harness(options = {}) {
     ...(options.server ? {} : { window }),
   };
   const saved = {};
-  vm.runInNewContext(savedCode, { ...context, exports: saved });
+  vm.runInNewContext(savedCode, { ...context, exports: saved, require(name) {
+    if (name === './car-extras') return carExtras;
+    throw new Error(`Unexpected pure helper import: ${name}`);
+  } });
   const api = {};
   vm.runInNewContext(audienceCode, {
     ...context, exports: api,

@@ -23,6 +23,19 @@ const fields = { make: '', model: '', year: '', price: '5000', postcode: '', pla
 const car = (id, changes = {}) => ({ id: String(id), title: '2018 Ford Fiesta', url: `https://www.ebay.co.uk/itm/12345678900${id}`, image: null, price: '2500', currency: 'GBP', condition: 'Used', location: 'UK', buyingOptions: ['FIXED_PRICE'], ...changes });
 const ids = rows => Array.from(rows, row => row.id);
 
+test('car extras narrow returned cars without changing motorbike behaviour or budget rules', () => {
+  const rows = [
+    car(1, { title: 'Golf heated seats panoramic roof', price: '500' }),
+    car(2, { title: 'Golf heated seats', shortDescription: 'Panoramic roof', price: '501' }),
+    car(3, { title: 'Golf heated seats', price: '400' }),
+    car(4, { title: 'Golf heated seats panoramic roof', price: '100', buyingOptions: ['AUCTION'] }),
+    car(5, { title: 'Golf no heated seats panoramic roof', price: '300' }),
+  ];
+  assert.deepEqual(ids(filterCarListings(rows, { carExtras: ['heated_seats', 'panoramic_roof'], maxPrice: '500', sort: 'price_asc' })), ['1']);
+  assert.deepEqual(ids(filterCarListings(rows, { carExtras: ['panoramic_roof'], maxPrice: '500', sort: 'price_asc' })), ['5', '1']);
+  assert.equal(filterCarListings([car(6, { title: 'Honda CBR125 motorcycle full MOT' })], { vehicleType: 'motorbikes', carExtras: ['heated_seats'] }).length, 1);
+});
+
 test('motorbike filters retain complete bikes and scooters but exclude repair, part and bid adverts', () => {
   const rows = [
     ['Honda CBR125 motorcycle full MOT', '450', ['FIXED_PRICE']],

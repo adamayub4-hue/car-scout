@@ -11,7 +11,7 @@ const repo = fileURLToPath(new URL('../', import.meta.url));
 const nativeRequire = createRequire(import.meta.url);
 
 function harness(items = []) {
-  const calls = [], modules = new Map();
+  const calls = [], networkCalls = [], modules = new Map();
   function load(filename) {
     if (modules.has(filename)) return modules.get(filename);
     const code = ts.transpileModule(readFileSync(filename, 'utf8'), {
@@ -24,6 +24,7 @@ function harness(items = []) {
       process: { env: { EBAY_CLIENT_ID: 'test-client', EBAY_CLIENT_SECRET: 'test-secret' } },
       console: { error() {} },
       fetch: async url => {
+        networkCalls.push(new URL(url));
         if (String(url).includes('/oauth2/')) return Response.json({ access_token: 'test-token', expires_in: 7200 });
         calls.push(new URL(url));
         return Response.json({ itemSummaries: items });
@@ -38,8 +39,95 @@ function harness(items = []) {
     return exports;
   }
   const { GET } = load(resolve(repo, 'app/api/ebay/search/route.ts'));
-  return { calls, get: query => GET({ nextUrl: new URL(`https://mekivo.uk/api/ebay/search?${query}`) }) };
+  return { calls, networkCalls, get: query => GET({ nextUrl: new URL(`https://mekivo.uk/api/ebay/search?${query}`) }) };
 }
+
+test('car extras narrow candidates, request returned summary text and require all advertised extras', async () => {
+  const titles = ['Golf heated seats', 'Golf heated seats', 'Golf panoramic roof', 'Golf heated seats not fitted'];
+  const items = titles.map((title, index) => ({
+    itemId: `extra-${index}`, title, itemWebUrl: `https://www.ebay.co.uk/itm/${123456789000 + index}`,
+    shortDescription: index === 1 || index === 3 ? '<b>Panoramic roof</b>' : 'Sunroof',
+    price: { value: '4500', currency: 'GBP' }, buyingOptions: ['FIXED_PRICE'],
+  }));
+  const h = harness(items);
+  const body = await (await h.get('type=cars&q=Golf&extras=panoramic_roof,heated_seats&maxPrice=5000')).json();
+  assert.deepEqual(body.items.map(item => item.id), ['extra-1']);
+  assert.equal(body.items[0].shortDescription, 'Panoramic roof');
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].searchParams.get('q'), 'Golf (heated,heating,htd)');
+  assert.equal(h.calls[0].searchParams.get('fieldgroups'), 'EXTENDED');
+  assert.equal(h.calls[0].searchParams.get('filter'), 'itemLocationCountry:GB,searchInDescription:true,price:[..5000],priceCurrency:GBP');
+  assert.equal(h.calls[0].searchParams.get('category_ids'), '9801');
+});
+
+test('extras cache keys include canonical selections and keep ordinary responses unchanged', async () => {
+  const h = harness([{ itemId: '1', title: 'Golf heated seats panoramic roof', itemWebUrl: 'https://www.ebay.co.uk/itm/123456789000', shortDescription: 'Bluetooth', price: { value: '4500', currency: 'GBP' }, buyingOptions: ['FIXED_PRICE'] }]);
+  const base = 'type=cars&q=Golf';
+  const ordinary = await (await h.get(base)).json();
+  assert.equal(Object.hasOwn(ordinary.items[0], 'shortDescription'), false);
+  assert.equal(h.calls[0].searchParams.has('fieldgroups'), false);
+  assert.equal(h.calls[0].searchParams.get('filter'), 'itemLocationCountry:GB');
+  await h.get(`${base}&extras=heated_seats,panoramic_roof`);
+  assert.equal(h.calls.length, 2);
+  await h.get(`${base}&extras=panoramic_roof,heated_seats,heated_seats`);
+  assert.equal(h.calls.length, 2, 'same selection order/duplicates share the exact correct cache');
+  await h.get(`${base}&extras=heated_seats`);
+  assert.equal(h.calls.length, 3, 'a weaker extra selection needs its own response');
+  await h.get(base);
+  assert.equal(h.calls.length, 3, 'ordinary result cache is kept separately');
+});
+
+test('unknown, overlong and duplicate extras parameters are rejected before any token/network call', async () => {
+  const h = harness();
+  for (const query of [
+    'extras=unknown', 'extras=__proto__', 'extras=heated_seats,unknown', 'extras=heated_seats,',
+    'extras=heated_seats&extras=panoramic_roof', `extras=${'x'.repeat(401)}`,
+    `extras=${Array(25).fill('heated_seats').join(',')}`,
+    `q=${'a'.repeat(90)}&extras=heated_seats`,
+  ]) assert.equal((await h.get(`type=cars&${query}`)).status, 400, query);
+  assert.equal(h.networkCalls.length, 0);
+  assert.equal(h.calls.length, 0);
+});
+
+test('parts and motorbikes ignore car-only extras without extra API calls or altered filters', async () => {
+  const h = harness();
+  for (const query of ['type=parts&q=oil+filter', 'type=cars&q=Honda&vehicleType=motorbikes']) {
+    const first = await h.get(query);
+    const before = h.calls.length;
+    const ignored = await h.get(`${query}&extras=${'unknown,'.repeat(100)}`);
+    assert.equal(first.status, 200);
+    assert.equal(ignored.status, 200);
+    assert.equal(h.calls.length, before, 'ignored extras must reuse the unmodified search cache');
+    assert.equal(h.calls.at(-1).searchParams.has('fieldgroups'), false);
+    assert.equal((h.calls.at(-1).searchParams.get('filter') ?? '').includes('searchInDescription'), false);
+  }
+});
+
+test('extras keep GBP cash-price ceilings and unwanted-advert checks intact', async () => {
+  const entries = [
+    ['Golf heated seats', '500', 'GBP', ['FIXED_PRICE']],
+    ['Golf heated seats', '501', 'GBP', ['FIXED_PRICE']],
+    ['Golf heated seats', '450', 'USD', ['FIXED_PRICE']],
+    ['Golf heated seats', '100', 'GBP', ['AUCTION']],
+    ['Golf heated seats deposit', '50', 'GBP', ['FIXED_PRICE']],
+  ].map(([title, price, currency, buyingOptions], index) => ({ itemId: `budget-${index}`, title, itemWebUrl: `https://www.ebay.co.uk/itm/${123456789000 + index}`, price: { value: price, currency }, buyingOptions }));
+  const h = harness(entries);
+  const body = await (await h.get('type=cars&extras=heated_seats&maxPrice=500&hideUnwanted=1&sort=price_asc')).json();
+  assert.deepEqual(body.items.map(item => item.id), ['budget-0']);
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].searchParams.get('sort'), 'price');
+  assert.equal(h.calls[0].searchParams.get('limit'), '48');
+});
+
+test('returned summary text is bounded, plain and omitted when empty', async () => {
+  const descriptions = ['<b>heated&nbsp;seats</b><script>not fitted</script>', '<p></p>', 'Bluetooth '.repeat(400)];
+  const h = harness(descriptions.map((shortDescription, index) => ({ itemId: `text-${index}`, title: 'Golf heated seats', shortDescription, itemWebUrl: `https://www.ebay.co.uk/itm/${123456789000 + index}` })));
+  const body = await (await h.get('type=cars&extras=heated_seats')).json();
+  assert.equal(body.items[0].shortDescription, 'heated seats');
+  assert.equal(Object.hasOwn(body.items[1], 'shortDescription'), false);
+  assert.ok(body.items[2].shortDescription.length <= 2000);
+  assert.equal(body.items[0].shortDescription.includes('<'), false);
+});
 
 test('selected make and model reject unrelated suggestions and keep their cache separate', async () => {
   const items = ['Volkswagen Golf GTI', 'VW Golf Plus', 'Volkswagen Polo', 'Audi A3 vw golf alternative'].map((title, index) => ({

@@ -12,6 +12,8 @@ import PartSearchResults from "./components/part-search-results";
 import CarSearchResults, { type CarSearchInfo } from "./components/car-search-results";
 import InstallMekivo from "./components/install-mekivo";
 import SocialLinks from "./components/social-links";
+import CarExtraFilters from "./components/car-extra-filters";
+import type { CarExtra } from "./lib/car-extras";
 import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type VehicleType, type EbayListing } from "./lib/search";
 import { filterCarListings } from "./lib/car-filters";
 import AppearanceControl from "./components/appearance";
@@ -117,6 +119,7 @@ export default function Home() {
   const [minPrice, setMinPrice] = useState("");
   const [carSort, setCarSort] = useState<"best_match" | "price_asc" | "price_desc" | "newest">("price_asc");
   const [hideUnwanted, setHideUnwanted] = useState(true);
+  const [carExtras, setCarExtras] = useState<CarExtra[]>([]);
   const [postcode, setPostcode] = useState("");
   const [registration, setRegistration] = useState("");
   const [vehicleLookup, setVehicleLookup] = useState<VehicleLookup | null>(null);
@@ -161,6 +164,7 @@ export default function Home() {
         setMake(saved.make); setModel(saved.model); setYear(saved.year);
         setPrice(saved.price); setPostcode(saved.postcode); setPlatform(landingVehicleType === "motorbikes" ? "ebay" : saved.platform as Platform);
         setMinPrice(saved.minPrice || ""); setCarSort(saved.sort || "best_match"); setHideUnwanted(saved.hideUnwanted ?? false);
+        setCarExtras(saved.carExtras || []);
         setEngine(saved.engine); setFuel(saved.fuel); setBodyStyle(saved.bodyStyle);
         const selection = validatedPartSelection(saved.partCategory, saved.part, saved.partMethod, saved.fuel);
         setPart(selection.part); setPartCategory(selection.category);
@@ -260,6 +264,7 @@ export default function Home() {
     setVehicleType(nextMode === "cars" ? nextVehicleType : "cars");
     setPlatform(nextMode === "cars" && nextVehicleType === "motorbikes" ? "ebay" : "all");
     setMake(""); setModel(""); setYear("");
+    setCarExtras([]);
     setEngine(""); setFuel(""); setBodyStyle("");
     setRegistration(""); setVehicleLookup(null);
     setPartMethod(""); setPartCategory(""); setPart(""); setPartNumber("");
@@ -311,6 +316,7 @@ export default function Home() {
         params.set("hideUnwanted", search.hideUnwanted ? "1" : "0");
         if (search.carCriteria?.make) params.set("make", search.carCriteria.make);
         if (search.carCriteria?.model) params.set("model", search.carCriteria.model);
+        if (search.vehicleType !== "motorbikes" && search.carExtras?.length) params.set("extras", search.carExtras.join(","));
       }
       const response = await fetch(`/api/ebay/search?${params}`, { signal: controller.signal });
       if (response.status === 429) throw new Error("Too many searches. Please wait a minute, then try again.");
@@ -318,7 +324,7 @@ export default function Home() {
       if (controller.signal.aborted) throw new Error("Search timed out");
       if (requestId !== ebayRequest.current.id) return;
       if (!response.ok) throw new Error(payload.error || "Live eBay results are unavailable.");
-      const items = search.mode === "cars" ? filterCarListings(payload.items ?? [], { vehicleType: search.vehicleType, minPrice: search.minPrice, maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted, make: search.carCriteria?.make, model: search.carCriteria?.model }) : payload.items ?? [];
+      const items = search.mode === "cars" ? filterCarListings(payload.items ?? [], { vehicleType: search.vehicleType, minPrice: search.minPrice, maxPrice: search.maxPrice, sort: search.carSort, hideUnwanted: search.hideUnwanted, make: search.carCriteria?.make, model: search.carCriteria?.model, carExtras: search.carExtras }) : payload.items ?? [];
       setEbayItems(items);
       setCarSearchInfo(search.mode === "cars" ? payload.searchInfo ?? null : null);
       trackGrowthEvent(items.length ? "results_shown" : "results_empty", { ...eventProperties, result_count: items.length });
@@ -348,7 +354,7 @@ export default function Home() {
       return;
     }
     setError("");
-    const search = createCarSearch({ make: make.trim(), model: model.trim(), year, price, minPrice, sort: carSort, hideUnwanted, postcode: submittedVehicleType === "motorbikes" ? "" : postcode, platform: searchPlatform, vehicleType: submittedVehicleType });
+    const search = createCarSearch({ make: make.trim(), model: model.trim(), year, price, minPrice, sort: carSort, hideUnwanted, carExtras: submittedVehicleType === "motorbikes" ? [] : carExtras, postcode: submittedVehicleType === "motorbikes" ? "" : postcode, platform: searchPlatform, vehicleType: submittedVehicleType });
     setCarSearchRevision(revision => revision + 1);
     setSubmittedSearch(search);
     setShowResults(true);
@@ -375,6 +381,7 @@ export default function Home() {
       hideUnwanted: submittedSearch.hideUnwanted,
       postcode: String(submittedSearch.saveItem.data.postcode || ""), platform: submittedSearch.platform,
       vehicleType: submittedSearch.vehicleType,
+      carExtras: submittedSearch.carExtras,
     });
     setCarSort(sort); setSubmittedSearch(search);
     void searchEbay(search);
@@ -615,6 +622,7 @@ export default function Home() {
                   />
                 </label>}
               </div>
+              {!isMotorbikes && <CarExtraFilters value={carExtras} onChange={extras => { setCarExtras(extras); setShowResults(false); setError(""); }} />}
               <div className="mt-3 rounded-2xl border border-outline/10 bg-overlay/[0.025] p-4">
                 <div className="grid gap-4 sm:grid-cols-2 sm:items-center">
                   <label className="text-sm text-muted"><span className="mb-2 block">Sort live {vehiclePlural}</span>

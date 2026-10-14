@@ -8,9 +8,14 @@ const guideSource = readFileSync(new URL('../app/components/parts-guide.tsx', im
 const carResultsSource = readFileSync(new URL('../app/components/car-search-results.tsx', import.meta.url), 'utf8');
 const guideDataSource = readFileSync(new URL('../app/lib/parts-guide-data.ts', import.meta.url), 'utf8');
 const searchSource = readFileSync(new URL('../app/lib/search.ts', import.meta.url), 'utf8');
+const carExtras = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/car-extras.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: carExtras });
 function loadModule(source) {
   const exports = {};
-  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports, URL, URLSearchParams });
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports, URL, URLSearchParams, require(name) {
+    if (name === './car-extras') return carExtras;
+    throw new Error(`Unexpected pure helper import: ${name}`);
+  } });
   return exports;
 }
 const searchHelpers = loadModule(searchSource);
@@ -180,7 +185,7 @@ for (const name of ['handleCarSearch', 'handlePartsSearch', 'handlePartNumberSea
     const searches = [], events = [];
     let revision = 7;
     const ctx = {
-      vehicleType: 'cars', make: 'Audi', model: 'A3', year: '2018', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'all',
+      vehicleType: 'cars', make: 'Audi', model: 'A3', year: '2018', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, carExtras: [], postcode: '', platform: 'all',
       vehicleReady: true, vehicleLabel: '2018 Audi A3', engine: '', fuel: '', bodyStyle: '',
       part: 'oil filter', partCategory: '', partNumber: '06J115403Q', partMethod: 'search',
       setError() {}, setShowResults() {}, setPartNumber() {}, setPartMethod() {}, setPartCategory() {}, setPart() {},
@@ -211,7 +216,7 @@ test('external marketplace opens in the click turn despite stalled analytics', a
   let revision = 20;
   let searchInfo = { checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true };
   const pending = handler('handleCarSearch', {
-    vehicleType: 'cars', make: 'Audi', model: 'A3', year: '', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, postcode: '', platform: 'autotrader',
+    vehicleType: 'cars', make: 'Audi', model: 'A3', year: '', price: '', minPrice: '', carSort: 'price_asc', hideUnwanted: true, carExtras: [], postcode: '', platform: 'autotrader',
     trackGrowthEvent() {},
     ...searchHelpers, setSubmittedSearch() {}, ebayRequest: { current: { id: 0, controller: null } }, setEbayLoading() {},
     setCarSearchInfo(value) { searchInfo = value; },

@@ -68,6 +68,19 @@ const shortlist = (items, search = carSearch()) => h.getCarRecommendations(items
 const ids = items => Array.from(items, result => result.item.id);
 const props = changes => ({ search: carSearch(), items: [car()], loading: false, error: '', ...changes });
 
+test('price picks keep the selected extras and budget instead of suggesting cheaper cars without them', () => {
+  const search = carSearch({ carExtras: ['heated_seats', 'panoramic_roof'] });
+  const items = [
+    car(1, { title: '2018 Ford Fiesta heated seats panoramic roof' }),
+    car(2, { price: '2000' }),
+    car(3, { title: '2018 Ford Fiesta heated seats', price: '3000' }),
+    car(4, { shortDescription: 'Heated seats. Panoramic roof.', price: '4000' }),
+    car(5, { title: '2018 Ford Fiesta no heated seats panoramic roof', price: '2500' }),
+    car(6, { title: '2018 Ford Fiesta heated seats panoramic roof', price: '6000' }),
+  ];
+  assert.deepEqual(ids(shortlist(items, search)).sort(), [car(1).id, car(4).id].sort());
+});
+
 function elements(tree, type) {
   const matches = [];
   function visit(element) {

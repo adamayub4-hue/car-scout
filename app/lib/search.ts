@@ -1,4 +1,5 @@
 import type { SavedSearchItem } from "./saved-search";
+import { carExtraLabels, normalizeCarExtras, type CarExtra } from "./car-extras";
 
 export type Mode = "cars" | "parts";
 export type VehicleType = "cars" | "motorbikes";
@@ -19,17 +20,18 @@ export type Platform = "all" | "more" | MarketplaceId;
 export type VehicleFields = { make: string; model: string; year: string; engine: string; fuel: string; bodyStyle: string };
 export type PartSearchFields = VehicleFields & { part: string; partNumber: string; partCategory: string; partMethod: string };
 export type CarSort = "best_match" | "price_asc" | "price_desc" | "newest";
-export type CarSearchFields = { make: string; model: string; year: string; price: string; postcode: string; platform: Platform; vehicleType?: VehicleType; minPrice?: string; sort?: CarSort; hideUnwanted?: boolean };
+export type CarSearchFields = { make: string; model: string; year: string; price: string; postcode: string; platform: Platform; vehicleType?: VehicleType; minPrice?: string; sort?: CarSort; hideUnwanted?: boolean; carExtras?: CarExtra[] };
 export type CarSearchCriteria = Pick<CarSearchFields, "make" | "model" | "year">;
 export type PartSearchCriteria = Pick<PartSearchFields, "make" | "model" | "part" | "partNumber">;
 export type SubmittedSearch = {
   mode: Mode; title: string; query: string; fallbackUrl: string; searchMethod: string;
-  vehicleType?: VehicleType; minPrice?: string; maxPrice?: string; carSort?: CarSort; hideUnwanted?: boolean; platform: Platform; carCriteria?: CarSearchCriteria; partCriteria?: PartSearchCriteria; carLinks?: Partial<Record<MarketplaceId, string>>; saveItem: SavedSearchItem;
+  vehicleType?: VehicleType; minPrice?: string; maxPrice?: string; carSort?: CarSort; hideUnwanted?: boolean; carExtras?: CarExtra[]; platform: Platform; carCriteria?: CarSearchCriteria; partCriteria?: PartSearchCriteria; carLinks?: Partial<Record<MarketplaceId, string>>; saveItem: SavedSearchItem;
 };
 export type EbayListing = {
   id: string; title: string; url: string; image: string | null; price: string | null;
   affiliateUrl?: string | null;
   currency: string | null; condition: string | null; location: string | null;
+  shortDescription?: string | null;
   buyingOptions?: string[]; itemEndDate?: string | null;
   buyingFormat?: EbayBuyingFormat;
   postage?: { price: string; currency: string } | null;
@@ -71,17 +73,18 @@ export function withEbayAffiliateTracking(url: string, customId: string) {
 
 export function buildCarLinks(fields: CarSearchFields): Partial<Record<MarketplaceId, string>> & { ebay: string } {
   const { make, model, year, price, minPrice, postcode } = fields;
-  const terms = [make, model, year].filter(Boolean).join(" ");
+  const baseTerms = [make, model, year].filter(Boolean).join(" ");
   if (fields.vehicleType === "motorbikes") {
     // The first motorbike release uses eBay only. Car-specific marketplace
     // routes must never be offered as a prepared motorcycle search.
     // eBay UK Motorcycles & Scooters category (422).
-    const ebay = new URLSearchParams({ _nkw: terms, _sacat: "422" });
+    const ebay = new URLSearchParams({ _nkw: baseTerms, _sacat: "422" });
     if (minPrice) ebay.set("_udlo", minPrice);
     if (price) ebay.set("_udhi", price);
     if (postcode) ebay.set("_stpos", postcode);
     return { ebay: withEbayAffiliateTracking(`https://www.ebay.co.uk/sch/i.html?${ebay}`, "mekivo-motorbike-search") };
   }
+  const terms = [baseTerms, ...carExtraLabels(normalizeCarExtras(fields.carExtras))].filter(Boolean).join(" ");
   const query = [terms || "cars", minPrice ? `from £${minPrice}` : "", price ? `under £${price}` : "", postcode ? `near ${postcode}` : ""].filter(Boolean).join(" ");
   const autoTrader = new URLSearchParams();
   if (make) autoTrader.set("make", make);
@@ -108,11 +111,19 @@ export function buildCarLinks(fields: CarSearchFields): Partial<Record<Marketpla
   };
 }
 
-export function marketplaceFilterNote(id: MarketplaceId) {
-  if (id === "autotrader") return "Make, model, year and maximum price carried across. Check minimum price, sorting and other filters on Auto Trader.";
-  if (id === "ebay") return "Price range carried across; year is a search term. Check sorting, unwanted listings and distance on eBay.";
-  if (id === "motors") return "Make and model carried across. Reapply budget, year and location on Cazoo.";
-  return "Opens a keyword search. Check budget, year and location filters on the marketplace.";
+export function marketplaceFilterNote(id: MarketplaceId, hasExtras = false) {
+  if (id === "autotrader") return hasExtras
+    ? "Make, model, year and maximum price carried across. Reapply selected extras, minimum price, sorting and other filters on Auto Trader."
+    : "Make, model, year and maximum price carried across. Check minimum price, sorting and other filters on Auto Trader.";
+  if (id === "ebay") return hasExtras
+    ? "Price range carried across; year and selected extras are search terms. Confirm the equipment with the seller and check sorting, unwanted listings and distance on eBay."
+    : "Price range carried across; year is a search term. Check sorting, unwanted listings and distance on eBay.";
+  if (id === "motors") return hasExtras
+    ? "Make and model carried across. Reapply selected extras, budget, year and location on Cazoo."
+    : "Make and model carried across. Reapply budget, year and location on Cazoo.";
+  return hasExtras
+    ? "Opens a keyword search including selected extras. Confirm the equipment with the seller and check budget, year and location filters on the marketplace."
+    : "Opens a keyword search. Check budget, year and location filters on the marketplace.";
 }
 
 export function createCarSearch(fields: CarSearchFields): SubmittedSearch {
@@ -121,9 +132,12 @@ export function createCarSearch(fields: CarSearchFields): SubmittedSearch {
   const title = [fields.year, fields.make, fields.model].filter(Boolean).join(" ") || (motorbike ? "All motorbikes" : "All cars");
   const carCriteria = { make: fields.make, model: fields.model, year: fields.year };
   const savedFields = { ...fields };
+  const carExtras = motorbike ? [] : normalizeCarExtras(fields.carExtras);
+  delete savedFields.carExtras;
+  if (carExtras.length) savedFields.carExtras = [...carExtras];
   if (motorbike) savedFields.platform = "ebay";
   else delete savedFields.vehicleType;
-  return { mode: "cars", ...(motorbike ? { vehicleType: "motorbikes" as const } : {}), title, query: [fields.make, fields.model, fields.year].filter(Boolean).join(" "), fallbackUrl: carLinks.ebay, minPrice: fields.minPrice, maxPrice: fields.price, carSort: fields.sort, hideUnwanted: fields.hideUnwanted, platform: savedFields.platform, carCriteria, carLinks, searchMethod: "vehicle", saveItem: { kind: "car_search", title, data: { ...savedFields, links: carLinks } } };
+  return { mode: "cars", ...(motorbike ? { vehicleType: "motorbikes" as const } : {}), ...(carExtras.length ? { carExtras: [...carExtras] } : {}), title, query: [fields.make, fields.model, fields.year].filter(Boolean).join(" "), fallbackUrl: carLinks.ebay, minPrice: fields.minPrice, maxPrice: fields.price, carSort: fields.sort, hideUnwanted: fields.hideUnwanted, platform: savedFields.platform, carCriteria, carLinks, searchMethod: "vehicle", saveItem: { kind: "car_search", title, data: { ...savedFields, links: carLinks } } };
 }
 
 export function createPartSearch(fields: PartSearchFields, numberOnly = false): SubmittedSearch {
@@ -131,6 +145,7 @@ export function createPartSearch(fields: PartSearchFields, numberOnly = false): 
   const data = numberOnly
     ? { make: "", model: "", year: "", engine: "", fuel: "", bodyStyle: "", part: "", partCategory: "", partNumber: fields.partNumber.trim(), partMethod: "search", searchMethod: "part_number" }
     : { ...fields, searchMethod: "vehicle" };
+  delete (data as Record<string, unknown>).carExtras;
   const vehicleLabel = [data.year, data.make, data.model, data.engine, data.fuel, data.bodyStyle].filter(Boolean).join(" ");
   const title = [vehicleLabel, data.part || data.partNumber || data.partCategory].filter(Boolean).join(" · ");
   const query = [vehicleLabel, data.partCategory, data.part, data.partNumber].filter(Boolean).join(" ");

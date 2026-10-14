@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { BoundedTtlCache } from "../../../lib/server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "../../../lib/server-upstream";
 import { filterCarListings, type CarListingFilters } from "../../../lib/car-filters";
+import { carExtraSeedKeywords, carExtrasInputIsValid, normalizeCarExtras, type CarExtra } from "../../../lib/car-extras";
 import { ebayAffiliateCampaignId, ebayBuyingFormat, safeNativeEbayAffiliateUrl, type EbayBuyingFormat } from "../../../lib/search";
 
 export const runtime = "nodejs";
@@ -11,6 +12,7 @@ export const runtime = "nodejs";
 type EbayItemSummary = {
   itemId?: string;
   title?: string;
+  shortDescription?: string;
   itemWebUrl?: string;
   itemAffiliateWebUrl?: string;
   image?: { imageUrl?: string };
@@ -29,6 +31,7 @@ type PublicListing = {
   buyingOptions: string[]; itemEndDate: string | null;
   buyingFormat: EbayBuyingFormat;
   postage: { price: string; currency: string } | null;
+  shortDescription?: string;
 };
 type SearchInfo = { checkedCount: number; pagesChecked: number; hasMore: boolean; partial: boolean };
 type SearchResult = { items: PublicListing[]; searchInfo?: SearchInfo };
@@ -36,14 +39,14 @@ const resultsCache = new BoundedTtlCache<SearchResult>(100, 30_000);
 const maxCarPages = 4;
 const carSorts = { best_match: "", price_asc: "price", price_desc: "-price", newest: "newlyListed" } as const;
 
-function cacheKey(query: string, type: string, minPrice: string, maxPrice: string, sort: string, hideUnwanted: boolean, make: string, model: string, vehicleType: string) {
+function cacheKey(query: string, type: string, minPrice: string, maxPrice: string, sort: string, hideUnwanted: boolean, make: string, model: string, vehicleType: string, carExtras: CarExtra[]) {
   // Do not retain searches resembling a registration or VIN. Keys for ordinary
   // catalogue searches are hashed; no caller identity is included in the cache.
   const searchTerms = [query, make, model].join(" ");
   if (/\b[A-HJ-NPR-Z0-9]{17}\b|\b[A-Z]{2}\d{2}\s?[A-Z]{3}\b|\b[A-Z]\d{1,3}\s?[A-Z]{3}\b|\b[A-Z]{3}\s?\d{1,3}[A-Z]\b/i.test(searchTerms)) return null;
   const registrationCandidates = searchTerms.matchAll(/\b(?:[A-Z]{1,3}\s?\d{1,4}|\d{1,4}\s?[A-Z]{1,3})\b/gi);
   if ([...registrationCandidates].some(([candidate]) => candidate.replace(/\s/g, "").length >= 5)) return null;
-  return createHash("sha256").update(JSON.stringify([query.toLowerCase(), type, minPrice, maxPrice, sort, hideUnwanted, make.toLowerCase(), model.toLowerCase(), vehicleType])).digest("hex");
+  return createHash("sha256").update(JSON.stringify([query.toLowerCase(), type, minPrice, maxPrice, sort, hideUnwanted, make.toLowerCase(), model.toLowerCase(), vehicleType, carExtras])).digest("hex");
 }
 
 function json(body: unknown, status = 200) {
@@ -59,6 +62,10 @@ export async function GET(request: NextRequest) {
   const vehicleInput = type === "cars" ? request.nextUrl.searchParams.get("vehicleType") ?? "cars" : "cars";
   if (vehicleInput !== "cars" && vehicleInput !== "motorbikes") return json({ error: "Choose cars or motorbikes." }, 400);
   const vehicleType = vehicleInput;
+  const extraInputs = type === "cars" && vehicleType === "cars" ? request.nextUrl.searchParams.getAll("extras") : [];
+  const extrasInput = extraInputs[0] ?? "";
+  if (extraInputs.length > 1 || !carExtrasInputIsValid(extrasInput)) return json({ error: "Choose valid car extras from the advanced filters." }, 400);
+  const carExtras = normalizeCarExtras(extrasInput);
   const priceInput = type === "cars" ? request.nextUrl.searchParams.get("maxPrice")?.trim() ?? "" : "";
   const minimumInput = type === "cars" ? request.nextUrl.searchParams.get("minPrice")?.trim() ?? "" : "";
   const sortInput = type === "cars" ? request.nextUrl.searchParams.get("sort") ?? "best_match" : "best_match";
@@ -87,15 +94,21 @@ export async function GET(request: NextRequest) {
   const maxPrice = priceInput ? String(Number(priceInput)) : "";
   const sort = carSorts[sortInput as keyof typeof carSorts];
   const hideUnwanted = hideInput === "1" || hideInput === "true";
+  // Keep at most one provider OR group; never append several synonym groups or
+  // allow Browse's documented 100-character limit to truncate selected extras.
+  const seed = carExtras.length ? carExtraSeedKeywords(carExtras[0]) : "";
+  const simpleSeed = seed.startsWith("(") && /[(),]/.test(query) ? seed.slice(1, -1).split(",")[0] : seed;
+  const providerQuery = [query, simpleSeed].filter(Boolean).join(" ");
+  if (carExtras.length && providerQuery.length > 100) return json({ error: "Shorten the make, model or search text to use car extras." }, 400);
   const limit = type === "cars" ? 48 : 12;
-  const key = cacheKey(query, type, minPrice, maxPrice, sort, hideUnwanted, make, model, vehicleType);
+  const key = cacheKey(query, type, minPrice, maxPrice, sort, hideUnwanted, make, model, vehicleType, carExtras);
   const cachedResult = key ? resultsCache.get(key) : undefined;
   if (cachedResult) return json(cachedResult);
   const collected: PublicListing[] = [];
   const searchInfo: SearchInfo | undefined = type === "cars"
     ? { checkedCount: 0, pagesChecked: 0, hasMore: false, partial: false }
     : undefined;
-  const carFilters: CarListingFilters = { minPrice, maxPrice, sort: sortInput as keyof typeof carSorts, hideUnwanted, make, model, vehicleType };
+  const carFilters: CarListingFilters = { minPrice, maxPrice, sort: sortInput as keyof typeof carSorts, hideUnwanted, make, model, vehicleType, carExtras };
   const result = (): SearchResult => ({
     items: (type === "cars" ? filterCarListings(collected, carFilters) as PublicListing[] : collected).slice(0, limit),
     ...(searchInfo ? { searchInfo } : {}),
@@ -104,7 +117,8 @@ export async function GET(request: NextRequest) {
   try {
     const token = await getApplicationToken();
     const url = new URL("https://api.ebay.com/buy/browse/v1/item_summary/search");
-    if (query) url.searchParams.set("q", query);
+    if (providerQuery) url.searchParams.set("q", providerQuery);
+    if (carExtras.length) url.searchParams.set("fieldgroups", "EXTENDED");
     url.searchParams.set("limit", String(limit));
     // eBay UK: Cars (9801), Motorcycles & Scooters (422), Car Parts (6030).
     // Category 32073 belongs to a different marketplace, not the UK bike tree.
@@ -113,6 +127,7 @@ export async function GET(request: NextRequest) {
       // Selecting the UK marketplace alone can include overseas listings.
       // Restrict the provider's candidate set before sorting or taking a page.
       const filters = ["itemLocationCountry:GB"];
+      if (carExtras.length) filters.push("searchInDescription:true");
       if (minPrice || maxPrice) {
         const range = maxPrice ? `${minPrice}..${maxPrice}` : minPrice;
         filters.push(`price:[${range}]`, "priceCurrency:GBP");
@@ -167,6 +182,7 @@ export async function GET(request: NextRequest) {
           .map((item) => ({
             id: item.itemId ?? item.itemWebUrl!,
             title: item.title!,
+            ...(carExtras.length && plainShortDescription(item.shortDescription) ? { shortDescription: plainShortDescription(item.shortDescription)! } : {}),
             url: item.itemWebUrl!,
             affiliateUrl: safeNativeEbayAffiliateUrl(item.itemAffiliateWebUrl, item.itemWebUrl!),
             image: item.image?.imageUrl ?? null,
@@ -225,4 +241,14 @@ function fixedPostage(options: EbayItemSummary["shippingOptions"]): PublicListin
   const value = option?.shippingCost?.value, currency = option?.shippingCost?.currency;
   if (option?.shippingCostType !== "FIXED" || typeof value !== "string" || !/^\d+(?:\.\d{1,2})?$/.test(value) || typeof currency !== "string") return null;
   return { price: value, currency };
+}
+
+function plainShortDescription(value: unknown): string | null {
+  // This is a bounded plain-text summary, never seller HTML or an executable
+  // description. Preserve word separation while discarding markup/controls.
+  if (typeof value !== "string") return null;
+  const text = value.slice(0, 4_000).replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ").replace(/<[^>]*>/g, " ")
+    .replace(/&(?:nbsp|#160|#x0*a0);/gi, " ")
+    .replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 2_000);
+  return text || null;
 }

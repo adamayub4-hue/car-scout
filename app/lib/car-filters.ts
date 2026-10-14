@@ -1,4 +1,5 @@
 import type { CarSort, EbayListing, VehicleType } from "./search";
+import { matchesCarExtras, type CarExtra } from "./car-extras";
 
 // Title checks are deliberately conservative; they are not a vehicle inspection
 // or a guarantee of the seller's full cash price, history or availability.
@@ -173,6 +174,7 @@ export type CarListingFilters = {
   minPrice?: string;
   maxPrice?: string;
   sort?: CarSort;
+  carExtras?: CarExtra[];
 };
 
 export function filterCarListings(items: readonly EbayListing[], filters: CarListingFilters = {}): EbayListing[] {
@@ -186,6 +188,7 @@ export function filterCarListings(items: readonly EbayListing[], filters: CarLis
   // the returned batch, not every eBay listing or other marketplaces.
   const filtered = items.filter(item => {
     if (!(filters.vehicleType === "motorbikes" ? matchesMotorbikeCriteria(item.title, filters) : matchesCarCriteria(item.title, filters))) return false;
+    if (filters.vehicleType !== "motorbikes" && !matchesCarExtras(item, filters.carExtras)) return false;
     if (filters.hideUnwanted && isUnwantedCarListing(item, filters.vehicleType)) return false;
     if (priceSort || minimum !== null || maximum !== null) {
       const price = carPriceInPence(item.price);

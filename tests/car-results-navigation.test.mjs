@@ -9,9 +9,15 @@ const compile = path => ts.transpileModule(readFileSync(new URL(path, import.met
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 const searchHelpers = {};
-vm.runInNewContext(compile('../app/lib/search.ts'), { exports: searchHelpers, URL, URLSearchParams });
+const extrasHelpers = {};
+vm.runInNewContext(compile('../app/lib/car-extras.ts'), { exports: extrasHelpers });
+const helperRequire = name => {
+  if (name === './car-extras') return extrasHelpers;
+  throw Error(`Unexpected helper dependency: ${name}`);
+};
+vm.runInNewContext(compile('../app/lib/search.ts'), { exports: searchHelpers, URL, URLSearchParams, require: helperRequire });
 const savedSearchHelpers = {};
-vm.runInNewContext(compile('../app/lib/saved-search.ts'), { exports: savedSearchHelpers, URL, URLSearchParams });
+vm.runInNewContext(compile('../app/lib/saved-search.ts'), { exports: savedSearchHelpers, URL, URLSearchParams, require: helperRequire });
 const Save = () => null;
 const Share = () => null;
 const LiveListings = () => null;
@@ -65,6 +71,7 @@ function component(path, initialProps) {
       if (name === 'next/image') return { default: 'img' };
       if (name === '../lib/search') return searchHelpers;
       if (name === '../lib/saved-search') return savedSearchHelpers;
+      if (name === '../lib/car-extras') return extrasHelpers;
       if (name === '../lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
       if (name === './save-button') return { default: Save };
       if (name === './share-search-button') return { default: Share };

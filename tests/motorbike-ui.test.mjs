@@ -10,7 +10,10 @@ const compile = path => ts.transpileModule(readFileSync(new URL(path, import.met
 }).outputText;
 function helpers(path) {
   const exports = {};
-  vm.runInNewContext(compile(path), { exports, URL, URLSearchParams });
+  vm.runInNewContext(compile(path), { exports, URL, URLSearchParams, require(name) {
+    if (name === './car-extras') return helpers('../app/lib/car-extras.ts');
+    throw Error(`Unexpected helper dependency: ${name}`);
+  } });
   return exports;
 }
 const search = helpers('../app/lib/search.ts');
@@ -18,6 +21,7 @@ const saved = helpers('../app/lib/saved-search.ts');
 const guide = helpers('../app/lib/parts-guide-data.ts');
 const filters = helpers('../app/lib/car-filters.ts');
 const PageResults = () => null;
+const ExtraControls = () => null;
 const Placeholder = () => null;
 const text = node => typeof node === 'string' || typeof node === 'number' ? String(node)
   : Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
@@ -65,6 +69,7 @@ function page(query = '') {
       if (name === './lib/analytics-audience') return { analyticsAudience: () => 'excluded' };
       if (name === './lib/supabase') return { getSupabaseBrowserClient: () => null };
       if (name === './components/car-search-results') return { default: PageResults };
+      if (name === './components/car-extra-filters') return { default: ExtraControls };
       return { default: Placeholder };
     },
   });
@@ -89,6 +94,29 @@ function page(query = '') {
     async respond(index, payload) { requests[index].resolve({ ok: true, json: async () => payload }); await flush(); render(); },
   };
 }
+
+test('car extras restore, survive budget presets and clear when switching search types', () => {
+  const app = page('?restore=1&mode=cars&platform=ebay&price=5000&extras=panoramic_roof,heated_seats');
+  const extras = () => app.one(node => node.type === ExtraControls);
+  assert.deepEqual(Array.from(extras().props.value), ['heated_seats', 'panoramic_roof']);
+  app.click(app.button('Up to £1,000'));
+  assert.deepEqual(Array.from(extras().props.value), ['heated_seats', 'panoramic_roof']);
+  app.click(app.button('Search eBay'));
+  const params = new URL(app.requests[0].url, 'https://local.test').searchParams;
+  assert.equal(params.get('extras'), 'heated_seats,panoramic_roof');
+  assert.equal(params.get('maxPrice'), '1000');
+  assert.deepEqual(Array.from(app.results().props.search.carExtras), ['heated_seats', 'panoramic_roof']);
+  app.click(app.button('Find motorbikes'));
+  assert.ok(!app.nodes().some(node => node.type === ExtraControls));
+  app.click(app.button('Search eBay motorbikes'));
+  assert.equal(new URL(app.requests[1].url, 'https://local.test').searchParams.has('extras'), false);
+  app.click(app.button('Find cars'));
+  assert.deepEqual(Array.from(extras().props.value), []);
+  extras().props.onChange(['heated_seats']); app.render();
+  app.click(app.button('Find parts'));
+  app.click(app.button('Find cars'));
+  assert.deepEqual(Array.from(extras().props.value), []);
+});
 
 test('motorbike entry shows bike suggestions, unrestricted model and eBay only while retaining budget controls', () => {
   const app = page();

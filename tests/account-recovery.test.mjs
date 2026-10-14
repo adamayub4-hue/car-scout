@@ -5,8 +5,13 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 const helperCode = ts.transpileModule(readFileSync(new URL('../app/lib/saved-search.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+const carExtras = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/car-extras.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: carExtras });
 const helper = {};
-vm.runInNewContext(helperCode, { exports: helper, URL, URLSearchParams, setTimeout, clearTimeout });
+vm.runInNewContext(helperCode, { exports: helper, URL, URLSearchParams, setTimeout, clearTimeout, require(name) {
+  if (name === './car-extras') return carExtras;
+  throw new Error(`Unexpected pure helper import: ${name}`);
+} });
 const source = readFileSync(new URL('../app/account/page.tsx', import.meta.url), 'utf8');
 const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function handler(name, context) {

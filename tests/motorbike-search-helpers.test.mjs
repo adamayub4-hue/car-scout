@@ -59,6 +59,19 @@ test('motorbike searches use only the UK motorcycle eBay category with exact bud
   assert.equal(new URL(any.fallbackUrl).searchParams.get('_sacat'), '422');
 });
 
+test('motorbike construction ignores stale car extras in submitted, saved and outbound criteria', () => {
+  const input = { ...fields, vehicleType: 'motorbikes', carExtras: ['heated_seats', 'panoramic_roof'] };
+  const before = plain(input), result = search.createCarSearch(input);
+  assert.deepEqual(plain(input), before);
+  assert.equal(Object.hasOwn(result, 'carExtras'), false);
+  assert.equal(Object.hasOwn(result.saveItem.data, 'carExtras'), false);
+  assert.equal(result.query, 'Honda CBR600 2018');
+  assert.equal(new URL(result.fallbackUrl).searchParams.get('_nkw'), 'Honda CBR600 2018');
+  assert.equal(params(saved.getSavedSearchUrl(result.saveItem)).has('extras'), false);
+  assert.equal(params(saved.getSharedSearchUrl(result.saveItem)).has('extras'), false);
+  assert.deepEqual(plain(saved.parseSavedSearchParams(params('https://mekivo.uk/?restore=1&mode=cars&vehicle_type=motorbikes&extras=heated_seats'))).carExtras, []);
+});
+
 test('saved search and safe local return links preserve motorcycle choice and filters with eBay-only restoration', () => {
   const item = bike().saveItem, url = saved.getSavedSearchUrl(item), restored = saved.parseSavedSearchParams(params(url));
   assert.equal(params(url).get('vehicle_type'), 'motorbikes');

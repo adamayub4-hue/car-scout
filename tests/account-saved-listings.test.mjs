@@ -6,8 +6,13 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../app/components/saved-listing-card.tsx', import.meta.url), 'utf8');
 const component = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+const carExtras = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/car-extras.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: carExtras });
 const searchHelpers = {};
-vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/search.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: searchHelpers, URL, URLSearchParams });
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/search.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: searchHelpers, URL, URLSearchParams, require(name) {
+  if (name === './car-extras') return carExtras;
+  throw new Error(`Unexpected pure helper import: ${name}`);
+} });
 const url = 'https://www.ebay.co.uk/itm/123456789012';
 const bookmark = { kind: 'part_listing', title: 'My Ford brake search', data: { version: 1, id: '123456789012', url, searchUrl: '/?restore=1&mode=parts&part=Brake' } };
 const fresh = { id: '123456789012', title: 'Current eBay brake listing', url, price: '29.00', currency: 'GBP', image: 'https://i.ebayimg.com/images/test.jpg', condition: 'New', location: 'London', postage: { price: '3.00', currency: 'GBP' } };

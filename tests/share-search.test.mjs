@@ -8,14 +8,19 @@ import * as jsxRuntime from 'react/jsx-runtime';
 const compile = path => ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), {
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
+const modules = new Map();
 function load(path) {
+  const file = new URL(path, import.meta.url);
+  if (modules.has(file.href)) return modules.get(file.href);
   const exports = {};
-  vm.runInNewContext(compile(path), { exports, URL, URLSearchParams });
+  modules.set(file.href, exports);
+  vm.runInNewContext(compile(file.href), { exports, URL, URLSearchParams, require: name => load(new URL(`${name}.ts`, file).href) });
   return exports;
 }
 const saved = load('../app/lib/saved-search.ts');
 const search = load('../app/lib/search.ts');
 const sharing = load('../app/lib/share-search.ts');
+const extras = load('../app/lib/car-extras.ts');
 const car = changes => search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '2018', minPrice: '1500', price: '5000', postcode: 'SW1A 1AA', platform: 'all', sort: 'price_asc', hideUnwanted: true, ...changes }).saveItem;
 const part = changes => search.createPartSearch({ make: 'Volkswagen', model: 'Golf', year: '2017', engine: '1.4L', fuel: 'Petrol', bodyStyle: 'Hatchback', part: 'Brake Pads', partCategory: 'Brakes', partNumber: '1K0 698 151 F', partMethod: 'search', ...changes }).saveItem;
 const privateData = { postcode: 'SW1A 1AA', registration: 'AB12 CDE', registrationNumber: 'AB12 CDE', vin: 'WVWZZZ1KZAW123456', userId: 'private-account', itemId: 'private-listing', ownerEmail: 'owner@example.test', ownerToken: 'private-token', password: 'private-password', access_token: 'private-access', utm_source: 'meta', campid: 'private-campaign', customid: 'private-identifier', links: { ebay: 'https://www.ebay.co.uk/itm/private-id' } };
@@ -66,6 +71,50 @@ test('share sanitization rejects private-looking free text, unsafe values and co
   const restored = saved.parseSavedSearchParams(new URL(saved.getSharedSearchUrl(item), 'https://local.test').searchParams);
   assert.equal(restored.make, 'Ford'); assert.equal(restored.model, ''); assert.equal(restored.year, '');
   assert.equal(restored.minPrice, undefined); assert.equal(restored.sort, undefined); assert.equal(restored.platform, 'all'); assert.equal(restored.hideUnwanted, false);
+});
+
+test('saved and shared car extras preserve the full catalogue without truncating or exposing private data', () => {
+  const known = Array.from(extras.carExtras, extra => extra.id);
+  assert.ok(known.join(',').length > 80, 'the full selection exceeds the ordinary text-field limit');
+  const item = car({ carExtras: known });
+  Object.assign(item.data, privateData);
+  for (const url of [saved.getSavedSearchUrl(item), saved.getSharedSearchUrl(item)]) {
+    const params = new URL(url, 'https://local.test').searchParams;
+    assert.equal(params.get('extras'), known.join(','));
+    const restored = saved.parseSavedSearchParams(params);
+    assert.deepEqual(Array.from(restored.carExtras), known);
+  }
+  const shared = saved.getSharedSearchUrl(item);
+  for (const value of Object.values(privateData).filter(value => typeof value === 'string')) assert.equal(shared.includes(encodeURIComponent(value)), false, value);
+});
+
+test('extras restoration removes invalid and duplicate IDs; sharing accepts catalogue arrays only', () => {
+  const input = ['panoramic_roof', 'heated_seats', 'heated_seats', 'owner@example.test', 'constructor', 'https://private.test'];
+  const canonical = Array.from(extras.normalizeCarExtras(input));
+  assert.deepEqual(canonical, ['heated_seats', 'panoramic_roof']);
+  const item = car(); item.data.carExtras = input;
+  const shared = saved.getSharedSearchUrl(item);
+  assert.deepEqual(Array.from(saved.parseSavedSearchParams(new URL(shared, 'https://local.test').searchParams).carExtras), canonical);
+  assert.doesNotMatch(shared, /private|constructor|owner/);
+  const tampered = saved.parseSavedSearchParams(new URLSearchParams({ restore: '1', mode: 'cars', extras: input.join(',') }));
+  assert.deepEqual(Array.from(tampered.carExtras), canonical);
+  item.data.carExtras = 'heated_seats';
+  assert.equal(new URL(saved.getSharedSearchUrl(item), 'https://local.test').searchParams.has('extras'), false);
+  assert.deepEqual(Array.from(saved.parseSavedSearchParams(new URLSearchParams('restore=1&mode=cars')).carExtras), []);
+});
+
+test('part and motorbike saved/shared links cannot inherit car extras', () => {
+  for (const item of [part(), car({ vehicleType: 'motorbikes' })]) {
+    item.data.carExtras = ['heated_seats', 'panoramic_roof'];
+    for (const url of [saved.getSavedSearchUrl(item), saved.getSharedSearchUrl(item)]) {
+      const params = new URL(url, 'https://local.test').searchParams;
+      assert.equal(params.has('extras'), false);
+      assert.deepEqual(Array.from(saved.parseSavedSearchParams(params).carExtras), []);
+    }
+  }
+  for (const suffix of ['mode=parts', 'mode=cars&vehicle_type=motorbikes']) {
+    assert.deepEqual(Array.from(saved.parseSavedSearchParams(new URLSearchParams(`restore=1&${suffix}&extras=heated_seats`)).carExtras), []);
+  }
 });
 
 test('native sharing sends only the public link and generic brand title', async () => {
