@@ -58,7 +58,7 @@ function isAdditionalUnwantedCarTitle(title: string) {
 // BMW component adverts sometimes contain only the brand and a seven-character
 // mixed part code. Require that entire sparse title; badges and car descriptions
 // must not be caught by a general alphanumeric-code heuristic.
-const BMW_COMPONENT_CODE_ONLY = /^bmw\s+(?![135]series$)(?=[a-z0-9]{7}$)(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{7}$/i;
+const BMW_COMPONENT_CODE_ONLY = /^bmw\s+(?![1-8]series$)(?=[a-z0-9]{7}$)(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{7}$/i;
 const bikeMakes = ["royal enfield", "harley davidson", "harley", "honda", "yamaha", "suzuki", "kawasaki", "triumph", "bmw", "ducati", "ktm", "aprilia", "lexmoto", "vespa", "piaggio", "lambretta", "benelli", "bsa", "norton", "husqvarna", "kymco", "sym", "keeway", "moto guzzi"];
 const compactBikeMake = new RegExp(`\\b(?:${bikeMakes.join("|")})(?=[a-z0-9])`, "gi");
 const EXCLUDED_BIKE_PRODUCT = /\b(?:project\s+(?:bike|motorbike|motorcycle)|mobility\s+scooter|kick\s+scooter|e[ -]?scooter|bicycle|push\s*bike|pedal\s+bike|toy\s+(?:bike|motorcycle)|balance\s+bike)\b|^(?:(?:new|used|genuine|oem|motorcycle|motorbike|bike)[\s-]+)*(?:helmets?|gloves?|jackets?|boots?|fairings?|sprockets?|chains?|sidecars?|exhausts?|fuel\s+tanks?|engines?|frames?)\b|\b(?:fairings?|sprockets?|chains?|sidecars?|exhausts?|fuel\s+tanks?|engines?|frames?)\s+(?:only|for|replacement|removed|bare|assembly)\b/i;
@@ -110,7 +110,12 @@ export function matchesMotorbikeCriteria(title: string, criteria: { make?: strin
 }
 
 function normalizedCarText(value: string) {
-  const separated = value.replace(compactMakePrefix, (name, offset, source: string) => {
+  const compoundNames = value.replace(compactCompoundMakePrefix, (name, offset, source: string) => {
+    const next = source[offset + name.length];
+    if (next && /[a-z]/.test(next)) return name;
+    return `${compoundCarMakes[name.toLowerCase()]}${next && /[A-Z0-9]/.test(next) ? " " : ""}`;
+  });
+  const separated = compoundNames.replace(compactMakePrefix, (name, offset, source: string) => {
     const next = source[offset + name.length];
     return next === next.toUpperCase() || name.toLowerCase() === "vw" ? `${name} ` : name;
   }).replace(/\b(golf)(plus)\b/gi, "$1 $2");
@@ -128,8 +133,15 @@ const makeAliases: Record<string, string[]> = {
   mercedes: ["mercedes", "mercedes benz"], "mercedes benz": ["mercedes", "mercedes benz"],
   "land rover": ["land rover", "range rover"],
 };
-const namedCarMakes = ["alfa romeo", "audi", "bmw", "citroen", "dacia", "daihatsu", "ford", "honda", "hyundai", "infiniti", "jaguar", "jeep", "kia", "land rover", "lexus", "mazda", "mercedes", "mini", "mitsubishi", "nissan", "peugeot", "porsche", "range rover", "renault", "saab", "seat", "skoda", "smart", "subaru", "suzuki", "tesla", "toyota", "vauxhall", "volkswagen", "volvo", "vw"];
-const compactMakePrefix = new RegExp(`\\b(?:${namedCarMakes.join("|")})(?=[a-z])`, "gi");
+// Recognise the expanded catalogue at the start of an advert, so another
+// make's keyword tail cannot turn it into a matching car. These are recognition
+// names, not an allowlist: an unfamiliar explicitly entered make still works.
+const namedCarMakes = ["mercedes benz", "aston martin", "lamborghini", "range rover", "rolls royce", "alfa romeo", "land rover", "mitsubishi", "volkswagen", "chevrolet", "leapmotor", "ssangyong", "westfield", "cadillac", "caterham", "chrysler", "daihatsu", "infiniti", "maserati", "mercedes", "polestar", "vauxhall", "bentley", "citroen", "daimler", "ferrari", "genesis", "ginetta", "hyundai", "mclaren", "peugeot", "pontiac", "porsche", "renault", "triumph", "abarth", "alpine", "austin", "daewoo", "datsun", "hummer", "jaecoo", "jaguar", "jensen", "lancia", "morgan", "morris", "nissan", "proton", "subaru", "suzuki", "toyota", "cupra", "dacia", "dodge", "haval", "honda", "ineos", "isuzu", "lexus", "lotus", "maxus", "mazda", "noble", "omoda", "rover", "skoda", "smart", "tesla", "volvo", "audi", "fiat", "ford", "jeep", "mini", "saab", "seat", "bmw", "byd", "gwm", "kgm", "kia", "ora", "tvr", "ac", "ds", "mg", "vw"];
+const compoundCarMakes: Record<string, string> = Object.fromEntries(namedCarMakes.filter(name => name.includes(" ")).map(name => [name.replaceAll(" ", ""), name]));
+const compactCompoundMakePrefix = new RegExp(`\\b(?:${Object.keys(compoundCarMakes).join("|")})`, "gi");
+// AC is a real make, but splitting it from uppercase ACCORD corrupts Honda's
+// model name. Only recognise AC when it is already a separate word.
+const compactMakePrefix = new RegExp(`\\b(?:${namedCarMakes.filter(name => name !== "ac").join("|")})(?=[a-z])`, "gi");
 
 // Explicit submitted criteria are separate from free-text q. Missing make/model
 // means a broad search; title matching cannot verify the seller's vehicle data.
@@ -137,24 +149,56 @@ export function matchesCarCriteria(title: string, criteria: { make?: string; mod
   const text = normalizedCarText(title);
   const make = normalizedCarText(criteria.make || "");
   const model = normalizedCarText(criteria.model || "");
+  let modelSubject = text;
   if (make) {
-    const names = Object.hasOwn(makeAliases, make) ? makeAliases[make] : [make];
+    // The catalogue labels these specific models as GWM ORA/Haval. Accept
+    // their model-brand wording without equating every model across makes.
+    const gwmModelBrand = make === "gwm" ? model.match(/^(ora|haval) /)?.[1] : undefined;
+    const names = gwmModelBrand ? ["gwm", gwmModelBrand] : Object.hasOwn(makeAliases, make) ? makeAliases[make] : [make];
     if (!names.some(name => containsCarPhrase(text, name))) return false;
     // Keyword tails such as "Audi A3 ... VW Golf Polo" do not change a clear
     // make at the start of the advert. Avoid guessing when no make leads it.
     const subject = text.replace(/^(?:\d{2,4}\s+)+/, "");
     const leadingMake = namedCarMakes.find(name => subject === name || subject.startsWith(`${name} `));
     if (leadingMake && !names.includes(leadingMake)) return false;
+    if (leadingMake) modelSubject = subject.slice(leadingMake.length).trim();
+    else modelSubject = text.replace(new RegExp(`^.*?\\b${make === "mercedes benz" ? "mercedes(?: benz)?" : make} `), "");
+    const leadingModelBrand = modelSubject.match(/^(ora|haval) /)?.[1];
+    if (gwmModelBrand && leadingModelBrand && leadingModelBrand !== gwmModelBrand) return false;
     if (model && names.includes("volkswagen") && leadingMake) {
       const leadingModel = subject.slice(leadingMake.length).trim().match(/^(polo|golf|passat|tiguan)\b/)?.[1];
       if (leadingModel && model !== leadingModel && !model.startsWith(`${leadingModel} `)) return false;
     }
   }
+  const bmwSeries = make === "bmw" ? model.match(/^([1-8]) series$/)?.[1] : undefined;
+  if (bmwSeries) {
+    // Chassis, year, trim and transmission can precede the badge. Strip only
+    // recognised prefixes, rather than scanning arbitrary keyword tails.
+    modelSubject = modelSubject.replace(/^(?:(?:(?:19|20)\d{2}|[efg] \d{2})(?: lci)? |(?:m sport|automatic|manual|auto|x ?drive) )+/, "");
+    const leadingSeries = modelSubject.match(/^(?:m )?([1-8])(?: series\b|\d{2}\s*(?:i|d|e|ci|cd|ti|tds)\b)/)?.[1];
+    if (leadingSeries && leadingSeries !== bmwSeries) return false;
+    if (/^(?:x|z|i) \d\b/.test(modelSubject)) return false;
+  }
+  const mercedesClass = ["mercedes", "mercedes benz"].includes(make) ? model.match(/^([abcegrsv]) class$/)?.[1] : undefined;
+  if (mercedesClass) {
+    modelSubject = modelSubject.replace(/^amg /, "");
+    const leadingClass = modelSubject.match(/^([a-z]{1,3})(?: class\b| \d{2,3}\b)/)?.[1];
+    if (leadingClass && leadingClass !== mercedesClass) return false;
+  }
   if (!model || containsCarPhrase(text, model)) return true;
-  // Site series choices include BMW 1/3/5 Series. Advertisers commonly use
-  // badges such as 320d or 530d rather than spelling out the series name.
-  const bmwSeries = make === "bmw" ? model.match(/^([135]) series$/)?.[1] : undefined;
-  return Boolean(bmwSeries && new RegExp(`\\b(?:m\\s+)?${bmwSeries}\\d{2}\\s*(?:i|d|e|ci|cd|ti|tds)\\b`).test(text));
+  const modelSeparators: Record<string, Record<string, string>> = {
+    audi: { "rs q 3": "rsq 3", "rsq 3": "rs q 3" },
+    toyota: { "c hr": "chr", chr: "c hr" },
+    honda: { "cr v": "crv", crv: "cr v" },
+  };
+  const separatorAlias = Object.hasOwn(modelSeparators, make) && Object.hasOwn(modelSeparators[make], model) ? modelSeparators[make][model] : undefined;
+  // These particular names appear both joined and separated in adverts. Keep
+  // whole-token boundaries and require them to name the vehicle, not a tail.
+  if (separatorAlias && (modelSubject === separatorAlias || modelSubject.startsWith(`${separatorAlias} `))) return true;
+  // Advertisers commonly use badges such as 420d/C220d instead of the series
+  // or Class label. Match the vehicle subject, never another model in a tail.
+  return Boolean((bmwSeries && new RegExp(`^(?:m\\s+)?${bmwSeries}\\d{2}\\s*(?:i|d|e|ci|cd|ti|tds)\\b`).test(modelSubject))
+    || (mercedesClass && new RegExp(`^${mercedesClass} \\d{2,3}\\b`).test(modelSubject)));
 }
 
 export function carPriceInPence(value: string | undefined | null) {

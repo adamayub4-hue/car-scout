@@ -10,6 +10,8 @@ const compile = path => ts.transpileModule(readFileSync(new URL(path, import.met
 }).outputText;
 const helpers = {};
 vm.runInNewContext(compile('../app/lib/vehicle-picker-options.ts'), { exports: helpers });
+const vehicleOptions = {};
+vm.runInNewContext(compile('../app/lib/vehicle-options.ts'), { exports: vehicleOptions });
 const component = compile('../app/components/vehicle-picker.tsx');
 
 const text = node => typeof node === 'string' || typeof node === 'number' ? String(node)
@@ -186,4 +188,26 @@ test('suggestion normalisation preserves arbitrary free text and supports make c
   assert.equal(helpers.vehiclePickerValue(['Audi'], '  Bristol  '), 'Bristol');
   assert.deepEqual(Array.from(helpers.vehicleModelsForMake({ Audi: ['A3', 'A5'] }, ' AUDI ')), ['A3', 'A5']);
   assert.deepEqual(Array.from(helpers.vehicleModelsForMake({ Audi: ['A3'] }, 'Unlisted make')), []);
+});
+
+test('existing catalogue models remain available for same-make aliases and accented names', () => {
+  for (const [typed, key, expectedModel] of [
+    ['Mercedes-Benz', 'Mercedes', 'A Class'], [' Mercedes Benz ', 'Mercedes', 'C Class'],
+    ['VW', 'Volkswagen', 'Golf'], ['Citroën', 'Citroen', 'C3'], ['Škoda', 'Skoda', 'Octavia'],
+  ]) {
+    const models = helpers.vehicleModelsForMake(vehicleOptions.makes, typed);
+    assert.deepEqual(Array.from(models), Array.from(vehicleOptions.makes[key]), typed);
+    assert.ok(models.includes(expectedModel), `${typed}: familiar model still suggested`);
+  }
+  assert.deepEqual(Array.from(helpers.vehiclePickerOptions(Object.keys(vehicleOptions.makes), 'CITROËN')), ['Citroen']);
+  assert.equal(helpers.vehiclePickerValue(Object.keys(vehicleOptions.makes), 'VW'), 'VW', 'model lookup does not rewrite the typed or restored make');
+  assert.deepEqual(Array.from(helpers.vehicleModelsForMake({ KGM: ['Torres'] }, 'SsangYong')), [], 'different marques are not merged');
+  assert.deepEqual(Array.from(helpers.vehicleModelsForMake(vehicleOptions.makes, 'Unlisted Custom Motors')), []);
+
+  const app = picker({ label: 'Model', options: helpers.vehicleModelsForMake(vehicleOptions.makes, 'VW') });
+  app.click(app.trigger());
+  assert.ok(app.options().some(option => text(option) === 'Golf'));
+  app.type('  Custom Trekker conversion  ');
+  app.click(app.button('Use “Custom Trekker conversion”'));
+  assert.deepEqual(app.calls, ['Custom Trekker conversion'], 'a model outside the suggestions stays usable');
 });

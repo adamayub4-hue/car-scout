@@ -15,22 +15,6 @@ function normalized(value: string) {
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
-function containsPhrase(title: string, phrase: string) {
-  return (` ${title} `).includes(` ${normalized(phrase)} `);
-}
-
-function makeMatches(title: string, make: string) {
-  const aliases: Record<string, string[]> = {
-    volkswagen: ["volkswagen", "vw"],
-    "land rover": ["land rover", "range rover"],
-    mercedes: ["mercedes"],
-    "mercedes benz": ["mercedes", "mercedes benz"],
-  };
-  const makeKey = normalized(make);
-  const names = Object.hasOwn(aliases, makeKey) ? aliases[makeKey] : [makeKey];
-  return names.some(name => containsPhrase(title, name));
-}
-
 export function safeEbayListingUrl(value: string): string | null {
   try {
     const url = new URL(value);
@@ -49,7 +33,9 @@ export function getCarRecommendations(items: readonly EbayListing[], search: Sub
   const seen = new Set<string>();
   const candidates: CarRecommendation[] = [];
 
-  for (const item of filterCarListings(items, { minPrice: search.minPrice, maxPrice: search.maxPrice, vehicleType: search.vehicleType, carExtras: search.carExtras, ...(search.vehicleType === "motorbikes" ? { make, model } : {}) })) {
+  // Keep the same make/model checks as live results, including badge aliases
+  // and titles that name another car only in a keyword tail.
+  for (const item of filterCarListings(items, { minPrice: search.minPrice, maxPrice: search.maxPrice, vehicleType: search.vehicleType, carExtras: search.carExtras, make, model })) {
     if (typeof item.title !== "string" || item.currency !== "GBP") continue;
     const pricePence = carPriceInPence(item.price);
     if (pricePence === null || (maximum !== null && pricePence > maximum)) continue;
@@ -61,7 +47,6 @@ export function getCarRecommendations(items: readonly EbayListing[], search: Sub
       if (!Number.isFinite(end) || end <= now) continue;
     }
     const title = normalized(item.title);
-    if (search.vehicleType !== "motorbikes" && ((make.trim() && !makeMatches(title, make)) || (model.trim() && !containsPhrase(title, model)))) continue;
     if (year.trim()) {
       // The first full year in a car title is the strongest available summary
       // signal. A later MOT/service date must not stand in for the vehicle year.

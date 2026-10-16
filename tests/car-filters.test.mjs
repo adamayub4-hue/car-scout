@@ -534,6 +534,118 @@ test('BMW series choices accept standard numeric badges and reject other series'
   assert.deepEqual(ids(filterCarListings(items, { make: 'BMW', model: 'X3' })), ['9']);
 });
 
+test('expanded makes retain compact and compound names while rejecting other makes in keyword tails', () => {
+  for (const [make, model, title] of [
+    ['Fiat', 'Punto', 'FiatPunto full MOT'],
+    ['Aston Martin', 'DB9', 'AstonMartinDB9 full MOT'],
+    ['Rolls-Royce', 'Ghost', 'RollsRoyceGhost full MOT'],
+    ['Alfa Romeo', 'Giulia', 'AlfaRomeo Giulia full MOT'],
+    ['MG', 'ZS', 'MGZS full MOT'],
+    ['AC', 'Cobra', 'AC Cobra full MOT'],
+    ['Honda', 'Accord', 'HONDA ACCORD full MOT'],
+    ['Mazda', 'Mazda2', 'Mazda2 full MOT'],
+    ['Mazda', 'Mazda2', 'Mazda 2 full MOT'],
+    ['Citroen', 'C3', 'Citroën C3 full MOT'],
+    ['Skoda', 'Octavia', 'Škoda Octavia full MOT'],
+    ['Unfamiliar Motors', 'Roadster', 'Unfamiliar Motors Roadster full MOT'],
+  ]) assert.equal(filterCarListings([car(1, { title })], { make, model, hideUnwanted: true }).length, 1, title);
+  for (const title of ['Fiat Punto Ford Fiesta alternative', 'Bentley Continental comparable to Ford Fiesta', 'AstonMartinDB9 similar to Ford Fiesta', 'BYD Dolphin comparable to Ford Fiesta']) {
+    assert.equal(filterCarListings([car(1, { title })], { make: 'Ford', model: 'Fiesta' }).length, 0, title);
+  }
+});
+
+test('expanded BMW series accept badges and known chassis/year prefixes without accepting another model tail', () => {
+  for (const [series, badge] of [['2', '220d'], ['4', '420d'], ['6', '640i'], ['7', '730d'], ['8', 'M850i']]) {
+    for (const title of [`BMW ${badge} full MOT`, `BMW ${series}Series`, `BMW 2018 ${badge} full MOT`]) {
+      assert.equal(filterCarListings([car(1, { title })], { make: 'BMW', model: `${series} Series`, hideUnwanted: true }).length, 1, title);
+    }
+  }
+  for (const title of ['BMW F30 320d full MOT', 'BMW 2018 320d full MOT', 'BMW E90 LCI 320d full MOT', 'BMW 2021 G20 LCI 320d full MOT']) {
+    assert.equal(filterCarListings([car(1, { title })], { make: 'BMW', model: '3 Series', hideUnwanted: true }).length, 1, title);
+  }
+  for (const title of ['BMW 520d alternative to BMW 420d 4 Series', 'BMW G30 520d alternative to BMW 420d', 'BMW X4 comparable to BMW 420d 4 Series', 'BMW i4 comparable to BMW 4 Series', 'BMW 4200d', 'Audi A4 BMW 420d alternative']) {
+    assert.equal(filterCarListings([car(1, { title })], { make: 'BMW', model: '4 Series' }).length, 0, title);
+  }
+});
+
+test('specific joined model names match their catalogue separators without partial tokens or another model tail', () => {
+  for (const [make, model, title] of [
+    ['Audi', 'RS Q3', '2018 Audi RSQ3 full MOT'],
+    ['Audi', 'RSQ3', '2018 Audi RS Q3 full MOT'],
+    ['Toyota', 'C-HR', '2018 ToyotaCHR full MOT'],
+    ['Toyota', 'CHR', '2018 Toyota C-HR full MOT'],
+    ['Honda', 'CR-V', '2018 HondaCRV full MOT'],
+    ['Honda', 'CRV', '2018 Honda CR-V full MOT'],
+  ]) assert.equal(filterCarListings([car(1, { title })], { make, model, hideUnwanted: true }).length, 1, title);
+  for (const [make, model, title] of [
+    ['Audi', 'RS Q3', 'Audi RSQ30 full MOT'],
+    ['Audi', 'RS Q3', 'Audi A3 similar to RSQ3'],
+    ['Toyota', 'C-HR', 'Toyota CHRoadster full MOT'],
+    ['Toyota', 'C-HR', 'Toyota Corolla similar to CHR'],
+    ['Honda', 'CR-V', 'Honda CRVenture full MOT'],
+    ['Honda', 'CR-V', 'Honda Civic similar to CRV'],
+    ['Honda', 'CR-V', 'Fiat Punto Honda CRV alternative'],
+  ]) assert.equal(filterCarListings([car(1, { title })], { make, model }).length, 0, title);
+});
+
+test('recognised BMW trim and transmission prefixes preserve the first vehicle badge and reject wrong-series tails', () => {
+  for (const title of [
+    'BMW M Sport 320d full MOT', 'BMW automatic 320d full MOT', 'BMW manual 320d full MOT',
+    'BMW auto 320d full MOT', 'BMW xDrive 320d full MOT', 'BMW x Drive 320d full MOT',
+    'BMW 2016 F30 LCI M Sport automatic xDrive 320d full MOT',
+  ]) assert.equal(filterCarListings([car(1, { title })], { make: 'BMW', model: '3 Series', hideUnwanted: true }).length, 1, title);
+  for (const title of [
+    'BMW M Sport 520d similar to BMW 320d 3 Series',
+    'BMW automatic 520d alternative to BMW 320d',
+    'BMW manual X3 comparable to BMW 320d 3 Series',
+    'BMW xDrive i3 similar to BMW 3 Series',
+    'BMW auto enthusiast mentions BMW 320d',
+    'Ford Fiesta BMW automatic 320d alternative',
+  ]) assert.equal(filterCarListings([car(1, { title })], { make: 'BMW', model: '3 Series' }).length, 0, title);
+});
+
+test('Mercedes Class choices accept the corresponding badges but reject other class and make keyword tails', () => {
+  for (const [model, badge] of [['A Class', 'A180'], ['B Class', 'B200'], ['C Class', 'C220d'], ['E Class', 'E220d'], ['G Class', 'G63'], ['R Class', 'R320'], ['S Class', 'S500'], ['V Class', 'V250']]) {
+    for (const title of [`Mercedes ${badge} full MOT`, `Mercedes-Benz ${badge} full MOT`, `MERCEDESBENZ${badge} full MOT`]) {
+      assert.equal(filterCarListings([car(1, { title })], { make: 'Mercedes', model, hideUnwanted: true }).length, 1, title);
+    }
+  }
+  for (const title of ['Mercedes E220d alternative to C220d C Class', 'Mercedes E Class similar to C Class', 'Mercedes CLA200 similar to Mercedes C Class', 'Ford Fiesta similar to Mercedes C220d', 'Mercedes C2200d']) {
+    assert.equal(filterCarListings([car(1, { title })], { make: 'Mercedes', model: 'C Class' }).length, 0, title);
+  }
+  assert.equal(filterCarListings([car(1, { title: 'Mercedes GLC250 similar to G Class' })], { make: 'Mercedes', model: 'G Class' }).length, 0);
+  assert.equal(filterCarListings([car(1, { title: 'Mercedes AMG C63 full MOT' })], { make: 'Mercedes', model: 'C Class', hideUnwanted: true }).length, 1);
+});
+
+test('GWM aliases are limited to the selected ORA or Haval model and do not merge unrelated brands', () => {
+  for (const [model, title] of [['ORA 03', 'ORA 03 full MOT'], ['ORA Funky Cat', 'ORA Funky Cat full MOT'], ['Haval Jolion Pro', 'Haval Jolion Pro full MOT'], ['ORA 03', 'GWMORA03 full MOT']]) {
+    assert.equal(filterCarListings([car(1, { title })], { make: 'GWM', model, hideUnwanted: true }).length, 1, title);
+  }
+  for (const title of ['Haval Jolion Pro comparable to ORA 03', 'GWM Haval Jolion Pro comparable to ORA 03', 'Ford Fiesta ORA 03 alternative']) {
+    assert.equal(filterCarListings([car(1, { title })], { make: 'GWM', model: 'ORA 03' }).length, 0, title);
+  }
+  assert.equal(filterCarListings([car(1, { title: 'ORA 03 full MOT' })], { make: 'GWM' }).length, 0, 'no make-wide ORA equivalence');
+  assert.equal(filterCarListings([car(1, { title: 'SsangYong Rexton full MOT' })], { make: 'KGM', model: 'Rexton' }).length, 0);
+  assert.equal(filterCarListings([car(1, { title: 'Citroen DS3 full MOT' })], { make: 'DS', model: 'DS3' }).length, 0);
+});
+
+test('broader make and badge matching retains cash-price, unwanted-listing and partial-model protections', () => {
+  const rows = [
+    car(1, { title: 'FiatPunto full MOT', price: '500' }),
+    car(2, { title: 'Fiat Punto full MOT', price: '501' }),
+    car(3, { title: 'Fiat Punto deposit', price: '100' }),
+    car(4, { title: 'Fiat Punto front bumper', price: '50' }),
+    car(5, { title: 'Fiat Punto full MOT', price: '100', buyingOptions: ['AUCTION'] }),
+    car(6, { title: 'Fiat Punto full MOT', price: '300', currency: 'USD' }),
+    car(7, { title: 'Fiat Puntofull full MOT', price: '400' }),
+  ];
+  assert.deepEqual(ids(filterCarListings(rows, { make: 'Fiat', model: 'Punto', maxPrice: '500', hideUnwanted: true })), ['1']);
+  for (const title of ['New timing belt for Fiat Punto', 'BMW 420d front bumper', 'Mercedes C220d spare repair', 'BMW ABC1234']) {
+    assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 0, title);
+  }
+  assert.equal(filterCarListings([car(1, { title: 'Fiat Punto new timing belt' })], { make: 'Fiat', model: 'Punto', hideUnwanted: true }).length, 1);
+});
+
 test('split Gear Box product wording is hidden while gearbox maintenance and ordinary specifications survive', () => {
   const product = car(1, {
     title: 'AUDI Q7 3.0 S LINE 2018 GEAR BOX QUATTRO 8 SPEED AUTOMATIC',

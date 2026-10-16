@@ -147,6 +147,26 @@ test('common make aliases, accents, hyphens and letter-number model spacing rema
   ]) assert.equal(shortlist([car(1, { title })], carSearch({ make, model })).length, 1, title);
 });
 
+test('price picks retain badge-named cars that match the selected series or class', () => {
+  for (const [make, model, title] of [
+    ['BMW', '3 Series', '2018 BMW 320d Sport'],
+    ['BMW', '4 Series', '2018 BMW 420d M Sport'],
+    ['Mercedes', 'C Class', '2018 Mercedes-Benz C220d Sport'],
+  ]) {
+    const result = shortlist([car(1, { title })], carSearch({ make, model }));
+    assert.equal(result.length, 1, title);
+    assert.equal(result[0].item.title, title);
+  }
+});
+
+test('price picks reject keyword tails naming a different car while keeping the selected car', () => {
+  const rows = [
+    car(1, { title: '2018 Fiat Punto Ford Fiesta alternative', price: '2000' }),
+    car(2, { title: '2018 Ford Fiesta Zetec', price: '3000' }),
+  ];
+  assert.deepEqual(ids(shortlist(rows)), [rows[1].id]);
+});
+
 test('optional model and year allow an honest make-only shortlist without matching other makes', () => {
   const result = shortlist([car(1, { title: 'Ford Focus Zetec' }), car(2, { title: '2012 Ford Mondeo' }), car(3, { title: '2018 Audi A3' })], carSearch({ model: '', year: '' }));
   assert.equal(result.length, 2);

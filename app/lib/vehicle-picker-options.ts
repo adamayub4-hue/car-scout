@@ -1,4 +1,9 @@
-const comparisonValue = (value: string) => value.trim().toLocaleLowerCase("en-GB");
+const comparisonValue = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("en-GB");
+const makeAliases = new Map([["mercedes benz", "mercedes"], ["vw", "volkswagen"]]);
+const makeComparisonValue = (value: string) => {
+  const key = comparisonValue(value).replace(/[-\s]+/g, " ");
+  return makeAliases.get(key) || key;
+};
 
 /** Suggestions are examples, not a restriction on the vehicles people can search. */
 export function vehiclePickerOptions(options: readonly string[], query = ""): string[] {
@@ -19,6 +24,10 @@ export function vehiclePickerValue(options: readonly string[], value: string): s
 }
 
 export function vehicleModelsForMake(catalogue: Record<string, readonly string[]>, make: string): readonly string[] {
-  const key = Object.keys(catalogue).find(option => comparisonValue(option) === comparisonValue(make));
+  const names = Object.keys(catalogue);
+  // Keep catalogue keys and typed values intact. These are spellings of the
+  // same make, not a reason to merge different marques or historical brands.
+  const key = names.find(option => comparisonValue(option) === comparisonValue(make))
+    ?? names.find(option => makeComparisonValue(option) === makeComparisonValue(make));
   return key ? catalogue[key] : [];
 }
