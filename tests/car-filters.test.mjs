@@ -300,6 +300,108 @@ test('cheap-category component and swap-only adverts cannot consume genuine car 
   assert.equal(filterCarListings(genuine, { maxPrice: '500', sort: 'price_asc', hideUnwanted: true }).length, genuine.length);
 });
 
+test('observed £500 category leaks and product forms are hidden by title rather than price', () => {
+  const observed = [
+    ['BMW 330d / 335d /M2 / M3 / M4 F80 Allows ( R19 ) ( 800 )  Only Cash Money', '0.99'],
+    ['Brand New Right Mirror Blinker   Citroen C3 Aircross', '10.00'],
+    ['6 Rib V-Ribbed Belt 6PK1245 Gates', '12.50'],
+    ['R50 2003 mini cooper steering wheel Airbag', '20.00'],
+    ['New genuine Vauxhall Vivaro B 2015  Front right inner door handle bracket', '40.00'],
+    ['Vauxhall Viva 2015-2019 Radio Stereo Head Unit Bluetooth USB 42526443 Genuine', '44.99'],
+    ['New Genuine Heat shield 2 545 523', '45.60'],
+    ['R55 R56 Mini Cooper Steering wheel & Airbag ', '50.00'],
+    ['BMW  8 036 939 Alloy', '50.00'],
+    ['vw mk6 front windscreen wiper motor', '70.00'],
+    ['Mini Cooper 2009 Head Unit', '75.00'],
+    ['BMW 1 2 3 4 Series F20 F22 F30 F31 F32 F36 SE Complete With Airbag', '80.00'],
+    ['Genuine Mercedes A-Class W176 AMG Line Rear Suspension Kit - Shocks & Springs A2', '140.00'],
+    ['ALFA ROMEO GIULIETTA MK3 2011 ALLOY WHEELS Tyres  4 SIZE 225/45/17 7.5JX17', '145.00'],
+    ['Citroen C4 Picasso 2014 Tires. 4 Available', '150.00'],
+    ['LUK 624352233 Clutck Kit', '205.00'],
+    ['Toyota Celica ST202 Passenger Door', '230.00'],
+    ['Toyota Celica Gen 6 Convertible Roof', '300.00'],
+    ['Jeep Renegade 1.4 Petrol Gher Box', '330.00'],
+    ['w215 hydraulic motor for power trunk', '350.00'],
+    ['Crashed Suzuki Swift GL M13A 1.3 Petrol Manual 5 Speed', '350.00'],
+    ['New timing belt for Ford Fiesta', '50.00'],
+    ['Brand new head unit for Mini Cooper', '75.00'],
+  ].map(([title, price], index) => car(index, { title, price }));
+  assert.equal(filterCarListings(observed, { maxPrice: '500', sort: 'price_asc', hideUnwanted: true }).length, 0);
+  assert.equal(getCarRecommendations(observed, createCarSearch({ ...fields, price: '500' })).length, 0);
+  assert.equal(filterCarListings(observed, { maxPrice: '500', sort: 'price_asc', hideUnwanted: false }).length, observed.length);
+});
+
+test('component-name checks preserve cheap whole-car titles and fitted or completed maintenance descriptions', () => {
+  const titles = [
+    'car',
+    'Vauxhall Zafira 1.8',
+    'vauxhall corsa d cdti 1.3 2009 black 3-door',
+    'Suzuki Ignis mk1 1.3 2003 silver alloys',
+    '2001 RENAULT CLIO AUTHENTIQUE 8V 5 DOOR HATCHBACK: OFFERS WELCOME!',
+    'Skoda Kodiaq',
+    '2007 Ford Mondeo St Tdci',
+    'Volvo C30 - 1.6l - Burnt Orange - 2010 - Petrol',
+    'Volkswagen Golf Plus 1.9',
+    'Ford Fiesta 2002 1.4 petrol Hatch',
+    'Mini Cooper R56',
+    'Mercedes C180 2003',
+    'Nissan Micra 2003 1.2 16v SE Hatchback 5dr Petrol Manual',
+    'Ford, FIESTA, Hatchback, 2007, Manual, 1388 (cc), 3 doors',
+    'VAUXHALL CORSA',
+    'CITREON C4 PICASSO',
+    '2014 BMW 330d with R19 alloy wheels',
+    '2014 BMW 330d R19 alloy wheels fitted',
+    '2014 BMW 330d with alloy wheels R19',
+    '2014 BMW 330d alloy wheels R19 fitted',
+    '2014 Alfa Romeo Giulietta with alloy wheels tyres 225/45/17',
+    '2012 Ford Fiesta new V-ribbed belt full MOT',
+    '2012 Ford Fiesta new V-ribbed belt',
+    'Ford Fiesta new timing belt',
+    'Ford Fiesta new belt',
+    '2012 Ford Fiesta serpentine belt replaced',
+    '2014 Mini Cooper steering wheel airbag replaced',
+    '2014 Mini Cooper with steering wheel and airbag',
+    'Vauxhall Vivaro inner door handle bracket replaced',
+    '2016 Vauxhall Viva with Bluetooth head unit',
+    '2016 Vauxhall Viva new head unit',
+    '2010 Ford Fiesta heat shield fitted',
+    '2009 VW Golf windscreen wiper motor replaced',
+    '2014 Mercedes A-Class rear suspension kit fitted',
+    '2014 Citroen C4 Picasso full MOT 4 new tyres',
+    '2012 Ford Fiesta new clutch kit full MOT',
+    'Toyota Celica passenger door replaced',
+    'Toyota Celica convertible roof fitted',
+    '2003 Mercedes C180 hydraulic motor for power trunk replaced',
+    'Suzuki Swift GL never crashed full service history',
+  ];
+  for (const [index, title] of titles.entries()) {
+    const item = car(index, { title, price: '450' });
+    assert.deepEqual(ids(filterCarListings([item], { maxPrice: '500', sort: 'price_asc', hideUnwanted: true })), [item.id], title);
+  }
+});
+
+test('whole-car owner and running descriptions survive component mentions without excusing product-start titles', () => {
+  const completeCars = [
+    '2014 BMW 330d 2 owners alloy wheels R19',
+    'Toyota Celica convertible roof works runs and drives',
+    '2016 Vauxhall Viva runs drives Bluetooth head unit',
+  ];
+  for (const title of completeCars) {
+    assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 1, title);
+  }
+  const products = [
+    'Head unit for Vauxhall Viva tested runs',
+    'New head unit for Vauxhall Viva previous owner tested runs',
+    'Bare engine Volkswagen Golf 1.4 TSI CAXA tested runs',
+    'Engine for Volkswagen Golf 1.4 TSI tested runs',
+  ];
+  for (const title of products) {
+    const item = car(1, { title });
+    assert.equal(filterCarListings([item], { hideUnwanted: true }).length, 0, title);
+    assert.equal(filterCarListings([item], { hideUnwanted: false }).length, 1, title);
+  }
+});
+
 test('clear registration-only offers are hidden without removing cars with an included private plate', () => {
   for (const title of ['Private number plate AB12 ABC', 'Cherished registration ABC 123', 'DVLA personalised registration plate', 'Registration transfer ABC 123']) {
     assert.equal(filterCarListings([car(1, { title })], { hideUnwanted: true }).length, 0, title);

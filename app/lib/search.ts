@@ -85,7 +85,9 @@ export function buildCarLinks(fields: CarSearchFields): Partial<Record<Marketpla
     return { ebay: withEbayAffiliateTracking(`https://www.ebay.co.uk/sch/i.html?${ebay}`, "mekivo-motorbike-search") };
   }
   const terms = [baseTerms, ...carExtraLabels(normalizeCarExtras(fields.carExtras))].filter(Boolean).join(" ");
-  const query = [terms || "cars", minPrice ? `from £${minPrice}` : "", price ? `under £${price}` : "", postcode ? `near ${postcode}` : ""].filter(Boolean).join(" ");
+  // Keyword searches look for advert wording, so budget and location prose
+  // would exclude relevant cars instead of setting the marketplace's filters.
+  const query = terms;
   const autoTrader = new URLSearchParams();
   if (make) autoTrader.set("make", make);
   if (model) autoTrader.set("model", model);
@@ -96,18 +98,28 @@ export function buildCarLinks(fields: CarSearchFields): Partial<Record<Marketpla
   if (minPrice) ebay.set("_udlo", minPrice);
   if (price) ebay.set("_udhi", price);
   if (postcode) ebay.set("_stpos", postcode);
+  const aaCars = new URLSearchParams();
+  if (query) aaCars.set("keywordsearch", query);
+  if (minPrice) aaCars.set("pricefrom", minPrice);
+  if (price) aaCars.set("priceto", price);
+  const pistonHeads = new URLSearchParams();
+  if (query) pistonHeads.set("keywords", query);
+  if (price) {
+    pistonHeads.append("price", minPrice || "0");
+    pistonHeads.append("price", price);
+  }
   const slug = (value: string) => value.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const motorsPath = [slug(make), slug(model)].filter(Boolean).join("/");
   return {
     autotrader: `https://www.autotrader.co.uk/car-search?${autoTrader}`,
-    facebook: `https://www.facebook.com/marketplace/uk/search?query=${encodeURIComponent(query)}`,
+    facebook: `https://www.facebook.com/marketplace/uk/search?query=${encodeURIComponent(query || "cars")}`,
     ebay: withEbayAffiliateTracking(`https://www.ebay.co.uk/sch/i.html?${ebay}`, "mekivo-car-search"),
     motors: `https://www.cazoo.co.uk/cars/${motorsPath ? `${motorsPath}/` : ""}`,
     gumtree: `https://www.gumtree.com/search?search_category=cars&q=${encodeURIComponent(query)}`,
-    cargurus: `https://www.cargurus.co.uk/Cars/forsale?keywords=${encodeURIComponent(query)}`,
-    pistonheads: `https://www.pistonheads.com/buy/search?keyword=${encodeURIComponent(query)}`,
-    aacars: `https://www.theaa.com/used-cars/displaycars?keyword=${encodeURIComponent(query)}`,
-    carandclassic: `https://www.carandclassic.com/search?search=${encodeURIComponent(query)}`,
+    cargurus: "https://www.cargurus.co.uk/shop/used",
+    pistonheads: `https://www.pistonheads.com/buy/search?${pistonHeads}`,
+    aacars: `https://www.theaa.com/used-cars/displaycars?${aaCars}`,
+    carandclassic: `https://www.carandclassic.com/search?q=${encodeURIComponent(query)}`,
   };
 }
 
@@ -121,6 +133,16 @@ export function marketplaceFilterNote(id: MarketplaceId, hasExtras = false) {
   if (id === "motors") return hasExtras
     ? "Make and model carried across. Reapply selected extras, budget, year and location on Cazoo."
     : "Make and model carried across. Reapply budget, year and location on Cazoo.";
+  if (id === "aacars") return hasExtras
+    ? "Price range carried across; year and selected extras are search terms. Confirm the equipment with the seller and check location, sorting and other filters on AA Cars."
+    : "Price range carried across; year is a search term. Check location, sorting and other filters on AA Cars.";
+  if (id === "pistonheads") return hasExtras
+    ? "Maximum price and any accompanying minimum carried across. Year and selected extras are search terms. Confirm the equipment with the seller and check location, sorting and other filters on PistonHeads. Set a minimum-only budget there."
+    : "Maximum price and any accompanying minimum carried across. Year is a search term. Check location, sorting and other filters on PistonHeads. Set a minimum-only budget there.";
+  if (id === "cargurus") return "Choose make and model on CarGurus, then set your budget, year, extras and location there.";
+  if (id === "facebook") return hasExtras
+    ? "Opens a keyword search including selected extras. Use a personal Facebook profile with Marketplace access. Check budget, year and location filters on Facebook and confirm the equipment with the seller."
+    : "Opens a keyword search. Use a personal Facebook profile with Marketplace access. Check budget, year and location filters on Facebook.";
   return hasExtras
     ? "Opens a keyword search including selected extras. Confirm the equipment with the seller and check budget, year and location filters on the marketplace."
     : "Opens a keyword search. Check budget, year and location filters on the marketplace.";

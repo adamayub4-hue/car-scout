@@ -50,8 +50,8 @@ test('first-time guidance explains the complete car and parts journeys', () => {
   ]) {
     assert.match(source, new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
-  assert.match(carResultsSource, /These sites show their listings on their own websites; live listings inside Mekivo currently come from eBay\./);
-  assert.match(carResultsSource, /Open your prepared search in a new tab\./);
+  assert.match(carResultsSource, /These sites show their listings on their own websites; live listings inside Mekivo come from eBay\./);
+  assert.match(carResultsSource, /budget, location and other filters may need to be set again/);
 });
 
 test('generic visual parts locator is available without licensed vehicle-specific data', () => {

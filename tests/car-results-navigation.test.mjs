@@ -328,7 +328,8 @@ test('platform selection determines available views and only exposes its prepare
 test('other-site cards disclose filter limitations and emit one event only on actual outbound activation', () => {
   const app = results();
   app.click(app.button('Other sites'));
-  assert.match(text(activePanel(app)), /live listings inside Mekivo currently come from eBay/);
+  assert.match(text(activePanel(app)), /live listings inside Mekivo come from eBay/);
+  assert.match(text(activePanel(app)), /budget, location and other filters may need to be set again/);
   const details = nodes(activePanel(app)).filter(node => node.type === 'details');
   assert.equal(details.length, 8);
   assert.ok(details.every(node => !node.props.open), 'filter explanations start collapsed');
@@ -341,6 +342,18 @@ test('other-site cards disclose filter limitations and emit one event only on ac
   assert.equal(app.events[0][0], 'marketplace_outbound');
   assert.equal(app.events[0][1].marketplace, 'motors');
   assert.equal(app.events[0][1].destination, 'search_results');
+});
+
+test('Facebook access and CarGurus manual selection are explained before expanding filter details', () => {
+  const app = results({ search: carSearch({ platform: 'more' }) });
+  const gurus = app.one(node => node.type === 'a' && node.props.href === 'https://www.cargurus.co.uk/shop/used');
+  assert.match(text(gurus), /Choose car on CarGurus/);
+  const withoutDetails = node => node?.type === 'details' ? '' : typeof node === 'string' || typeof node === 'number' ? String(node)
+    : Array.isArray(node) ? node.map(withoutDetails).join('') : node?.props ? withoutDetails(node.props.children) : '';
+  assert.match(withoutDetails(activePanel(app)), /Choose your make and model on CarGurus/);
+  app.update({ search: carSearch({ platform: 'facebook' }) });
+  assert.match(withoutDetails(activePanel(app)), /Use your personal Facebook profile. Pages cannot use Marketplace/);
+  assert.deepEqual(app.events, [], 'reading handoff requirements does not count as an outbound click');
 });
 
 function listings(overrides = {}) {

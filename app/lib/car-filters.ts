@@ -26,6 +26,35 @@ const BARE_ENGINE_AS_PRODUCT = /\bbare\s+engine\b|^(?:(?:genuine|oem|new|used)[\
 const MOTORCYCLE_AS_PRODUCT = /\b(?:motorcycles?|motorbikes?|scooters?|mopeds?)\b/i;
 const COMPLETED_BARE_ENGINE_WORK = /\bbare\s+engine\s+(?:replaced|fitted|rebuilt|repaired|reconditioned)\b/i;
 const COMPLETE_CAR_EVIDENCE = /\b(?:mot|mileage|\d[\d,]*\s+miles|fsh|full\s+service\s+history|v5c|logbook)\b/i;
+// More component products have appeared in the provider's cars category. Use
+// specific item names and product wording, never their low price as evidence.
+// A complete-car title can mention the same equipment or completed work.
+const carComponentProductPattern = "mirror[\\s-]+(?:blinkers?|indicators?)|(?:v[\\s-]*ribbed|serpentine|auxiliary|timing|cam)[\\s-]+belts?|steering[\\s-]+wheel\\s*(?:&|and)?\\s*airbags?|(?:(?:inner|outer)[\\s-]+)?door[\\s-]+handle[\\s-]+brackets?|(?:radio[\\s-]+stereo[\\s-]+)?head[\\s-]+units?|heat[\\s-]+shields?|(?:windscreen[\\s-]+)?wiper[\\s-]+motors?|(?:front|rear)[\\s-]+suspension[\\s-]+kits?|(?:clutch|clutck)[\\s-]+kits?|(?:passenger|driver|front|rear)[\\s-]+doors?|convertible[\\s-]+roofs?|hydraulic[\\s-]+motor[\\s-]+for[\\s-]+(?:power[\\s-]+)?(?:trunk|boot)|gher[\\s-]+box";
+const CAR_COMPONENT_PRODUCT = new RegExp(`\\b(?:${carComponentProductPattern})\\b`, "i");
+const CAR_COMPONENT_AT_START = new RegExp(`^(?:(?:brand|new|used|genuine|oem|front|rear|left|right)[\\s-]+)*(?:${carComponentProductPattern})\\b`, "i");
+const CAR_COMPONENT_FITTED = new RegExp(`\\b(?:with|includes?|including|replaced|fitted|rebuilt|reconditioned)\\s+(?:(?:[a-z-]+|\\d+)\\s+){0,3}(?:${carComponentProductPattern})\\b|\\b(?:${carComponentProductPattern})\\s+(?:fitted|included|replaced|repaired|rebuilt|reconditioned)\\b`, "i");
+const NEW_CAR_COMPONENT = new RegExp(`\\bnew\\s+(?:${carComponentProductPattern})\\b`, "i");
+// A wheel advert needs a size/product signal: "silver alloys" on an otherwise
+// sparse car title is normal equipment. "Allows" is an observed alloy typo.
+const WHEEL_SIZE_PRODUCT = /\b(?:alloys?|alloy\s+wheels?|allows)\b.*\br\s*\d{2}\b|\b(?:alloys?|alloy\s+wheels?)\b.*\b\d{3}\s*\/\s*\d{2}\s*\/\s*\d{2}\b/i;
+const WHEEL_FITTED_EQUIPMENT = /\b(?:with|includes?|including)\s+(?:(?:[a-z-]+|r?\d+)\s+){0,3}(?:alloys?|alloy\s+wheels?)\b|\b(?:alloys?|alloy\s+wheels?)\s+(?:r\s*\d{2}\s+)?(?:fitted|included)\b/i;
+const BMW_ALLOY_CODE_ONLY = /^bmw\s+(?:\d\s*){7}\s+alloy\s*$/i;
+const TYRES_AVAILABLE_PRODUCT = /\b(?:tyres?|tires?)\s*[.!,:-]?\s*\d+\s+available\b/i;
+const MULTI_CHASSIS_AIRBAG_PRODUCT = /(?:\b[a-z]\d{2}\b[\s,/&-]*){2,}.*\bcomplete\s+with\s+airbag\b/i;
+
+function isAdditionalUnwantedCarTitle(title: string) {
+  if (BMW_ALLOY_CODE_ONLY.test(title.trim()) || MULTI_CHASSIS_AIRBAG_PRODUCT.test(title) || /^crashed\b/i.test(title.trim())) return true;
+  if (!CAR_COMPONENT_PRODUCT.test(title) && !WHEEL_SIZE_PRODUCT.test(title) && !TYRES_AVAILABLE_PRODUCT.test(title)) return false;
+  // A product-leading title can describe a tested component that runs, or name
+  // the donor car's owner. That is not whole-car context for the item being sold.
+  if (CAR_COMPONENT_AT_START.test(title.trim())) return true;
+  // "Ford Fiesta new timing belt" describes maintenance; "New timing belt for
+  // Ford Fiesta" starts with a product. A year alone is compatibility, not a car.
+  const newComponent = title.match(NEW_CAR_COMPONENT);
+  const subject = normalizedCarText(title.slice(0, newComponent?.index ?? 0)).replace(/^(?:\d{2,4}\s+)+/, "");
+  const carWithNewComponent = Boolean(newComponent && namedCarMakes.some(make => subject === make || subject.startsWith(`${make} `)));
+  return !FULL_CAR_CONTEXT.test(title) && !CAR_COMPONENT_FITTED.test(title) && !WHEEL_FITTED_EQUIPMENT.test(title) && !carWithNewComponent;
+}
 // BMW component adverts sometimes contain only the brand and a seven-character
 // mixed part code. Require that entire sparse title; badges and car descriptions
 // must not be caught by a general alphanumeric-code heuristic.
@@ -155,7 +184,7 @@ export function isUnwantedCarListing(item: EbayListing, vehicleType: VehicleType
   const gearboxSpecification = GEARBOX_SPECIFICATION.test(title) && /\b(?:19|20)\d{2}\b/.test(title);
   return EXCLUDED_SWAP.test(rawTitle) || EXCLUDED_SMALL_COMPONENT.test(title) || WHEEL_SET_AT_START.test(title.trim()) ||
     (vehicleType === "motorbikes" && isUnclearOrComponentBikeTitle(title)) ||
-    (vehicleType !== "motorbikes" && BMW_COMPONENT_CODE_ONLY.test(title.trim())) ||
+    (vehicleType !== "motorbikes" && (BMW_COMPONENT_CODE_ONLY.test(title.trim()) || isAdditionalUnwantedCarTitle(title))) ||
     (BARE_ENGINE_AS_PRODUCT.test(title.trim()) && !completedBareEngineWork) ||
     EXCLUDED_BIKE_PRODUCT.test(vehicleType === "motorbikes" ? title.trim() : vehicleTitle.trim()) || (vehicleType !== "motorbikes" && MOTORCYCLE_AS_PRODUCT.test(vehicleTitle)) ||
     (COMPONENT_AS_PRODUCT.test(title) && !FULL_CAR_CONTEXT.test(title) && !gearboxSpecification) ||

@@ -61,6 +61,97 @@ test('eBay car handoff uses actual budget and category filters rather than price
   assert.equal(result.maxPrice, '5000'); assert.equal(result.saveItem.data.links.ebay, result.fallbackUrl);
 });
 
+test('keyword handoffs keep vehicle wording separate from budget and location filters', () => {
+  const cases = [
+    { make: '', model: '', year: '', price: '500', minPrice: '', postcode: '', expected: '' },
+    { make: 'Volkswagen', model: 'Golf', year: '', price: '5000', minPrice: '', postcode: 'B1 1AA', expected: 'Volkswagen Golf' },
+    { make: 'Ford', model: 'Fiesta', year: '2018', price: '7500', minPrice: '1000', postcode: 'B1 1AA', expected: 'Ford Fiesta 2018' },
+  ];
+  const keywordDestinations = [['facebook', 'query'], ['gumtree', 'q'], ['pistonheads', 'keywords'], ['aacars', 'keywordsearch'], ['carandclassic', 'q']];
+  for (const input of cases) {
+    const result = search.createCarSearch({ ...input, platform: 'all' });
+    for (const [marketplace, key] of keywordDestinations) {
+      const params = new URL(result.carLinks[marketplace]).searchParams;
+      const expected = input.expected || (marketplace === 'facebook' ? 'cars' : marketplace === 'aacars' || marketplace === 'pistonheads' ? null : '');
+      assert.equal(params.get(key), expected, `${marketplace}: ${input.expected || 'browse any car'}`);
+      assert.doesNotMatch(params.get(key) || '', /£|\b(?:under|from|near)\b|B1 1AA/);
+      if (marketplace === 'pistonheads' || marketplace === 'aacars') assert.equal(params.has('keyword'), false, `${marketplace} must not use the ignored singular parameter`);
+      if (marketplace === 'carandclassic') assert.equal(params.has('search'), false, 'Car & Classic must not use the ignored search parameter');
+      if (marketplace === 'aacars') {
+        assert.equal(params.get('pricefrom'), input.minPrice || null);
+        assert.equal(params.get('priceto'), input.price);
+        assert.match(search.marketplaceFilterNote(marketplace), /Price range carried across; year is a search term/);
+      } else if (marketplace === 'pistonheads') {
+        assert.deepEqual(params.getAll('price'), [input.minPrice || '0', input.price], 'PistonHeads requires ordered lower and upper price values');
+        assert.match(search.marketplaceFilterNote(marketplace), /Maximum price and any accompanying minimum carried across/);
+      } else assert.match(search.marketplaceFilterNote(marketplace), /Check budget, year and location filters/);
+    }
+    const ebay = new URL(result.carLinks.ebay).searchParams;
+    assert.equal(ebay.get('_nkw'), [input.make, input.model, input.year].filter(Boolean).join(' '));
+    assert.equal(ebay.get('_sacat'), '9801');
+    assert.equal(ebay.get('_udhi'), input.price);
+    assert.equal(ebay.get('_udlo'), input.minPrice || null);
+    assert.equal(ebay.get('_stpos'), input.postcode || null);
+    const autotrader = new URL(result.carLinks.autotrader).searchParams;
+    assert.equal(autotrader.get('make'), input.make || null);
+    assert.equal(autotrader.get('model'), input.model || null);
+    assert.equal(autotrader.get('price-to'), input.price);
+    assert.equal(autotrader.get('postcode'), input.postcode || null);
+    assert.equal(autotrader.get('year-from'), input.year || null);
+    assert.equal(autotrader.get('year-to'), input.year || null);
+  }
+});
+
+test('PistonHeads carries an ordered price pair only when the search includes a maximum', () => {
+  for (const bounds of [{ minPrice: '', price: '' }, { minPrice: '1000', price: '' }, { minPrice: '', price: '500' }, { minPrice: '1000', price: '7500' }, { minPrice: '10000', price: '50000' }]) {
+    const result = search.createCarSearch({ make: 'Porsche', model: '911', year: '2018', postcode: 'B1 1AA', platform: 'pistonheads', carExtras: ['heated_seats'], ...bounds });
+    const params = new URL(result.carLinks.pistonheads).searchParams;
+    assert.equal(params.get('keywords'), 'Porsche 911 2018 Heated seats');
+    assert.deepEqual(params.getAll('price'), bounds.price ? [bounds.minPrice || '0', bounds.price] : []);
+    assert.equal(params.has('keyword'), false);
+  }
+  for (const hasExtras of [false, true]) {
+    const note = search.marketplaceFilterNote('pistonheads', hasExtras);
+    assert.match(note, /Maximum price and any accompanying minimum carried across/);
+    assert.match(note, /Set a minimum-only budget there/);
+    assert.match(note, /location, sorting and other filters on PistonHeads/);
+  }
+  assert.match(search.marketplaceFilterNote('pistonheads', true), /Year and selected extras are search terms/);
+});
+
+test('AA Cars carries optional exact price bounds independently of vehicle and equipment keywords', () => {
+  for (const bounds of [{ minPrice: '', price: '' }, { minPrice: '1000', price: '' }, { minPrice: '', price: '500' }, { minPrice: '1000', price: '10000' }]) {
+    const result = search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '2018', postcode: 'B1 1AA', platform: 'aacars', carExtras: ['heated_seats'], ...bounds });
+    const params = new URL(result.carLinks.aacars).searchParams;
+    assert.equal(params.get('keywordsearch'), 'Ford Fiesta 2018 Heated seats');
+    assert.equal(params.get('pricefrom'), bounds.minPrice || null);
+    assert.equal(params.get('priceto'), bounds.price || null);
+    assert.equal(params.has('keyword'), false);
+  }
+  assert.match(search.marketplaceFilterNote('aacars', true), /Price range carried across; year and selected extras are search terms/);
+  for (const hasExtras of [false, true]) assert.match(search.marketplaceFilterNote('aacars', hasExtras), /location, sorting and other filters on AA Cars/);
+});
+
+test('CarGurus opens its current search page without pretending that vehicle filters were carried across', () => {
+  for (const carExtras of [[], ['heated_seats', 'panoramic_roof']]) {
+    const result = search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '2018', price: '7500', minPrice: '1000', postcode: 'B1 1AA', platform: 'cargurus', carExtras });
+    assert.equal(result.carLinks.cargurus, 'https://www.cargurus.co.uk/shop/used');
+    assert.equal(new URL(result.carLinks.cargurus).search, '');
+    assert.equal(search.marketplaceFilterNote('cargurus', carExtras.length > 0), 'Choose make and model on CarGurus, then set your budget, year, extras and location there.');
+    assert.equal(result.saveItem.data.make, 'Ford', 'Mekivo retains the selected criteria even when the destination requires manual filters');
+    assert.equal(result.saveItem.data.price, '7500');
+  }
+});
+
+test('Facebook handoff discloses personal-profile access and manual marketplace filters', () => {
+  for (const hasExtras of [false, true]) {
+    const note = search.marketplaceFilterNote('facebook', hasExtras);
+    assert.match(note, /personal Facebook profile with Marketplace access/);
+    assert.match(note, /Check budget, year and location filters on Facebook/);
+    assert.equal(note.includes('including selected extras'), hasExtras);
+  }
+});
+
 test('car extras are canonical copied selections while the submitted query keeps its vehicle criteria', () => {
   const input = { make: 'Volkswagen', model: 'Golf', year: '2018', price: '5000', postcode: '', platform: 'all', carExtras: ['panoramic_roof', 'heated_seats', 'heated_seats', 'invalid', 'owner@example.test'] };
   const before = JSON.stringify(input);
@@ -83,10 +174,11 @@ test('car extras are canonical copied selections while the submitted query keeps
 
 test('keyword marketplace handoffs include selected extras but structured-only handoffs disclose their limits', () => {
   const result = search.createCarSearch({ make: 'Volkswagen', model: 'Golf', year: '2018', price: '5000', postcode: 'B1 1AA', platform: 'all', carExtras: ['heated_seats', 'panoramic_roof'] });
-  for (const [marketplace, key] of [['ebay', '_nkw'], ['facebook', 'query'], ['gumtree', 'q'], ['cargurus', 'keywords'], ['pistonheads', 'keyword'], ['aacars', 'keyword'], ['carandclassic', 'search']]) {
+  for (const [marketplace, key] of [['ebay', '_nkw'], ['facebook', 'query'], ['gumtree', 'q'], ['pistonheads', 'keywords'], ['aacars', 'keywordsearch'], ['carandclassic', 'q']]) {
     const query = new URL(result.carLinks[marketplace]).searchParams.get(key);
     assert.match(query, /Heated seats/); assert.match(query, /Panoramic roof/);
     assert.doesNotMatch(query, /\(|\)|\bOR\b|heated_seats|panoramic_roof/);
+    assert.doesNotMatch(query, /£|\b(?:under|from|near)\b|B1 1AA/);
   }
   const autotrader = new URL(result.carLinks.autotrader);
   assert.equal(autotrader.searchParams.get('make'), 'Volkswagen');

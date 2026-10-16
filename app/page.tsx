@@ -14,7 +14,7 @@ import InstallMekivo from "./components/install-mekivo";
 import SocialLinks from "./components/social-links";
 import CarExtraFilters from "./components/car-extra-filters";
 import type { CarExtra } from "./lib/car-extras";
-import { createCarSearch, createPartSearch, type SubmittedSearch, type Mode, type Platform, type VehicleType, type EbayListing } from "./lib/search";
+import { createCarSearch, createPartSearch, marketplaceFilterNote, type SubmittedSearch, type Mode, type Platform, type VehicleType, type EbayListing } from "./lib/search";
 import { filterCarListings } from "./lib/car-filters";
 import AppearanceControl from "./components/appearance";
 import { getSupabaseBrowserClient } from "./lib/supabase";
@@ -550,9 +550,10 @@ export default function Home() {
                   )}
                 </div>
               </details>}
+              {!isMotorbikes && platform !== "all" && platform !== "more" && <p className="mb-4 rounded-xl border border-outline/10 p-3 text-sm leading-6 text-muted">{marketplaceFilterNote(platform, carExtras.length > 0)}</p>}
               <div className="mb-4 rounded-2xl border border-sky-400/25 bg-sky-400/[0.055] p-4">
                 <h2 className="text-base font-bold">Find {vehiclePlural} within your budget</h2>
-                <p id="car-budget-help" className="mt-1 text-sm leading-6 text-muted">Enter £500 to see {vehiclePlural} priced at £500 or less. Leave make, model and year blank to browse any {isMotorbikes ? "motorbike" : "car"}.</p>
+                <p id="car-budget-help" className="mt-1 text-sm leading-6 text-muted">Enter £500 to see live eBay {vehiclePlural} priced at £500 or less. Leave make, model and year blank to browse any {isMotorbikes ? "motorbike" : "car"}.{!isMotorbikes && " Other sites may need you to set the budget again."}</p>
                 <div className="mt-3 flex flex-wrap gap-2" aria-label={isMotorbikes ? "Quick motorbike budgets" : "Quick car budgets"}>
                   {[500, 1000, 2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && !minPrice && carSort === "price_asc"}
                     onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }}
@@ -635,7 +636,7 @@ export default function Home() {
                     <span><strong className="block font-semibold text-foreground">Hide parts, repair and deposit adverts</strong><span className="mt-1 block text-xs leading-5">Checks listing titles and condition. It cannot confirm a {isMotorbikes ? "motorbike’s" : "car’s"} history or roadworthiness.</span></span>
                   </label>
                 </div>
-                <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. {isMotorbikes ? "Results include listings located in the UK; distance is not filtered here." : "Other sites may need their filters set again. Postcode is passed to other sites; it does not limit distance here."}</p>
+                <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. {isMotorbikes ? "Results include listings located in the UK; distance is not filtered here." : "Only Auto Trader and eBay links carry your postcode. Set your location on other sites; distance is not filtered here."}</p>
               </div>
               {error && (
                 <p role="alert" className="mt-4 text-sm text-danger">

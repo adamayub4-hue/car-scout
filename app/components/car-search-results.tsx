@@ -104,15 +104,17 @@ export default function CarSearchResults({ search, items, loading, error, search
       {tab.id === "prices" && <div className="pt-4"><CarRecommendations search={search} items={items} loading={loading} error={error} compact /></div>}
       {tab.id === "marketplaces" && <section aria-labelledby="other-car-sites-heading" className="pt-5">
         <h3 id="other-car-sites-heading" className="font-bold">Compare on other car sites</h3>
-        <p className="mt-2 text-sm leading-6 text-muted">Open your prepared search in a new tab. These sites show their listings on their own websites; live listings inside Mekivo currently come from eBay.</p>
+        <p className="mt-2 text-sm leading-6 text-muted">These sites show their listings on their own websites; live listings inside Mekivo come from eBay. Check the filter note for each site: budget, location and other filters may need to be set again.</p>
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {selectedMarketplaces.map(item => <div key={item.id} className="rounded-xl border border-outline/10 bg-overlay/[0.035] p-3 sm:p-4">
             <a href={search.carLinks?.[item.id]} target="_blank" rel="noreferrer"
               onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: item.id, search_type: searchType, destination: "search_results" })}
               className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">
               <h4 className="min-h-10 text-sm font-bold sm:min-h-0">{item.name}</h4>
-              <span className="mt-2 inline-block text-xs font-semibold text-link">Open search ↗</span>
+              <span className="mt-2 inline-block text-xs font-semibold text-link">{item.id === "cargurus" ? "Choose car on CarGurus ↗" : "Open search ↗"}</span>
             </a>
+            {item.id === "facebook" && <p className="mt-2 text-xs leading-5 text-muted">Use your personal Facebook profile. Pages cannot use Marketplace.</p>}
+            {item.id === "cargurus" && <p className="mt-2 text-xs leading-5 text-muted">Choose your make and model on CarGurus.</p>}
             <details className="mt-3 text-xs leading-5 text-subtle"><summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-sky-400">Filters carried across</summary><p className="mt-2">{marketplaceFilterNote(item.id, requestedExtras.length > 0)}</p></details>
           </div>)}
         </div>
