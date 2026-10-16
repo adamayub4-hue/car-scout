@@ -12,24 +12,27 @@ const code = ts.transpileModule(readFileSync(new URL('../app/admin/page.tsx', im
 
 function harness(options = {}) {
   let cursor = 0, mounted = false;
-  const slots = [], effects = [], calls = [], subscriptions = new Set(), cleanups = [];
+  const slots = [], effects = [], calls = [], authChecks = [], subscriptions = new Set(), cleanups = [];
   const result = (table, config, update, filters) => {
     calls.push({ table, config, update });
     if (options.hang === table) return new Promise(() => {});
     if (options.fail === table) return { data: null, error: { message: 'Unavailable' }, count: null };
     if (options.reject === table) throw new Error('Network failure');
     let response;
-    if (table === 'admins') response = { data: options.denied || filters.user_id !== 'owner' ? null : { user_id: 'owner' }, error: null };
+    if (table === 'admins') response = filters.user_id === undefined
+      ? { data: options.records?.admins ?? [{ user_id: 'owner' }], count: (options.records?.admins ?? [{ user_id: 'owner' }]).length, error: null }
+      : { data: options.denied || filters.user_id !== 'owner' ? null : { user_id: 'owner' }, error: null };
     else if (update) response = options.saveFail ? { data: null, error: { message: 'Denied' } } : { data: { id: 'report', status: update.status }, error: null };
     else {
       const data = table === 'complaints' && !config?.head && options.report ? [{ id: 'report', user_id: 'owner', subject: 'Test report', message: 'Example', status: 'open', created_at: '2026-08-31' }] : options.records?.[table] ?? [];
-      response = { data, error: null, count: config?.count ? (options.nullCount ? null : (config.head ? Number(!!options.report) : 1234)) : null };
+      response = { data, error: null, count: config?.count ? (options.nullCount ? null : (config.head ? Number(!!options.report) : options.counts?.[table] ?? 1234)) : null };
     }
     return options.deferResponse?.({ table, update, response }) ?? response;
   };
   const client = {
     auth: {
       getUser: async () => {
+        authChecks.push(true);
         const response = { data: { user: options.signedOut ? null : { id: options.userId ?? 'owner' } }, error: options.authError ? { message: 'Auth unavailable' } : null };
         return options.deferUser?.(response) ?? response;
       },
@@ -63,6 +66,7 @@ function harness(options = {}) {
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
       if (name === 'next/link') return { default: 'a' };
       if (name === '../components/owner-traffic') return { default: 'owner-traffic' };
+      if (name === '../components/account-management') return { default: 'account-management' };
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => options.noClient ? null : client };
       throw new Error(name);
     },
@@ -73,7 +77,7 @@ function harness(options = {}) {
     options.userId = userId;
     subscriptions.forEach(callback => callback(event, userId === null ? null : { user: { id: userId } }));
   };
-  return { render, calls, options, auth, state: () => JSON.stringify(slots), unmount: () => cleanups.forEach(fn => fn?.()), subscriptions };
+  return { render, calls, authChecks, options, auth, state: () => JSON.stringify(slots), unmount: () => cleanups.forEach(fn => fn?.()), subscriptions };
 }
 function nodes(tree) { return !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(nodes) : [tree, ...nodes(tree.props?.children)]; }
 function text(tree) { return tree == null ? '' : typeof tree !== 'object' ? String(tree) : Array.isArray(tree) ? tree.map(text).join(' ') : text(tree.props?.children); }
@@ -248,4 +252,72 @@ test('unmount unsubscribes and ignores a late dashboard response', async () => {
   const afterUnmount = h.state();
   pending.resolve(oldResponse); await tick();
   assert.equal(h.state(), afterUnmount);
+});
+
+test('account management receives the verified owner, complete protected membership and loaded profile search data', async () => {
+  const h = await loaded({ records: { ...privateRecords, admins: [{ user_id: 'owner' }, { user_id: 'other-admin' }] } });
+  const management = nodes(h.render()).find(node => node.type === 'account-management');
+  assert.equal(management.props.ownerId, 'owner');
+  assert.deepEqual(Array.from(management.props.protectedUserIds), ['owner', 'other-admin']);
+  assert.equal(management.props.profiles[0].email, 'private-owner@example.test');
+  assert.equal(management.props.totalAccounts, 1234);
+});
+
+test('confirmed account deletion reauthenticates and reloads authoritative counts instead of decrementing the old totals', async () => {
+  const h = await loaded({ records: privateRecords });
+  const management = nodes(h.render()).find(node => node.type === 'account-management');
+  const previousChecks = h.authChecks.length, previousLoads = h.calls.filter(call => call.table === 'profiles').length;
+  h.options.counts = { profiles: 7, saved_items: 19 };
+  management.props.onBusyChange(true);
+  await management.props.onDeleted('confirmed-test@example.test');
+  const output = text(h.render());
+  assert.match(output, /7 Registered accounts/); assert.match(output, /19 Saved items/);
+  assert.match(output, /confirmed-test@example.test was deleted/);
+  assert.match(output, /reloaded from the database/);
+  assert.equal(h.authChecks.length, previousChecks + 1);
+  assert.equal(h.calls.filter(call => call.table === 'profiles').length, previousLoads + 1);
+});
+
+test('deleting an account blocks stale report-save and refresh handlers until the operation settles', async () => {
+  const h = await loaded({ report: true });
+  const before = h.render(), management = nodes(before).find(node => node.type === 'account-management');
+  const refresh = nodes(before).find(node => node.type === 'button' && text(node) === 'Refresh dashboard').props.onClick;
+  const save = nodes(before).find(node => node.type === 'select').props.onChange;
+  const calls = h.calls.length;
+  management.props.onBusyChange(true);
+  assert.equal(nodes(h.render()).find(node => node.type === 'select').props.disabled, true);
+  await save({ target: { value: 'resolved' } }); refresh(); await tick();
+  assert.equal(h.calls.length, calls);
+  management.props.onBusyChange(false);
+});
+
+test('a deletion with a failed record reload retains its confirmed outcome without showing stale counts or private email', async () => {
+  const h = await loaded({ records: privateRecords });
+  const management = nodes(h.render()).find(node => node.type === 'account-management');
+  h.options.fail = 'profiles';
+  await management.props.onDeleted('confirmed-test@example.test');
+  const output = text(h.render());
+  assert.match(output, /Dashboard unavailable/);
+  assert.match(output, /account was deleted, but account records could not be refreshed/);
+  assert.doesNotMatch(output, /1234|confirmed-test@example.test|private-owner@example.test/);
+  assert.equal(nodes(h.render()).some(node => node.type === 'account-management'), false);
+  h.auth('SIGNED_OUT', null);
+  assert.doesNotMatch(text(h.render()), /account was deleted/);
+});
+
+test('role loss during deletion verification clears private dashboard records and disables account management', async () => {
+  const h = await loaded({ records: privateRecords });
+  const management = nodes(h.render()).find(node => node.type === 'account-management');
+  h.options.denied = true;
+  management.props.onAccessChanged(); await tick();
+  assert.match(text(h.render()), /Owner access only/);
+  assert.doesNotMatch(h.state(), /private-owner@example.test|Private saved vehicle|private_owner_action|1234/);
+  assert.equal(nodes(h.render()).some(node => node.type === 'account-management'), false);
+});
+
+test('membership lost between the initial permission check and protected-account reload fails closed', async () => {
+  const h = await loaded({ records: { ...privateRecords, admins: [] } });
+  assert.match(text(h.render()), /Dashboard unavailable/);
+  assert.doesNotMatch(h.state(), /private-owner@example.test|Private saved vehicle|private_owner_action|1234/);
+  assert.equal(nodes(h.render()).some(node => node.type === 'account-management'), false);
 });

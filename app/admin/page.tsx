@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import OwnerTraffic from "../components/owner-traffic";
+import AccountManagement from "../components/account-management";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
@@ -24,13 +25,21 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState<string | null>(null);
   const [counts, setCounts] = useState({ users: 0, open: 0, saved: 0 });
   const [savingId, setSavingId] = useState<string | null>(null), [saveError, setSaveError] = useState<string | null>(null);
+  const [protectedUserIds, setProtectedUserIds] = useState<string[]>([]), [accountDeleting, setAccountDeleting] = useState(false), [accountMessage, setAccountMessage] = useState("");
+  const [verifiedAccountId, setVerifiedAccountId] = useState<string | null>(null);
   const requestId = useRef(0), saving = useRef(false);
+  const accountDeletionBusy = useRef(false);
   const observedUserId = useRef<string | null | undefined>(undefined), verifiedOwnerId = useRef<string | null>(null);
   const emails = useMemo(() => Object.fromEntries(profiles.map((p) => [p.id, p.email])), [profiles]);
-  const load = async () => {
+  const load = async (afterAccountAction = false, confirmedAccountMessage = "") => {
+    if (accountDeletionBusy.current && !afterAccountAction) return;
     const id = ++requestId.current;
     verifiedOwnerId.current = null;
-    setLoading(true); setLoadError(null); setSaveError(null); setAllowed(null);
+    setVerifiedAccountId(null);
+    setLoading(true); setLoadError(null); setSaveError(null); setAllowed(null); setAccountMessage("");
+    setProfiles([]); setComplaints([]); setEvents([]); setSaved([]); setProtectedUserIds([]);
+    setCounts({ users: 0, open: 0, saved: 0 });
+    accountDeletionBusy.current = false; setAccountDeleting(false);
     try {
       const client = getSupabaseBrowserClient();
       if (!client) throw new Error("Service unavailable");
@@ -38,6 +47,7 @@ export default function AdminPage() {
       if (id !== requestId.current) return;
       if (!authResult.data.user) { setSignedIn(false); setAllowed(false); return; }
       if (authResult.error) throw authResult.error;
+      const ownerUserId = authResult.data.user.id;
       if (observedUserId.current !== undefined && observedUserId.current !== authResult.data.user.id) throw new Error("Account changed");
       observedUserId.current = authResult.data.user.id;
       setSignedIn(true);
@@ -46,20 +56,27 @@ export default function AdminPage() {
       if (adminResult.error) throw adminResult.error;
       if (!adminResult.data) { setAllowed(false); return; }
       setAllowed(true);
-      const [p, c, e, s, open] = await withDeadline(Promise.all([
+      const [p, c, e, s, open, admins] = await withDeadline(Promise.all([
         client.from("profiles").select("id,email,created_at", { count: "exact" }).order("created_at", { ascending: false }).limit(1000),
         client.from("complaints").select("*").order("status", { ascending: true }).order("created_at", { ascending: false }).limit(1000),
         client.from("activity_events").select("id,user_id,event_name,created_at").order("created_at", { ascending: false }).limit(100),
         client.from("saved_items").select("id,user_id,kind,title,created_at", { count: "exact" }).order("created_at", { ascending: false }).limit(100),
         client.from("complaints").select("id", { count: "exact", head: true }).neq("status", "resolved"),
+        client.from("admins").select("user_id", { count: "exact" }).limit(1000),
       ]));
       if (id !== requestId.current) return;
-      if ([p, c, e, s, open].some((result) => result.error) || p.count === null || s.count === null || open.count === null || !p.data || !c.data || !e.data || !s.data) throw new Error("Incomplete dashboard data");
+      if ([p, c, e, s, open, admins].some((result) => result.error) || p.count === null || s.count === null || open.count === null || !p.data || !c.data || !e.data || !s.data || !admins.data || admins.count !== admins.data.length || !admins.data.some(row => row.user_id === ownerUserId)) throw new Error("Incomplete dashboard data");
       verifiedOwnerId.current = authResult.data.user.id;
+      setVerifiedAccountId(authResult.data.user.id);
       setProfiles(p.data as Profile[]); setComplaints(c.data as Complaint[]); setEvents(e.data as EventRow[]); setSaved(s.data as SavedRow[]);
       setCounts({ users: p.count, open: open.count, saved: s.count });
+      setProtectedUserIds(admins.data.map(row => row.user_id as string));
+      setAccountMessage(confirmedAccountMessage);
     } catch {
-      if (id === requestId.current) setLoadError("We couldn’t load or verify the dashboard. Counts and reports are unavailable—not zero. Check your connection and retry, or sign in again.");
+      if (id === requestId.current) {
+        setLoadError("We couldn’t load or verify the dashboard. Counts and reports are unavailable—not zero. Check your connection and retry, or sign in again.");
+        if (confirmedAccountMessage) setAccountMessage("The account was deleted, but account records could not be refreshed. Refresh the dashboard to load current totals.");
+      }
     } finally { if (id === requestId.current) setLoading(false); }
   };
   useEffect(() => {
@@ -67,6 +84,7 @@ export default function AdminPage() {
     const identity = observedUserId;
     const owner = verifiedOwnerId;
     const pendingSave = saving;
+    const pendingAccountDeletion = accountDeletionBusy;
     let timer = window.setTimeout(() => void load(), 0);
     const subscription = getSupabaseBrowserClient()?.auth.onAuthStateChange((_event, session) => {
       const userId = session?.user.id ?? null;
@@ -75,12 +93,15 @@ export default function AdminPage() {
       identity.current = userId;
       lifecycle.current++;
       owner.current = null;
+      setVerifiedAccountId(null);
       pendingSave.current = false;
+      pendingAccountDeletion.current = false;
       window.clearTimeout(timer);
       setAllowed(userId ? null : false); setSignedIn(Boolean(userId)); setLoading(Boolean(userId));
       setProfiles([]); setComplaints([]); setEvents([]); setSaved([]);
       setCounts({ users: 0, open: 0, saved: 0 });
       setLoadError(null); setSaveError(null); setSavingId(null);
+      setProtectedUserIds([]); setAccountDeleting(false); setAccountMessage("");
       setOwnerLinkLoading(false); setOwnerLinkMessage("");
       // Defer Supabase work until its synchronous auth callback has returned.
       if (userId) timer = window.setTimeout(() => void load(), 0);
@@ -103,7 +124,7 @@ export default function AdminPage() {
   const updateStatus = async (id: string, status: Complaint["status"]) => {
     const lifecycle = requestId.current;
     const ownerId = verifiedOwnerId.current;
-    if (saving.current || !ownerId || observedUserId.current !== ownerId) return;
+    if (saving.current || accountDeletionBusy.current || !ownerId || observedUserId.current !== ownerId) return;
     const current = () => lifecycle === requestId.current && verifiedOwnerId.current === ownerId && observedUserId.current === ownerId;
     saving.current = true; setSavingId(id); setSaveError(null);
     const previous = complaints.find((row) => row.id === id)?.status;
@@ -117,7 +138,7 @@ export default function AdminPage() {
     } catch { if (current()) setSaveError("The status change could not be confirmed. Your last confirmed status is still shown. Refresh the dashboard before trying again."); }
     finally { if (current()) { saving.current = false; setSavingId(null); } }
   };
-  if (loadError) return <main className="min-h-screen bg-background p-8 text-foreground"><div className="mx-auto max-w-lg rounded-2xl border border-rose-300/30 p-6"><h1 className="text-2xl font-bold">Dashboard unavailable</h1><p role="alert" className="mt-3 text-muted">{loadError}</p><button type="button" onClick={() => void load()} className="mt-5 rounded-lg bg-sky-300 px-4 py-2 font-bold text-slate-950">Retry dashboard</button><Link href="/account" className="ml-4 text-link">Sign in</Link></div></main>;
+  if (loadError) return <main className="min-h-screen bg-background p-8 text-foreground"><div className="mx-auto max-w-lg rounded-2xl border border-rose-300/30 p-6"><h1 className="text-2xl font-bold">Dashboard unavailable</h1>{accountMessage && <p role="status" className="mt-3 text-warning">{accountMessage}</p>}<p role="alert" className="mt-3 text-muted">{loadError}</p><button type="button" onClick={() => void load()} className="mt-5 rounded-lg bg-sky-300 px-4 py-2 font-bold text-slate-950">Retry dashboard</button><Link href="/account" className="ml-4 text-link">Sign in</Link></div></main>;
   if (loading || allowed === null) return <main className="min-h-screen bg-background p-8 text-muted"><p role="status">Loading dashboard and checking owner access…</p></main>;
   if (!allowed) return <main className="min-h-screen bg-background p-8 text-foreground"><div className="mx-auto max-w-lg rounded-2xl border border-rose-300/20 p-6"><h1 className="text-2xl font-bold">Owner access only</h1><p className="mt-3 text-muted">This dashboard is protected by your owner account and database permissions.</p>{signedIn === false ? <><button type="button" disabled={ownerLinkLoading} onClick={() => void requestOwnerLink()} className="mt-5 w-full rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950 disabled:opacity-60">{ownerLinkLoading ? "Sending secure link…" : "Email me a secure owner sign-in link"}</button>{ownerLinkMessage && <p role="status" className="mt-3 text-sm text-muted">{ownerLinkMessage}</p>}<p className="mt-4 text-xs leading-5 text-subtle">The link works once and is sent only to the registered owner email. Owner permissions are checked again before this dashboard opens.</p></> : <p className="mt-4 text-sm text-danger">This signed-in account does not have owner permission.</p>}<Link href="/account" className="mt-5 inline-block text-link">Use the normal account sign-in →</Link></div></main>;
   return <main className="min-h-screen bg-background px-4 py-8 text-foreground"><div className="mx-auto max-w-6xl"><header className="flex items-center justify-between border-b border-outline/10 pb-6"><div><p className="text-xs font-bold uppercase tracking-wider text-link">Private owner area</p><h1 className="mt-1 text-3xl font-bold">Mekivo control centre</h1></div><Link href="/" className="text-sm text-muted">View site</Link></header>
@@ -125,7 +146,8 @@ export default function AdminPage() {
       <p className="text-sm font-semibold text-muted">Public launch &amp; ad campaign start</p>
       <time dateTime="2026-09-16" className="text-lg font-bold text-link">16 September 2026</time>
     </aside>
-    <button type="button" disabled={savingId !== null} onClick={() => void load()} className="mt-5 rounded-lg border border-outline/20 px-4 py-2 text-sm disabled:opacity-50">Refresh dashboard</button>
+    <button type="button" disabled={savingId !== null || accountDeleting} onClick={() => void load()} className="mt-5 rounded-lg border border-outline/20 px-4 py-2 text-sm disabled:opacity-50">Refresh dashboard</button>
+    {accountMessage && <p role="status" className="mt-4 rounded-xl border border-sky-300/20 p-4 text-sm text-muted">{accountMessage}</p>}
     {saveError && <p role="alert" className="mt-4 rounded-xl border border-rose-300/30 p-4 text-danger">{saveError}</p>}
     {savingId && <p role="status" className="mt-4 text-muted">Saving report status…</p>}
     <OwnerTraffic />
@@ -140,7 +162,13 @@ export default function AdminPage() {
       ].map(({ label, value, detail }) => <div key={label} className="rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5"><strong className="text-3xl">{value}</strong><p className="mt-1 text-sm font-semibold">{label}</p><p className="mt-2 text-xs leading-5 text-subtle">{detail}</p></div>)}</div>
       <p className="mt-3 text-xs leading-5 text-subtle">These totals have no date filter. Use Refresh dashboard to load the latest account records. The report list shows up to 1,000 reports, with unresolved reports first.</p>
     </section>
-    <section className="mt-8"><h2 className="text-xl font-bold">Suggestions, complaints and issues</h2><div className="mt-4 space-y-3">{complaints.length ? complaints.map((c) => <article key={c.id} className="rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-link">{emails[c.user_id] || c.user_id}</p><h3 className="mt-1 font-bold">{c.subject}</h3></div><select disabled={savingId !== null || saveError !== null} aria-label={`Status for ${c.subject}`} value={c.status} onChange={(e) => updateStatus(c.id, e.target.value as Complaint["status"])} className="rounded-lg border border-outline/10 bg-panel px-3 py-2 text-sm"><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{c.message}</p><p className="mt-3 text-xs text-subtle">{new Date(c.created_at).toLocaleString("en-GB")}</p></article>) : <p className="rounded-xl border border-outline/10 p-5 text-muted">No feedback submitted.</p>}</div></section>
+    <AccountManagement key={verifiedAccountId} profiles={profiles} ownerId={verifiedAccountId || ""} protectedUserIds={protectedUserIds} totalAccounts={counts.users}
+      disabled={savingId !== null || saveError !== null}
+      onBusyChange={busy => { accountDeletionBusy.current = busy; setAccountDeleting(busy); }}
+      onDeleted={async email => { await load(true, `Account ${email} was deleted. Account totals and records have been reloaded from the database.`); }}
+      onRefresh={() => void load()}
+      onAccessChanged={() => { setAccountMessage(""); void load(true); }} />
+    <section className="mt-8"><h2 className="text-xl font-bold">Suggestions, complaints and issues</h2><div className="mt-4 space-y-3">{complaints.length ? complaints.map((c) => <article key={c.id} className="rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-link">{emails[c.user_id] || c.user_id}</p><h3 className="mt-1 font-bold">{c.subject}</h3></div><select disabled={savingId !== null || saveError !== null || accountDeleting} aria-label={`Status for ${c.subject}`} value={c.status} onChange={(e) => updateStatus(c.id, e.target.value as Complaint["status"])} className="rounded-lg border border-outline/10 bg-panel px-3 py-2 text-sm"><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{c.message}</p><p className="mt-3 text-xs text-subtle">{new Date(c.created_at).toLocaleString("en-GB")}</p></article>) : <p className="rounded-xl border border-outline/10 p-5 text-muted">No feedback submitted.</p>}</div></section>
     <div className="mt-8 grid gap-6 lg:grid-cols-2"><section><h2 className="text-xl font-bold">Newest accounts</h2><div className="mt-4 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5">{profiles.slice(0, 20).map((p) => <div key={p.id} className="flex justify-between gap-3 border-b border-outline/5 py-3 text-sm last:border-0"><span>{p.email}</span><span className="text-subtle">{new Date(p.created_at).toLocaleDateString("en-GB")}</span></div>)}</div></section><section><h2 className="text-xl font-bold">Recently saved</h2><div className="mt-4 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5">{saved.slice(0, 20).map((s) => <div key={s.id} className="border-b border-outline/5 py-3 text-sm last:border-0"><span className="text-xs text-link">{emails[s.user_id] || "User"} · {s.kind.replace("_", " ")}</span><p className="mt-1">{s.title}</p></div>)}</div></section></div>
     <section className="mt-8"><h2 className="text-xl font-bold">Recorded account actions</h2><div className="mt-4 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5">{events.length ? events.slice(0, 30).map((event) => <div key={event.id} className="flex flex-wrap justify-between gap-2 border-b border-outline/5 py-3 text-sm last:border-0"><span><span className="text-link">{emails[event.user_id] || "User"}</span> · {event.event_name.replaceAll("_", " ")}</span><time className="text-subtle">{new Date(event.created_at).toLocaleString("en-GB")}</time></div>) : <p className="text-muted">No account activity recorded.</p>}</div></section>
   </div></main>;
