@@ -26,6 +26,7 @@ const search = pureModule('../app/lib/search.ts');
 const pageCode = compile('../app/components/search-experience.tsx');
 const Guide = () => null;
 const Placeholder = () => null;
+const NextLink = () => null;
 
 function nodes(node, result = []) {
   if (Array.isArray(node)) node.forEach(child => nodes(child, result));
@@ -35,6 +36,31 @@ function nodes(node, result = []) {
   }
   return result;
 }
+// Expand the real pure shell and shared category navigation so their children,
+// after content, and native section ref take part in these behavior checks.
+const layoutModules = new Map();
+function layoutModule(name) {
+  if (layoutModules.has(name)) return layoutModules.get(name);
+  const exports = {};
+  layoutModules.set(name, exports);
+  vm.runInNewContext(compile(`../app/components/${name}.tsx`), { exports, require(dependency) {
+    if (dependency === 'react/jsx-runtime') return jsxRuntime;
+    if (dependency === 'next/link') return { default: NextLink };
+    if (dependency === './search-categories') return layoutModule('search-categories');
+    if (dependency === './site-header' || dependency === './site-footer') return { default: Placeholder };
+    throw Error(`Unexpected layout dependency: ${dependency}`);
+  } });
+  return exports;
+}
+const SearchPageShell = layoutModule('search-page-shell').default;
+const SearchCategories = layoutModule('search-categories').default;
+function expandLayout(node) {
+  if (Array.isArray(node)) return node.map(expandLayout);
+  if (!node?.props) return node;
+  if (node.type === SearchPageShell || node.type === SearchCategories) return expandLayout(node.type(node.props));
+  return { ...node, props: { ...node.props, children: expandLayout(node.props.children) } };
+}
+
 const text = node => typeof node === 'string' ? node : Array.isArray(node)
   ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
 
@@ -87,6 +113,7 @@ function page(query, initialProps = {}) {
     require(name) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return jsxRuntime;
+      if (name === './search-page-shell') return { default: SearchPageShell };
       if (name === 'next/dynamic') return { default: () => Guide };
       if (name === '../lib/parts-guide-data') return guideData;
       if (name === '../lib/saved-search') return savedSearch;
@@ -104,7 +131,7 @@ function page(query, initialProps = {}) {
   const render = () => {
     for (let attempt = 0; dirty; attempt++) {
       assert.ok(attempt < 10, 'page settles after URL restoration');
-      cursor = 0; dirty = false; tree = exports.default(props);
+      cursor = 0; dirty = false; tree = expandLayout(exports.default(props));
       for (const node of nodes(tree)) {
         if (typeof node.type === 'string' && node.props.ref) {
           const target = nodes(node).some(child => child.type === Guide) ? 'guide' : 'other';

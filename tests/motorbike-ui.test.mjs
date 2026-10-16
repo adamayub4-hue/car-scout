@@ -27,6 +27,31 @@ const VehiclePicker = () => null;
 const PageResults = () => null;
 const ExtraControls = () => null;
 const Placeholder = () => null;
+// Expand the real pure shell and shared category navigation so their children,
+// after content, and native section ref take part in these behavior checks.
+const layoutModules = new Map();
+function layoutModule(name) {
+  if (layoutModules.has(name)) return layoutModules.get(name);
+  const exports = {};
+  layoutModules.set(name, exports);
+  vm.runInNewContext(compile(`../app/components/${name}.tsx`), { exports, require(dependency) {
+    if (dependency === 'react/jsx-runtime') return jsxRuntime;
+    if (dependency === 'next/link') return { default: NextLink };
+    if (dependency === './search-categories') return layoutModule('search-categories');
+    if (dependency === './site-header' || dependency === './site-footer') return { default: Placeholder };
+    throw Error(`Unexpected layout dependency: ${dependency}`);
+  } });
+  return exports;
+}
+const SearchPageShell = layoutModule('search-page-shell').default;
+const SearchCategories = layoutModule('search-categories').default;
+function expandLayout(node) {
+  if (Array.isArray(node)) return node.map(expandLayout);
+  if (!node?.props) return node;
+  if (node.type === SearchPageShell || node.type === SearchCategories) return expandLayout(node.type(node.props));
+  return { ...node, props: { ...node.props, children: expandLayout(node.props.children) } };
+}
+
 const text = node => typeof node === 'string' || typeof node === 'number' ? String(node)
   : Array.isArray(node) ? node.map(text).join('') : node?.props ? text(node.props.children) : '';
 function nodes(node, found = []) {
@@ -84,6 +109,7 @@ function page(query = '', initialProps = {}) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return jsxRuntime;
       if (name === 'next/link') return { default: NextLink };
+      if (name === './search-page-shell') return { default: SearchPageShell };
       if (name === 'next/dynamic') return { default: () => Placeholder };
       if (name === '../lib/search') return search;
       if (name === '../lib/saved-search') return saved;
@@ -104,7 +130,7 @@ function page(query = '', initialProps = {}) {
   const render = () => {
     for (let attempt = 0; dirty; attempt++) {
       assert.ok(attempt < 12, 'page settles after its control changes');
-      cursor = 0; dirty = false; tree = exports.default(props);
+      cursor = 0; dirty = false; tree = expandLayout(exports.default(props));
       for (const node of nodes(tree)) if (typeof node.type === 'string' && node.props.ref) node.props.ref.current = { focus() {}, scrollIntoView() {} };
       pending.splice(0).forEach(effect => effect());
     }
@@ -117,7 +143,11 @@ function page(query = '', initialProps = {}) {
     button: label => one(node => node.type === 'button' && text(node) === label),
     field: label => {
       const picker = nodes(render()).find(node => node.type === VehiclePicker && node.props.label === label);
-      return picker || nodes(one(node => node.type === 'label' && text(node).startsWith(label))).find(node => ['input', 'select'].includes(node.type));
+      if (picker) return picker;
+      const fieldLabel = one(node => node.type === 'label' && text(node).startsWith(label));
+      return fieldLabel.props.htmlFor
+        ? one(node => ['input', 'select'].includes(node.type) && node.props.id === fieldLabel.props.htmlFor)
+        : nodes(fieldLabel).find(node => ['input', 'select'].includes(node.type));
     },
     navigate(nextRoute) {
       if (route === nextRoute) return render();
@@ -160,7 +190,7 @@ test('car extras restore, survive budget presets and clear when switching search
 
 test('motorbike route starts with bike suggestions and unrestricted model while retaining its budget controls', () => {
   const app = page();
-  assert.deepEqual(app.nodes().filter(node => node.type === NextLink && /^Find (cars|motorbikes|parts)$/.test(text(node))).map(node => [text(node), node.props.href]), [['Find cars', '/cars'], ['Find motorbikes', '/motorbikes'], ['Find parts', '/parts']]);
+  assert.deepEqual(app.nodes().filter(node => node.type === NextLink && /^(Cars|Motorbikes|Parts)$/.test(text(node))).map(node => [text(node), node.props.href]), [['Cars', '/cars'], ['Motorbikes', '/motorbikes'], ['Parts', '/parts']]);
   app.change(app.field('Maximum budget'), '3000');
   app.change(app.field('Make'), 'Ford'); app.change(app.field('Model'), 'Fiesta'); app.change(app.field('Year'), '2018');
   app.navigate('motorbikes');
@@ -304,7 +334,7 @@ test('motorbike price picks retain seller links, saving, affiliate attribution a
   });
   const snapshot = search.createCarSearch({ vehicleType: 'motorbikes', make: 'Honda', model: 'CBR600F', year: '2018', minPrice: '1000', price: '3000', postcode: '', platform: 'all' });
   const props = { search: snapshot, items: [bike()], loading: false, error: '', compact: true };
-  const tree = exports.default(props);
+  const tree = expandLayout(exports.default(props));
   assert.equal(ranked[0], snapshot);
   assert.match(text(tree), /Lowest-priced matches/); assert.match(text(tree), /£2,000\.00/); assert.match(text(tree), /£1,000\.00 below your maximum/);
   const save = nodes(tree).find(node => node.type === SaveListing);

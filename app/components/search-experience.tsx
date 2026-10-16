@@ -13,7 +13,8 @@ import CarExtraFilters from "./car-extra-filters";
 import type { CarExtra } from "../lib/car-extras";
 import { createCarSearch, createPartSearch, marketplaceFilterNote, type SubmittedSearch, type Mode, type Platform, type VehicleType, type EbayListing } from "../lib/search";
 import { filterCarListings } from "../lib/car-filters";
-import SiteHeader from "./site-header";
+import SearchPageShell from "./search-page-shell";
+import SiteFooter from "./site-footer";
 import VehiclePicker from "./vehicle-picker";
 import { vehicleModelsForMake } from "../lib/vehicle-picker-options";
 import { makes, motorbikeMakes } from "../lib/vehicle-options";
@@ -73,7 +74,7 @@ function isValidPostcode(value: string) {
 }
 
 const fieldClass =
-  "w-full rounded-2xl border border-outline/10 bg-overlay/[0.06] px-4 py-3.5 text-base text-foreground outline-none transition placeholder:text-subtle focus:border-sky-400/60 focus:bg-overlay/[0.09] focus:ring-4 focus:ring-sky-400/10";
+  "min-h-12 w-full rounded-2xl border border-outline/15 bg-overlay/[0.06] px-4 py-3.5 text-base text-foreground outline-none transition placeholder:text-subtle focus:border-sky-400/60 focus:ring-4 focus:ring-sky-400/10";
 
 export default function SearchExperience({ initialMode = "cars", initialVehicleType = "cars" }: { initialMode?: Mode; initialVehicleType?: VehicleType } = {}) {
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -384,23 +385,34 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
     void searchEbay(search);
   };
 
-  return (
-    <main className="relative min-h-screen overflow-x-clip bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(14,165,233,0.18),transparent_32%),radial-gradient(circle_at_90%_15%,rgba(99,102,241,0.15),transparent_28%)]" />
-      <div className="relative mx-auto w-full max-w-6xl px-4 pb-12 pt-4 sm:px-6 lg:px-8">
-        <SiteHeader />
-        <section className="mx-auto max-w-4xl pb-5 pt-6">
-          <h1 className="text-3xl font-bold tracking-tight">{mode === "parts" ? "Find the right part" : isMotorbikes ? "Find a motorbike" : "Find your next car"}</h1>
-          <p className="mt-2 text-sm leading-6 text-muted">{mode === "parts" ? "Use a part number, a picture or your vehicle details." : "Set your budget and compare original marketplace listings."}</p>
-        </section>
-        <nav aria-label="Search type" className="mx-auto mb-4 grid max-w-4xl grid-cols-3 rounded-2xl border border-outline/10 bg-overlay/[0.05] p-1.5">
-          {(["cars", "motorbikes", "parts"] as const).map(item => {
-            const active = item === "parts" ? mode === "parts" : mode === "cars" && vehicleType === item;
-            return <Link key={item} href={`/${item}`} aria-current={active ? "page" : undefined} className={`min-h-11 rounded-xl px-2 py-3 text-center text-sm font-semibold ${active ? "bg-white text-slate-950 shadow" : "text-muted hover:text-foreground"}`}>{item === "cars" ? "Find cars" : item === "motorbikes" ? "Find motorbikes" : "Find parts"}</Link>;
-          })}
-        </nav>
+  return <SearchPageShell active={mode === "parts" ? "parts" : isMotorbikes ? "motorbikes" : "cars"} searchRef={carSearchFormRef} after={<>
+        {showResults && submittedSearch?.mode === "cars" && mode === "cars" && (
+          <section ref={resultsRef} tabIndex={-1} aria-label={`${submittedSearch.vehicleType === "motorbikes" ? "Motorbike" : "Car"} results for ${submittedSearch.title}`} className="mt-6 scroll-mt-3 outline-none">
+            <CarSearchResults key={carSearchRevision} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError} searchInfo={carSearchInfo}
+              onSortChange={handleCarSortChange}
+              onRetry={() => void searchEbay(submittedSearch)}
+              onEdit={() => {
+                carMakeRef.current?.focus({ preventScroll: true });
+                carSearchFormRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+              }} />
+          </section>
+        )}
 
-        <details className="mx-auto mb-3 max-w-4xl rounded-xl border border-outline/10 bg-overlay/[0.025] px-4 py-3 text-sm"><summary className="cursor-pointer font-semibold text-muted">How Mekivo works</summary><div className="pt-3">
+        {showResults && submittedSearch?.mode === "parts" && mode === "parts" && (
+          <section ref={resultsRef} tabIndex={-1} aria-label={`Parts results for ${submittedSearch.title}`} className="mt-6 scroll-mt-3 outline-none">
+            <PartSearchResults key={submittedSearch.query} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError}
+              onRetry={() => void searchEbay(submittedSearch)}
+              onEdit={() => {
+                carSearchFormRef.current?.focus({ preventScroll: true });
+                carSearchFormRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+              }} />
+          </section>
+        )}
+
+    <Link href="/vehicle-check" className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-outline/15 bg-panel p-5 transition hover:border-sky-400/40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">
+      <span><span className="block font-bold">Check vehicle tax & MOT</span><span className="mt-1 block text-sm text-muted">See status and due dates where available.</span></span><span aria-hidden="true" className="shrink-0 text-xl text-link">→</span>
+    </Link>
+        <details className="mt-6 rounded-2xl border border-outline/15 bg-panel px-4 py-3 text-sm"><summary className="cursor-pointer font-semibold text-muted">How Mekivo works</summary><div className="pt-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
             <h2 id="mekivo-steps-title" className="font-bold">New to Mekivo? Start here.</h2>
             <p className="text-sm text-muted">You do not buy anything on Mekivo—we help you reach the original listing.</p>
@@ -429,11 +441,42 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
           </ol>
         </div></details>
 
+    <SiteFooter>
+      <p>Mekivo does not sell vehicles or guarantee listing accuracy or part compatibility. Verify all information with the marketplace or seller.</p>
+      <p className="mt-2">Mekivo participates in the eBay Partner Network and may earn a commission from qualifying purchases made through eBay links, at no additional cost to you.</p>
+      <Link href="/return-visit-settings" className="mt-2 inline-block font-semibold text-link">Return visit settings</Link>
+    </SiteFooter>
+  </>}>
         {restoredSearch && !showResults && <p role="status" className="mx-auto mb-3 max-w-4xl rounded-xl border border-sky-400/25 bg-sky-400/10 p-3 text-sm text-muted">Your saved search is ready. Check the details and press Search for current listings.</p>}
-        <section ref={carSearchFormRef} tabIndex={-1} className="mx-auto max-w-4xl scroll-mt-4 rounded-2xl border border-outline/10 bg-panel/95 p-4 shadow-xl shadow-black/15 sm:p-6">
           {mode === "cars" ? (
             <>
-              {isMotorbikes ? <p className="mb-4 rounded-xl border border-outline/10 p-3 text-sm text-muted">Motorbike searches use live eBay listings. Set your budget below, then add a make or model if you wish.</p> : <details className="mb-4 rounded-xl border border-outline/10 p-3">
+              {!isMotorbikes && platform !== "all" && platform !== "more" && <p className="mb-4 rounded-xl border border-outline/10 p-3 text-sm leading-6 text-muted">{marketplaceFilterNote(platform, carExtras.length > 0)}</p>}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <VehiclePicker id="car-make" label="Make" optional ref={carMakeRef} value={make} options={isMotorbikes ? motorbikeMakes : Object.keys(makes)} placeholder="Any make" onChange={value => { setMake(value); setModel(""); setShowResults(false); }} />
+                <VehiclePicker id="car-model" label="Model" optional value={model} options={isMotorbikes ? [] : vehicleModelsForMake(makes, make)} placeholder={isMotorbikes ? "Any model, e.g. MT-07" : "Any model"} onChange={value => { setModel(value); setShowResults(false); }} />
+              </div>
+              <div className="mt-4">
+                <label htmlFor="search-budget" className="mb-2 block text-sm text-muted">Maximum budget (£) <span className="text-subtle">(optional)</span></label>
+                <div className="relative"><span aria-hidden="true" className="absolute inset-y-0 left-4 flex items-center text-base font-semibold text-muted">£</span>
+                  <input id="search-budget" value={price} onChange={event => { setPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="Any budget" aria-describedby="car-budget-help" className={`${fieldClass} pl-9`} />
+                </div>
+              </div>
+              {error && (
+                <p role="alert" className="mt-4 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleCarSearch}
+                className="mt-5 min-h-12 w-full rounded-2xl bg-sky-400 px-5 py-3.5 text-base font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link"
+              >
+                {isMotorbikes ? "Search eBay motorbikes" : `Search ${platformNames[platform]}`}
+              </button>
+              <p id="car-budget-help" className="mt-3 text-xs leading-5 text-muted">All fields are optional. A £500 budget finds live eBay {vehiclePlural} at £500 or less. Other marketplaces may need their filters set again.</p>
+              <details className="mt-4 rounded-2xl border border-outline/10 p-4">
+                <summary className="min-h-6 cursor-pointer text-sm font-semibold text-link">More filters{[year, minPrice, postcode, ...carExtras].filter(Boolean).length > 0 ? ` · ${[year, minPrice, postcode, ...carExtras].filter(Boolean).length} selected` : ""}</summary>
+{!isMotorbikes && <details className="mb-4 rounded-xl border border-outline/10 p-3">
                 <summary className="cursor-pointer text-sm font-semibold text-foreground">Search: {platformNames[platform]} · Change</summary>
                 <p className="mt-1 text-xs leading-5 text-muted">Choose one marketplace, or keep All platforms selected for the widest search.</p>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -459,17 +502,6 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                   )}
                 </div>
               </details>}
-              {!isMotorbikes && platform !== "all" && platform !== "more" && <p className="mb-4 rounded-xl border border-outline/10 p-3 text-sm leading-6 text-muted">{marketplaceFilterNote(platform, carExtras.length > 0)}</p>}
-              <div className="grid gap-4 sm:grid-cols-3">
-                <VehiclePicker id="car-make" label="Make" optional ref={carMakeRef} value={make} options={isMotorbikes ? motorbikeMakes : Object.keys(makes)} placeholder="Any make" onChange={value => { setMake(value); setModel(""); setShowResults(false); }} />
-                <VehiclePicker id="car-model" label="Model" optional value={model} options={isMotorbikes ? [] : vehicleModelsForMake(makes, make)} placeholder={isMotorbikes ? "Any model, e.g. MT-07" : "Any model"} onChange={value => { setModel(value); setShowResults(false); }} />
-                <label className="text-sm text-muted"><span className="mb-2 block">Maximum budget (£)</span>
-                  <input value={price} onChange={event => { setPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="Any price" aria-describedby="car-budget-help" className={fieldClass} />
-                </label>
-              </div>
-              <p id="car-budget-help" className="mt-3 text-xs leading-5 text-muted">All fields are optional. A £500 budget finds live eBay {vehiclePlural} at £500 or less. Other marketplaces may need their filters set again.</p>
-              <details className="mt-4 rounded-2xl border border-outline/10 p-4">
-                <summary className="min-h-6 cursor-pointer text-sm font-semibold text-link">More filters{[year, minPrice, postcode, ...carExtras].filter(Boolean).length > 0 ? ` · ${[year, minPrice, postcode, ...carExtras].filter(Boolean).length} selected` : ""}</summary>
                 <div className="mt-4 flex flex-wrap gap-2" aria-label={isMotorbikes ? "Quick motorbike budgets" : "Quick car budgets"}>
                   {[500, 1000, 2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && !minPrice && carSort === "price_asc"} onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }} className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link aria-pressed:bg-sky-400/10">Up to £{amount.toLocaleString("en-GB")}</button>)}
                 </div>
@@ -510,29 +542,17 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                 </div>
                 <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. {isMotorbikes ? "Results include listings located in the UK; distance is not filtered here." : "Only Auto Trader and eBay links carry your postcode. Set your location on other sites; distance is not filtered here."}</p>
               </div>
-              </details>
               <button type="button" onClick={() => { setMake(""); setModel(""); setYear(""); setMinPrice(""); setPlatform(isMotorbikes ? "ebay" : "all"); setCarSort("price_asc"); setHideUnwanted(true); setCarExtras([]); setPostcode(""); setShowResults(false); setError(""); }} className="mt-3 min-h-11 text-sm font-semibold text-link">Use any make and year within this budget</button>
-              {error && (
-                <p role="alert" className="mt-4 text-sm text-danger">
-                  {error}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={handleCarSearch}
-                className="mt-5 w-full rounded-2xl bg-sky-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition hover:bg-sky-300"
-              >
-                {isMotorbikes ? "Search eBay motorbikes" : `Search ${platformNames[platform]}`}
-              </button>
+                <button type="button" onClick={handleCarSearch} className="mt-4 min-h-12 w-full rounded-2xl bg-sky-400 px-5 py-3.5 text-base font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">Apply filters and search</button>
+              </details>
               <p className="mt-3 text-center text-xs leading-5 text-muted">{isMotorbikes ? "Browse live eBay motorbikes here and open the original listing to check every detail." : "Browse live eBay cars here, or open your search on another marketplace."}</p>
             </>
           ) : (
             <>
-              <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.055] p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-success">Fastest route</p>
-                <h2 className="mt-1 text-xl font-bold">Already know the part number?</h2>
+              <div className="mb-5">
+                <h2 className="text-base font-bold">Search by part number</h2>
                 <p className="mt-2 text-sm leading-6 text-muted">Search an OEM or manufacturer number directly without selecting a vehicle.</p>
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-4 flex flex-col gap-3">
                   <label className="sr-only" htmlFor="quick-part-number">OEM or manufacturer part number</label>
                   <input
                     id="quick-part-number"
@@ -549,15 +569,15 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                   <button
                     type="button"
                     onClick={handlePartNumberSearch}
-                    className="shrink-0 rounded-2xl bg-emerald-300 px-5 py-3.5 font-bold text-emerald-950 transition hover:bg-emerald-200"
+                    className="min-h-12 w-full rounded-2xl bg-sky-400 px-5 py-3.5 text-base font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link"
                   >
                     Search part number
                   </button>
                 </div>
               </div>
 
-              <button type="button" aria-pressed={partMethod === "diagram"} onClick={() => { setPartMethod("diagram"); setPartNumber(""); setShowResults(false); setError(""); requestAnimationFrame(() => guideRef.current?.scrollIntoView({ block: "start", behavior: "instant" })); }} className="mb-4 flex w-full items-center justify-between gap-4 rounded-2xl border border-sky-400/30 bg-sky-400/10 p-4 text-left focus-visible:outline-2 focus-visible:outline-sky-400">
-                <span><strong className="block text-lg">Find a part by picture</strong><span className="mt-1 block text-sm text-muted">Explore common parts first. Add your vehicle when you are ready to search.</span></span><span aria-hidden="true" className="text-2xl text-link">→</span>
+              <button type="button" aria-pressed={partMethod === "diagram"} onClick={() => { setPartMethod("diagram"); setPartNumber(""); setShowResults(false); setError(""); requestAnimationFrame(() => guideRef.current?.scrollIntoView({ block: "start", behavior: "instant" })); }} className="mb-4 flex w-full items-center justify-between gap-4 rounded-2xl border border-outline/15 bg-overlay/[0.025] p-4 text-left focus-visible:outline-2 focus-visible:outline-sky-400">
+                <span><strong className="block text-base">Find a part by picture</strong><span className="mt-1 block text-sm text-muted">Explore common parts first. Add your vehicle when you are ready to search.</span></span><span aria-hidden="true" className="text-2xl text-link">→</span>
               </button>
               {partMethod === "diagram" && <div ref={guideRef} className="mb-5 scroll-mt-4">
                 <DiagramExplorer category={partCategory} part={part} fuel={fuel} onCategory={(value) => { setPartCategory(value); setPart(""); setShowResults(false); setError(""); }} onPart={(value) => { setPart(value); setShowResults(false); setError(""); }} />
@@ -568,15 +588,14 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
               <div ref={vehicleFieldsRef} className="scroll-mt-4 pt-5">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Step 1</p>
-                  <h2 className="mt-1 text-2xl font-bold">Tell us which vehicle</h2>
+                  <h2 className="text-lg font-bold">Tell us which vehicle</h2>
                   <p className="mt-2 text-sm text-muted">Use the registration for the quickest match, or enter the vehicle manually.</p>
                   <p className="mt-1 text-xs leading-5 text-subtle">Vehicle details narrow your search. You can also browse the visual guide first.</p>
                 </div>
               </div>
 
-              <div className="mt-6 rounded-3xl border border-sky-400/20 bg-sky-400/[0.055] p-5 sm:p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-link">Quick vehicle lookup</p>
+              <div className="mt-4 rounded-2xl border border-outline/15 bg-overlay/[0.025] p-4">
+                <p className="text-xs font-semibold text-muted">Quick vehicle lookup</p>
                 <h3 className="mt-1 text-lg font-bold">Find it by registration</h3>
                 <p className="mt-2 text-sm leading-6 text-muted">We use official DVLA and DVSA vehicle data to identify the vehicle before you search for parts.</p>
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -680,9 +699,8 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
               </div></details>
               {vehicleReady && (
                 <div className="mt-6 border-t border-outline/10 pt-5">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-link">Step 2</p>
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-2xl font-bold">How do you want to find it?</h2>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-lg font-bold">How do you want to find it?</h2>
                     <span className="rounded-full bg-overlay/[0.06] px-3 py-1.5 text-xs text-muted">{vehicleLabel}</span>
                   </div>
 
@@ -757,7 +775,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                               }}
                               className={`rounded-full border px-3 py-2 text-sm transition ${
                                 part === item
-                                  ? "border-emerald-400/50 bg-emerald-400/10 text-success"
+                                  ? "border-sky-400/50 bg-sky-400/10 text-link"
                                   : "border-outline/10 text-muted hover:text-foreground"
                               }`}
                             >
@@ -784,7 +802,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
 
                   {(partMethod === "catalogue" || partMethod === "search") && (
                     <>
-                      <button type="button" onClick={handlePartsSearch} disabled={!partsSearchReady} className="mt-5 w-full rounded-2xl bg-sky-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-sky-500/20 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300 disabled:shadow-none">{partsSearchReady ? "Search matching listings" : "Choose a specific part to continue"}</button>
+                      <button type="button" onClick={handlePartsSearch} disabled={!partsSearchReady} className="mt-5 min-h-12 w-full rounded-2xl bg-sky-400 px-5 py-3.5 text-base font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300 disabled:shadow-none">{partsSearchReady ? "Search matching listings" : "Choose a specific part to continue"}</button>
                       {!partsSearchReady && <p className="mt-2 text-center text-xs text-subtle">Select a named part or enter a part number before searching.</p>}
                     </>
                   )}
@@ -793,45 +811,5 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
               {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
             </>
           )}
-        </section>
-
-        {showResults && submittedSearch?.mode === "cars" && mode === "cars" && (
-          <section ref={resultsRef} tabIndex={-1} aria-label={`${submittedSearch.vehicleType === "motorbikes" ? "Motorbike" : "Car"} results for ${submittedSearch.title}`} className="mx-auto mt-6 max-w-4xl scroll-mt-3 outline-none">
-            <CarSearchResults key={carSearchRevision} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError} searchInfo={carSearchInfo}
-              onSortChange={handleCarSortChange}
-              onRetry={() => void searchEbay(submittedSearch)}
-              onEdit={() => {
-                carMakeRef.current?.focus({ preventScroll: true });
-                carSearchFormRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
-              }} />
-          </section>
-        )}
-
-        {showResults && submittedSearch?.mode === "parts" && mode === "parts" && (
-          <section ref={resultsRef} tabIndex={-1} aria-label={`Parts results for ${submittedSearch.title}`} className="mx-auto mt-6 max-w-4xl scroll-mt-3 outline-none">
-            <PartSearchResults key={submittedSearch.query} search={submittedSearch} items={ebayItems} loading={ebayLoading} error={ebayError}
-              onRetry={() => void searchEbay(submittedSearch)}
-              onEdit={() => {
-                carSearchFormRef.current?.focus({ preventScroll: true });
-                carSearchFormRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
-              }} />
-          </section>
-        )}
-
-        <nav aria-label="Useful checks" className="mx-auto mt-8 flex max-w-4xl flex-wrap gap-4 text-sm font-semibold text-link"><Link href="/vehicle-check">Check tax and MOT →</Link><Link href="/guides">Buying and parts guides →</Link></nav>
-
-        <footer className="mt-8 border-t border-outline/10 pt-6 text-center text-xs leading-5 text-subtle">
-          <p>Mekivo does not sell vehicles or guarantee listing accuracy or part compatibility. Verify all information with the marketplace or seller.</p>
-          <p className="mt-2">Mekivo participates in the eBay Partner Network and may earn a commission from qualifying purchases made through eBay links, at no additional cost to you.</p>
-          <nav aria-label="Footer" className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
-            <a href="/privacy" className="hover:text-muted">Privacy</a>
-            <a href="/return-visit-settings" className="hover:text-muted">Return visit settings</a>
-            <a href="/terms" className="hover:text-muted">Terms</a>
-            <a href="/guides" className="hover:text-muted">Guides</a>
-            <a href="/support" className="hover:text-muted">Suggestions and support</a>
-          </nav>
-        </footer>
-      </div>
-    </main>
-  );
+  </SearchPageShell>;
 }
