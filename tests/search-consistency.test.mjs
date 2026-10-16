@@ -17,8 +17,10 @@ function loadModule(path) {
 const search = loadModule('../app/lib/search.ts');
 const carFilters = loadModule('../app/lib/car-filters.ts');
 const saved = loadModule('../app/lib/saved-search.ts');
-const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
-const ast = ts.createSourceFile('page.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const vehicleOptions = loadModule('../app/lib/vehicle-options.ts');
+const pickerHelpers = loadModule('../app/lib/vehicle-picker-options.ts');
+const page = readFileSync(new URL('../app/components/search-experience.tsx', import.meta.url), 'utf8');
+const ast = ts.createSourceFile('search-experience.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 function handler(name, context) {
   let expression;
   function visit(node) {
@@ -270,6 +272,23 @@ test('changing result sort uses the submitted search snapshot, preserving its bu
   assert.equal(new URL(nextSearch.carLinks.autotrader).searchParams.get('make'), 'Ford');
 });
 
+function routeCleanup(context) {
+  let expression;
+  function visit(node) {
+    if (!expression && ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect') {
+      const returned = node.arguments[0].body.statements.find(ts.isReturnStatement);
+      expression = returned?.expression?.getText(ast);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast); assert.ok(expression, 'search route has an unmount cleanup');
+  const code = ts.transpileModule(`const cleanup = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
+  return vm.runInNewContext(`${code}\ncleanup`, {
+    frame: 1, window: { cancelAnimationFrame() {} },
+    request: context.ebayRequest.current, lookupRequest: context.vehicleLookupRequest.current,
+  });
+}
+
 function requestsHarness() {
   const requests = [], events = [], timers = new Map();
   const state = { items: [], loading: false, error: '', mode: 'cars', searchInfo: null, carExtras: ['heated_seats'] };
@@ -288,7 +307,12 @@ function requestsHarness() {
     // Deliberately ignore AbortSignal: correctness must also rely on request identity.
     fetch: (url, options) => new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })),
   };
-  return { state, requests, events, timers, ref, run: handler('searchEbay', context), setMode: handler('setAppMode', context) };
+  return { state, requests, events, timers, ref, run: handler('searchEbay', context), navigate(mode) {
+    routeCleanup(context)();
+    // The route components have distinct keys: the next screen starts fresh,
+    // while this actual cleanup invalidates late responses from the old one.
+    Object.assign(state, { items: [], loading: false, error: '', mode, searchInfo: null, carExtras: [] });
+  } };
 }
 const oldSearch = search.createCarSearch({ make: 'Ford', model: 'Fiesta', year: '', price: '', postcode: '', platform: 'all' });
 const newSearch = search.createPartSearch(fields, true);
@@ -344,7 +368,7 @@ test('selected extras reach the API from the submitted snapshot and all must mat
   await pending;
   assert.deepEqual(Array.from(app.state.items, item => item.id), ['match']);
   assert.equal(app.events[0][1].result_count, 1);
-  app.setMode('parts');
+  app.navigate('parts');
   assert.deepEqual(Array.from(app.state.carExtras), [], 'changing mode clears retained car extras');
 });
 
@@ -382,12 +406,12 @@ test('mode changes clear completed car metadata and a late car response cannot r
   const h = requestsHarness();
   const first = h.run(oldSearch);
   h.requests[0].resolve(responseWithInfo({ checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true })); await first;
-  h.setMode('parts');
+  h.navigate('parts');
   assert.equal(h.state.searchInfo, null);
   assert.equal(h.state.items.length, 0);
-  h.setMode('cars');
+  h.navigate('cars');
   const pending = h.run(oldSearch);
-  h.setMode('parts');
+  h.navigate('parts');
   h.requests[1].resolve(responseWithInfo({ checkedCount: 192, pagesChecked: 4, hasMore: true, partial: true })); await pending;
   assert.equal(h.state.searchInfo, null);
   assert.equal(h.state.items.length, 0);
@@ -430,7 +454,7 @@ test('an old rejection cannot overwrite a successful newer search', async () => 
 test('switching modes invalidates and clears the in-flight search', async () => {
   const h = requestsHarness();
   const old = h.run(oldSearch);
-  h.setMode('parts');
+  h.navigate('parts');
   assert.equal(h.state.mode, 'parts'); assert.equal(h.requests[0].options.signal.aborted, true); assert.equal(h.state.loading, false);
   h.requests[0].resolve(response('Stale car')); await old;
   assert.equal(h.state.items.length, 0); assert.equal(h.state.error, ''); assert.equal(h.events.length, 0);
@@ -500,6 +524,7 @@ function restoreFromUrl(query) {
   const code = ts.transpileModule(`const restore = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
   const restore = vm.runInNewContext(`${code}\nrestore`, {
     URLSearchParams, parseSavedSearchParams: saved.parseSavedSearchParams, categories: guide.categories, validatedPartSelection: handler('validatedPartSelection', guide),
+    initialMode: 'cars', initialVehicleType: 'cars', trackCampaignLanding() {}, autoRunPending: { current: false },
     trackGrowthEvent() {}, ...setters, ebayRequest: { current: { id: 0, controller: null } }, vehicleLookupRequest: { current: { id: 0, controller: null } }, guideLandingPending: { current: false },
     window: { location: { search: query }, requestAnimationFrame: fn => { fn(); return 1; }, cancelAnimationFrame() {} },
   });
@@ -566,25 +591,29 @@ test('diagram selections survive ordinary vehicle editing but clear when power t
   }
 });
 
-test('model suggestions handle inherited names and unknown makes without crashing', () => {
+test('model suggestions handle inherited names, case differences and unknown makes without crashing', () => {
   let expression;
   function visit(node) {
-    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'datalist' && node.openingElement.attributes.properties.some(attribute => attribute.name?.getText(ast) === 'id' && attribute.initializer?.text === 'manual-model-options')) expression = node.children.find(ts.isJsxExpression).expression.getText(ast);
+    if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === 'VehiclePicker'
+      && node.attributes.properties.some(attribute => attribute.name?.getText(ast) === 'id' && attribute.initializer?.text === 'parts-model')) {
+      expression = node.attributes.properties.find(attribute => attribute.name?.getText(ast) === 'options')?.initializer?.expression?.getText(ast);
+    }
     ts.forEachChild(node, visit);
   }
-  visit(ast); assert.ok(expression);
-  const code = ts.transpileModule(`exports.run = (make) => (${expression});`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  visit(ast); assert.ok(expression, 'parts model picker uses the real model suggestion expression');
+  const code = ts.transpileModule(`exports.run = (make) => (${expression});`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const exports = {};
-  vm.runInNewContext(code, { exports, makes: handler('makes', {}), require: () => ({ jsx: (type, props) => ({ type, props }) }) });
-  assert.equal(exports.run('constructor'), false); assert.equal(exports.run('toString'), false); assert.equal(exports.run('Unknown Motors'), false);
-  assert.ok(exports.run('Ford').some(option => option.props.value === 'Fiesta'));
+  vm.runInNewContext(code, { exports, makes: vehicleOptions.makes, vehicleModelsForMake: pickerHelpers.vehicleModelsForMake });
+  for (const make of ['constructor', 'toString', 'Unknown Motors']) assert.deepEqual(Array.from(exports.run(make)), []);
+  assert.ok(exports.run('Ford').includes('Fiesta'));
+  assert.ok(exports.run(' audi ').includes('A3'));
 });
 
 test('registration lookup invalidates a retained diagram part when DVLA identifies an electric vehicle', async () => {
   const state = { part: 'Alternator', category: 'Electrical', fuel: 'Petrol' };
   const common = { partMethod: 'diagram', fuel: 'Petrol', setPartMethod() {}, setPartCategory: value => { state.category = value; }, setPart: value => { state.part = value; }, setPartNumber() {}, setShowResults() {}, setError() {} };
   const lookup = handler('handleVehicleLookup', {
-    ...common, registration: 'AB12CDE', makes: handler('makes', {}), resetPartsBelowVehicle: handler('resetPartsBelowVehicle', common),
+    ...common, registration: 'AB12CDE', makes: vehicleOptions.makes, resetPartsBelowVehicle: handler('resetPartsBelowVehicle', common),
     vehicleLookupRequest: { current: { id: 0, controller: null } },
     setVehicleLookupLoading() {}, setVehicleLookup() {}, setRegistration() {}, setMake() {}, setModel() {}, setYear() {}, setEngine() {}, setBodyStyle() {}, setFuel: value => { state.fuel = value; }, trackGrowthEvent() {}, trackActivity() {},
     fetch: async () => ({ ok: true, json: async () => ({ vehicle: { make: 'Tesla', model: 'Model 3', yearOfManufacture: 2021, fuelType: 'ELECTRICITY' } }) }),

@@ -20,6 +20,10 @@ const search = helpers('../app/lib/search.ts');
 const saved = helpers('../app/lib/saved-search.ts');
 const guide = helpers('../app/lib/parts-guide-data.ts');
 const filters = helpers('../app/lib/car-filters.ts');
+const pickerHelpers = helpers('../app/lib/vehicle-picker-options.ts');
+const vehicleOptions = helpers('../app/lib/vehicle-options.ts');
+const NextLink = () => null;
+const VehiclePicker = () => null;
 const PageResults = () => null;
 const ExtraControls = () => null;
 const Placeholder = () => null;
@@ -35,8 +39,12 @@ const bike = (id = 1) => ({ id: String(id), title: `2018 Honda CBR600F motorbike
 
 // Render the actual page and invoke its controls, including delayed fetches that
 // ignore cancellation. No browser, network or production analytics are involved.
-function page(query = '') {
+function page(query = '', initialProps = {}) {
   let cursor = 0, dirty = true, tree, timer = 0;
+  const params = new URLSearchParams(query);
+  let props = { initialMode: params.get('mode') === 'parts' ? 'parts' : 'cars', initialVehicleType: params.get('vehicle_type') === 'motorbikes' ? 'motorbikes' : 'cars', ...initialProps };
+  let route = props.initialMode === 'parts' ? 'parts' : props.initialVehicleType;
+  const location = { search: query };
   const slots = [], effects = new Map(), pending = [], requests = [], events = [], timers = new Map();
   const hooks = {
     useState(initial) {
@@ -44,39 +52,59 @@ function page(query = '') {
       if (!(index in slots)) slots[index] = initial;
       return [slots[index], value => { const next = typeof value === 'function' ? value(slots[index]) : value; if (!Object.is(next, slots[index])) { slots[index] = next; dirty = true; } }];
     },
+    useEffectEvent(callback) {
+      const index = cursor++;
+      const record = slots[index] ??= { callback };
+      record.callback = callback;
+      return record.run ??= (...args) => record.callback(...args);
+    },
     useRef(initial) { const index = cursor++; return slots[index] ??= { current: initial }; },
     useEffect(callback, dependencies) {
       const index = cursor++, before = effects.get(index);
-      if (!before || dependencies.some((value, i) => !Object.is(value, before[i]))) { effects.set(index, dependencies); pending.push(callback); }
+      if (!before || dependencies.some((value, i) => !Object.is(value, before.dependencies[i]))) {
+        before?.cleanup?.();
+        const record = { dependencies, cleanup: null };
+        effects.set(index, record);
+        pending.push(() => { record.cleanup = callback(); });
+      }
     },
   };
   const frame = callback => { callback(); return 1; };
-  const exports = {};
-  vm.runInNewContext(compile('../app/page.tsx'), {
+  const exports = {}, campaign = {};
+  vm.runInNewContext(compile('../app/lib/campaign-landing.ts'), { exports: campaign, URLSearchParams, window: { location }, require(name) {
+    if (name === './growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
+    throw Error(name);
+  } });
+  vm.runInNewContext(compile('../app/components/search-experience.tsx'), {
     exports, URLSearchParams, AbortController, requestAnimationFrame: frame,
     setTimeout(callback) { const id = ++timer; timers.set(id, callback); return id; }, clearTimeout: id => timers.delete(id),
-    window: { location: { search: query }, requestAnimationFrame: frame, cancelAnimationFrame() {}, open() { throw Error('Motorbike search must never open a car marketplace'); } },
+    window: { location, requestAnimationFrame: frame, cancelAnimationFrame() {}, open() { throw Error('Motorbike search must never open a car marketplace'); } },
     fetch(url, options) { return new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })); },
     require(name) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return jsxRuntime;
+      if (name === 'next/link') return { default: NextLink };
       if (name === 'next/dynamic') return { default: () => Placeholder };
-      if (name === './lib/search') return search;
-      if (name === './lib/saved-search') return saved;
-      if (name === './lib/parts-guide-data') return guide;
-      if (name === './lib/car-filters') return filters;
-      if (name === './lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
-      if (name === './lib/analytics-audience') return { analyticsAudience: () => 'excluded' };
-      if (name === './lib/supabase') return { getSupabaseBrowserClient: () => null };
-      if (name === './components/car-search-results') return { default: PageResults };
-      if (name === './components/car-extra-filters') return { default: ExtraControls };
+      if (name === '../lib/search') return search;
+      if (name === '../lib/saved-search') return saved;
+      if (name === '../lib/parts-guide-data') return guide;
+      if (name === '../lib/car-filters') return filters;
+      if (name === '../lib/vehicle-picker-options') return pickerHelpers;
+      if (name === '../lib/vehicle-options') return vehicleOptions;
+      if (name === '../lib/campaign-landing') return campaign;
+      if (name === './vehicle-picker') return { default: VehiclePicker };
+      if (name === '../lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
+      if (name === '../lib/analytics-audience') return { analyticsAudience: () => 'excluded' };
+      if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => null };
+      if (name === './car-search-results') return { default: PageResults };
+      if (name === './car-extra-filters') return { default: ExtraControls };
       return { default: Placeholder };
     },
   });
   const render = () => {
     for (let attempt = 0; dirty; attempt++) {
       assert.ok(attempt < 12, 'page settles after its control changes');
-      cursor = 0; dirty = false; tree = exports.default();
+      cursor = 0; dirty = false; tree = exports.default(props);
       for (const node of nodes(tree)) if (typeof node.type === 'string' && node.props.ref) node.props.ref.current = { focus() {}, scrollIntoView() {} };
       pending.splice(0).forEach(effect => effect());
     }
@@ -87,9 +115,21 @@ function page(query = '') {
   return {
     requests, events, render, one, nodes: () => nodes(render()), text: () => text(render()),
     button: label => one(node => node.type === 'button' && text(node) === label),
-    field: label => nodes(one(node => node.type === 'label' && text(node).startsWith(label))).find(node => ['input', 'select'].includes(node.type)),
+    field: label => {
+      const picker = nodes(render()).find(node => node.type === VehiclePicker && node.props.label === label);
+      return picker || nodes(one(node => node.type === 'label' && text(node).startsWith(label))).find(node => ['input', 'select'].includes(node.type));
+    },
+    navigate(nextRoute) {
+      if (route === nextRoute) return render();
+      for (const effect of effects.values()) effect.cleanup?.();
+      effects.clear(); pending.length = 0; slots.length = 0;
+      location.search = '';
+      route = nextRoute;
+      props = { initialMode: nextRoute === 'parts' ? 'parts' : 'cars', initialVehicleType: nextRoute === 'motorbikes' ? 'motorbikes' : 'cars' };
+      dirty = true; return render();
+    },
     click(node) { node.props.onClick(); render(); },
-    change(node, value) { node.props.onChange({ target: { value } }); render(); },
+    change(node, value) { node.props.onChange(node.type === VehiclePicker ? value : { target: { value } }); render(); },
     results: () => nodes(render()).find(node => node.type === PageResults),
     async respond(index, payload) { requests[index].resolve({ ok: true, json: async () => payload }); await flush(); render(); },
   };
@@ -106,33 +146,34 @@ test('car extras restore, survive budget presets and clear when switching search
   assert.equal(params.get('extras'), 'heated_seats,panoramic_roof');
   assert.equal(params.get('maxPrice'), '1000');
   assert.deepEqual(Array.from(app.results().props.search.carExtras), ['heated_seats', 'panoramic_roof']);
-  app.click(app.button('Find motorbikes'));
+  app.navigate('motorbikes');
   assert.ok(!app.nodes().some(node => node.type === ExtraControls));
   app.click(app.button('Search eBay motorbikes'));
   assert.equal(new URL(app.requests[1].url, 'https://local.test').searchParams.has('extras'), false);
-  app.click(app.button('Find cars'));
+  app.navigate('cars');
   assert.deepEqual(Array.from(extras().props.value), []);
   extras().props.onChange(['heated_seats']); app.render();
-  app.click(app.button('Find parts'));
-  app.click(app.button('Find cars'));
+  app.navigate('parts');
+  app.navigate('cars');
   assert.deepEqual(Array.from(extras().props.value), []);
 });
 
-test('motorbike entry shows bike suggestions, unrestricted model and eBay only while retaining budget controls', () => {
+test('motorbike route starts with bike suggestions and unrestricted model while retaining its budget controls', () => {
   const app = page();
-  assert.deepEqual(app.nodes().filter(node => node.type === 'button' && /^Find (cars|motorbikes|parts)$/.test(text(node))).map(text), ['Find cars', 'Find motorbikes', 'Find parts']);
+  assert.deepEqual(app.nodes().filter(node => node.type === NextLink && /^Find (cars|motorbikes|parts)$/.test(text(node))).map(node => [text(node), node.props.href]), [['Find cars', '/cars'], ['Find motorbikes', '/motorbikes'], ['Find parts', '/parts']]);
   app.change(app.field('Maximum budget'), '3000');
   app.change(app.field('Make'), 'Ford'); app.change(app.field('Model'), 'Fiesta'); app.change(app.field('Year'), '2018');
-  app.click(app.button('Find motorbikes'));
-  assert.equal(app.button('Find motorbikes').props['aria-pressed'], true);
-  assert.equal(app.field('Maximum budget').props.value, '3000');
+  app.navigate('motorbikes');
+  assert.equal(app.field('Maximum budget').props.value, '', 'a different route gets a fresh draft');
+  app.change(app.field('Maximum budget'), '3000');
   for (const label of ['Make', 'Model', 'Year']) assert.equal(app.field(label).props.value, '');
-  const datalist = app.one(node => node.type === 'datalist' && node.props.id === 'car-make-options');
-  assert.deepEqual(nodes(datalist).filter(node => node.type === 'option').map(node => node.props.value), ['Honda', 'Yamaha', 'Suzuki', 'Kawasaki', 'Triumph', 'BMW', 'Ducati', 'KTM', 'Aprilia', 'Lexmoto', 'Vespa']);
-  assert.equal(app.field('Model').props.list, undefined, 'arbitrary bike models can be typed');
+  assert.equal(app.field('Make').type, VehiclePicker);
+  assert.deepEqual(Array.from(app.field('Make').props.options), ['Honda', 'Yamaha', 'Suzuki', 'Kawasaki', 'Triumph', 'BMW', 'Ducati', 'KTM', 'Aprilia', 'Lexmoto', 'Vespa']);
+  assert.equal(app.field('Model').type, VehiclePicker);
+  assert.deepEqual(Array.from(app.field('Model').props.options), [], 'bike models are not restricted to a car model list');
   app.change(app.field('Model'), 'Monkey 125');
   assert.equal(app.field('Model').props.value, 'Monkey 125');
-  app.click(app.button('Find motorbikes'));
+  app.navigate('motorbikes');
   assert.equal(app.field('Model').props.value, 'Monkey 125', 'reselecting the current kind preserves the draft');
   assert.ok(app.nodes().some(node => node.props?.['aria-label'] === 'Quick motorbike budgets'));
   assert.ok(!app.nodes().some(node => node.type === 'summary' && /^Search:/.test(text(node))), 'marketplace chooser is hidden');
@@ -173,14 +214,14 @@ test('switching between bikes, cars and parts aborts live requests and rejects l
   const app = page('?vehicle_type=motorbikes');
   app.change(app.field('Make'), 'Honda'); app.change(app.field('Model'), 'CBR600F'); app.change(app.field('Year'), '2018');
   app.click(app.button('Search eBay motorbikes'));
-  app.click(app.button('Find cars'));
+  app.navigate('cars');
   assert.equal(app.requests[0].options.signal.aborted, true); assert.equal(app.results(), undefined);
   for (const label of ['Make', 'Model', 'Year']) assert.equal(app.field(label).props.value, '');
   await app.respond(0, { items: [bike()] });
   assert.equal(app.results(), undefined); assert.deepEqual(app.events.map(([name]) => name), ['search_submitted']);
   app.click(app.button('Search all marketplaces'));
   assert.equal(new URL(app.requests[1].url, 'https://local.test').searchParams.has('vehicleType'), false);
-  app.click(app.button('Find parts'));
+  app.navigate('parts');
   assert.equal(app.requests[1].options.signal.aborted, true); assert.equal(app.results(), undefined);
   await app.respond(1, { items: [bike()] });
   assert.equal(app.results(), undefined); assert.equal(app.events.length, 2);
@@ -192,7 +233,7 @@ test('switching to motorbikes aborts a pending car registration lookup and rejec
   app.change(registration, 'AB12CDE');
   app.click(app.button('Find vehicle'));
   assert.equal(app.requests[0].url, '/api/vehicle');
-  app.click(app.button('Find motorbikes'));
+  app.navigate('motorbikes');
   assert.equal(app.requests[0].options.signal.aborted, true);
   await app.respond(0, { vehicle: { make: 'Ford', model: 'Fiesta', yearOfManufacture: 2018 } });
   for (const label of ['Make', 'Model', 'Year']) assert.equal(app.field(label).props.value, '');
@@ -203,7 +244,7 @@ test('saved and shared bike links restore the bike form and exact budget without
   const submitted = search.createCarSearch({ vehicleType: 'motorbikes', make: 'Yamaha', model: 'MT-07', year: '2020', minPrice: '2000', price: '5000', sort: 'newest', hideUnwanted: true, postcode: '', platform: 'all' });
   for (const url of [saved.getSavedSearchUrl(submitted.saveItem), saved.getSharedSearchUrl(submitted.saveItem)]) {
     const app = page(new URL(url, 'https://local.test').search);
-    assert.equal(app.button('Find motorbikes').props['aria-pressed'], true);
+    assert.ok(app.button('Search eBay motorbikes'));
     assert.equal(app.field('Make').props.value, 'Yamaha'); assert.equal(app.field('Model').props.value, 'MT-07'); assert.equal(app.field('Year').props.value, '2020');
     assert.equal(app.field('Minimum price').props.value, '2000'); assert.equal(app.field('Maximum budget').props.value, '5000'); assert.equal(app.field('Sort live motorbikes').props.value, 'newest');
     assert.equal(app.requests.length, 0); assert.deepEqual(app.events, []); assert.equal(app.results(), undefined);
@@ -212,8 +253,26 @@ test('saved and shared bike links restore the bike form and exact budget without
   assert.equal(campaign.events.length, 1); assert.equal(campaign.events[0][1].landing_mode, 'motorbikes');
 });
 
+test('homepage quick search runs the restored budget once and cannot auto-open an external marketplace', () => {
+  const app = page('?restore=1&mode=cars&platform=all&price=1000&make=Volkswagen&model=Golf&run=1');
+  assert.equal(app.requests.length, 1);
+  const params = new URL(app.requests[0].url, 'https://local.test').searchParams;
+  assert.equal(params.get('maxPrice'), '1000');
+  assert.equal(params.get('make'), 'Volkswagen'); assert.equal(params.get('model'), 'Golf');
+  assert.equal(app.events.filter(([name]) => name === 'search_submitted').length, 1);
+  app.render();
+  assert.equal(app.requests.length, 1, 'a later render does not run the quick search again');
+  app.navigate('motorbikes');
+  assert.equal(app.requests[0].options.signal.aborted, true);
+  assert.equal(app.requests.length, 1, 'the next route does not inherit the quick-run flag');
+  assert.equal(app.field('Make').props.value, '');
+  const external = page('?restore=1&mode=cars&platform=autotrader&make=Ford&run=1');
+  assert.equal(external.requests.length, 0);
+  assert.equal(external.results(), undefined);
+});
+
 test('bike failed and empty searches emit bike result events and retain the retry snapshot', async () => {
-  const app = page('?vehicle_type=motorbikes');
+  const app = page('', { initialMode: 'cars', initialVehicleType: 'motorbikes' });
   app.click(app.button('Search eBay motorbikes'));
   const submitted = app.results().props.search;
   app.requests[0].reject(Error('Provider unavailable')); await flush(); app.render();

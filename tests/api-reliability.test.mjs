@@ -175,6 +175,30 @@ test('registration body size is bounded even without a Content-Length header', a
   assert.equal((await api.POST(request)).status, 413);
 });
 
+test('vehicle checks expose existing DVLA tax and MOT dates without extra requests or keeper details', async () => {
+  const calls = [];
+  const api = loadModule('app/api/vehicle/route.ts', { env: vehicleEnv, fetch: async (url, options) => {
+    calls.push({ url, options });
+    return Response.json({ make: 'FORD', registrationNumber: 'AB12CDE', taxStatus: 'Taxed', taxDueDate: '2027-02-01',
+      motStatus: 'Valid', motExpiryDate: '2027-06-18', keeperName: 'Private keeper', keeperAddress: 'Private address' });
+  } });
+  const response = await api.POST(registrationRequest());
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 1, 'dates come from the same DVLA response');
+  assert.equal(calls[0].options.cache, 'no-store');
+  assert.deepEqual(await response.json(), { vehicle: { registrationNumber: 'AB12CDE', make: 'FORD',
+    motStatus: 'Valid', motExpiryDate: '2027-06-18', taxStatus: 'Taxed', taxDueDate: '2027-02-01' } });
+  assert.match(response.headers.get('cache-control'), /private, no-store/);
+});
+
+test('vehicle check dates stay absent when the upstream service supplies no date or a non-text value', async () => {
+  const api = loadModule('app/api/vehicle/route.ts', { env: vehicleEnv,
+    fetch: async () => Response.json({ make: 'FORD', taxDueDate: { private: 'unexpected' } }) });
+  const body = await (await api.POST(registrationRequest())).json();
+  assert.equal(Object.hasOwn(body.vehicle, 'taxDueDate'), false);
+  assert.equal(Object.hasOwn(body.vehicle, 'motExpiryDate'), false);
+});
+
 test('registration failures are useful and local throttling returns Retry-After', async () => {
   const api = loadModule('app/api/vehicle/route.ts', { env: vehicleEnv, fetch: async () => Response.json(null) });
   assert.equal((await api.POST(registrationRequest('X'))).status, 400);

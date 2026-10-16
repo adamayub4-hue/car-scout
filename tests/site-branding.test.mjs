@@ -26,6 +26,7 @@ function load(path, overrides = {}) {
     if (name === './components/site-analytics') return { SiteAnalytics: () => null };
     if (name === './components/appearance') return { AppearanceRuntime: () => null };
     if (name === './components/return-visit-preference') return { ReturnVisitPreference: () => null };
+    if (name === './components/mobile-navigation') return () => null;
     if (name === './lib/site-brand') return load('app/lib/site-brand.ts');
     if (name === 'react' || name === 'react/jsx-runtime') return require(name);
     throw Error(`Unexpected branding dependency: ${name}`);

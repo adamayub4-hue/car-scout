@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { SiteAnalytics } from "./components/site-analytics";
 import { AppearanceRuntime } from "./components/appearance";
 import { ReturnVisitPreference } from "./components/return-visit-preference";
+import MobileNavigation from "./components/mobile-navigation";
 import { siteName, siteUrl, siteTitle, siteDescription, siteStructuredData } from "./lib/site-brand";
 
 export const metadata: Metadata = {
@@ -48,10 +49,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: `(()=>{let p='system';try{const s=localStorage.getItem('mekivo-appearance');if(s==='light'||s==='dark')p=s}catch{}document.documentElement.dataset.appearance=p;document.documentElement.dataset.theme=p==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p})()` }} />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="mekivo-navigation-space min-h-full flex flex-col">
         <AppearanceRuntime />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteStructuredData).replace(/</g, "\\u003c") }} />
-        {children}<Suspense fallback={null}><ReturnVisitPreference /><SiteAnalytics /></Suspense>
+        {children}<Suspense fallback={null}><ReturnVisitPreference /><SiteAnalytics /><MobileNavigation /></Suspense>
       </body>
     </html>
   );

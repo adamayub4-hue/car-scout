@@ -52,7 +52,11 @@ export function filterAnalyticsEvent<T extends { url: string }>(event: T): T | n
   if (analyticsAudience() !== "included") return null;
   try {
     const url = new URL(event.url, window.location.origin);
-    return productionHost(url.hostname) && !internalPath(url.pathname) && url.searchParams.get("analytics") !== "off" ? event : null;
+    if (!productionHost(url.hostname) || internalPath(url.pathname) || url.searchParams.get("analytics") === "off") return null;
+    // Both analytics SDKs share this guard. Keep useful page paths without
+    // forwarding registrations, restored search details, or fragments in URLs.
+    const safeUrl = `${url.origin}${url.pathname}`;
+    return event.url === safeUrl ? event : { ...event, url: safeUrl };
   } catch { return null; }
 }
 

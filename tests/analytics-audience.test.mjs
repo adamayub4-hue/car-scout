@@ -141,7 +141,7 @@ test('ordinary anonymous visitors are included without an owner-table query', as
   const h = await anonymous();
   assert.equal(h.api.analyticsAudience(), 'included');
   assert.strictEqual(h.api.filterAnalyticsEvent(pageview), pageview);
-  assert.strictEqual(h.api.filterAnalyticsEvent(customEvent), customEvent);
+  assert.equal(h.api.filterAnalyticsEvent(customEvent).url, 'https://mekivo.uk/');
   assert.equal(h.roleRequests.length, 0);
   h.api.initializeAnalyticsAudience();
   assert.equal(h.calls.sessions, 1, 'initialization remains a singleton');
@@ -166,7 +166,7 @@ test('a signed-in customer stays pending until their nonowner status is confirme
   assert.equal(h.api.analyticsAudience(), 'pending');
   h.roleRequests[0].resolve(membership(null)); await settle();
   assert.equal(h.api.analyticsAudience(), 'included');
-  assert.strictEqual(h.api.filterAnalyticsEvent(customEvent), customEvent);
+  assert.equal(h.api.filterAnalyticsEvent(customEvent).url, 'https://mekivo.uk/');
   assert.equal(h.api.browserExclusionStatus(), 'off');
 });
 
@@ -317,6 +317,42 @@ test('internal and testing routes are excluded both at navigation and when a que
   assert.strictEqual(h.api.filterAnalyticsEvent(pageview), pageview);
   assert.ok(h.api.filterAnalyticsEvent({ type: 'pageview', url: '/guides/finding-the-right-car-part' }));
   assert.equal(h.api.filterAnalyticsEvent({ type: 'event', url: 'https://not-mekivo.test/' }), null);
+});
+
+test('public pageviews, growth events and speed metrics keep paths but discard sensitive query strings and fragments', async () => {
+  const h = await anonymous();
+  for (const origin of ['https://mekivo.uk', 'https://www.mekivo.uk']) {
+    for (const path of ['/', '/cars', '/motorbikes', '/parts', '/vehicle-check']) {
+      h.navigate(`${origin}${path}`);
+      assert.equal(h.api.analyticsAudience(), 'included', path);
+      for (const type of ['pageview', 'event', 'vital']) {
+        const url = `${origin}${path}?registration=AB12CDE&postcode=B1%201AA&q=private-search&restore=1&utm_source=facebook#private-fragment`;
+        const payload = { name: 'search_submitted', data: { campaign: 'direct', context: 'cars:all' } };
+        const event = { type, url, payload, metric: 'LCP', value: 120 };
+        const filtered = h.api.filterAnalyticsEvent(event);
+        assert.equal(filtered.url, `${origin}${path}`, `${type}: ${path}`);
+        assert.equal(filtered.type, type);
+        assert.strictEqual(filtered.payload, payload, 'event names and approved properties are unchanged');
+        assert.equal(filtered.metric, 'LCP'); assert.equal(filtered.value, 120);
+        assert.equal(event.url, url, 'the SDK event is not mutated');
+        assert.ok(!filtered.url.includes('private')); assert.ok(!filtered.url.includes('AB12CDE'));
+      }
+    }
+  }
+});
+
+test('URL redaction retains safe paths and checks exclusions before removing query controls', async () => {
+  const h = await anonymous();
+  assert.equal(h.api.filterAnalyticsEvent({ type: 'pageview', url: '/parts?registration=AB12CDE#details' }).url, 'https://mekivo.uk/parts');
+  assert.strictEqual(h.api.filterAnalyticsEvent(pageview), pageview, 'a clean event needs no replacement');
+  for (const url of [
+    '/vehicle-check?analytics=off&registration=AB12CDE',
+    '/admin?registration=AB12CDE',
+    '/account/saved?postcode=B1',
+    'https://not-mekivo.test/parts?registration=AB12CDE',
+  ]) assert.equal(h.api.filterAnalyticsEvent({ type: 'event', url }), null, url);
+  h.api.excludeThisBrowser();
+  assert.equal(h.api.filterAnalyticsEvent({ type: 'pageview', url: '/vehicle-check?registration=AB12CDE' }), null);
 });
 
 for (const options of [

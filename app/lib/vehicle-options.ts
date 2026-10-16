@@ -1,0 +1,31 @@
+export const makes = {
+  "Alfa Romeo": ["Giulia", "Giulietta", "MiTo", "Stelvio"],
+  Audi: ["A1", "A3", "A4", "A5", "Q3", "Q5"],
+  BMW: ["1 Series", "3 Series", "5 Series", "X1", "X3"],
+  Citroen: ["Berlingo", "C1", "C3", "C4", "C5 Aircross"],
+  Dacia: ["Duster", "Jogger", "Sandero"],
+  Mercedes: ["A Class", "C Class", "E Class", "GLA", "GLC"],
+  Ford: ["Fiesta", "Focus", "Kuga", "Puma"],
+  Honda: ["Civic", "CR-V", "HR-V", "Jazz"],
+  Hyundai: ["i10", "i20", "i30", "Ioniq 5", "Tucson"],
+  Jaguar: ["E-Pace", "F-Pace", "I-Pace", "XE", "XF"],
+  Kia: ["Ceed", "Niro", "Picanto", "Sportage"],
+  "Land Rover": ["Defender", "Discovery", "Range Rover", "Range Rover Evoque"],
+  Lexus: ["CT", "ES", "NX", "RX", "UX"],
+  Mazda: ["Mazda2", "Mazda3", "CX-5", "MX-5"],
+  MINI: ["Clubman", "Convertible", "Countryman", "Hatch"],
+  Nissan: ["Juke", "Leaf", "Micra", "Qashqai", "X-Trail"],
+  Peugeot: ["108", "208", "308", "2008", "3008"],
+  Porsche: ["911", "Cayenne", "Macan", "Panamera", "Taycan"],
+  Renault: ["Captur", "Clio", "Kadjar", "Megane", "Zoe"],
+  SEAT: ["Arona", "Ateca", "Ibiza", "Leon"],
+  Skoda: ["Fabia", "Karoq", "Kodiaq", "Octavia", "Superb"],
+  Tesla: ["Model 3", "Model S", "Model X", "Model Y"],
+  Volkswagen: ["Polo", "Golf", "Passat", "Tiguan"],
+  Volvo: ["S60", "V40", "V60", "XC40", "XC60", "XC90"],
+  Toyota: ["Yaris", "Corolla", "C-HR", "RAV4"],
+  Vauxhall: ["Astra", "Corsa", "Crossland", "Grandland", "Mokka"],
+} as const;
+
+export const motorbikeMakes = ["Honda", "Yamaha", "Suzuki", "Kawasaki", "Triumph", "BMW", "Ducati", "KTM", "Aprilia", "Lexmoto", "Vespa"];
+

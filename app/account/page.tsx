@@ -276,7 +276,7 @@ export default function AccountPage() {
         ) : loading && !user ? (
           <p className="mt-12 text-muted">Loading your account…</p>
         ) : user ? (
-          <section className="mt-12">
+          <section id="saved-items" className="mt-12 scroll-mt-6">
             <p className="text-xs font-bold uppercase tracking-wider text-link">Your account</p>
             <h1 className="mt-2 text-3xl font-bold">Saved cars, motorbikes, parts and searches</h1>
             <p className="mt-2 text-sm text-muted">Signed in as {user.email}</p>

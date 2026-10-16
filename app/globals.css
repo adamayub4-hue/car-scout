@@ -85,3 +85,9 @@ select {
 .vehicle-photo-caption { color: #f8fafc; }
 .vehicle-photo-caption p { color: #cbd5e1; }
 @media (prefers-reduced-motion: reduce) { .appearance-thumb { transition: none; } }
+
+/* Keep the last control above the mobile navigation and the device home bar. */
+@media (max-width: 767px) {
+  .mekivo-navigation-space { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+  .mobile-navigation { padding-bottom: env(safe-area-inset-bottom); }
+}

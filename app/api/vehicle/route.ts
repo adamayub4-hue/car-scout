@@ -243,7 +243,9 @@ export async function POST(request: Request) {
         fuelType: payload.fuelType,
         colour: payload.colour,
         motStatus: payload.motStatus,
+        motExpiryDate: typeof payload.motExpiryDate === "string" ? payload.motExpiryDate : undefined,
         taxStatus: payload.taxStatus,
+        taxDueDate: typeof payload.taxDueDate === "string" ? payload.taxDueDate : undefined,
       },
     });
   } catch (error) {

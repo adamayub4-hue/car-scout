@@ -23,7 +23,7 @@ function pureModule(path) {
 const guideData = pureModule('../app/lib/parts-guide-data.ts');
 const savedSearch = pureModule('../app/lib/saved-search.ts');
 const search = pureModule('../app/lib/search.ts');
-const pageCode = compile('../app/page.tsx');
+const pageCode = compile('../app/components/search-experience.tsx');
 const Guide = () => null;
 const Placeholder = () => null;
 
@@ -41,8 +41,12 @@ const text = node => typeof node === 'string' ? node : Array.isArray(node)
 // Execute the real page, its URL parsing and event handlers with deterministic
 // hook commits. Browser layout is separate; this verifies the requested target
 // exists before scrolling and that restoration and later interactions win.
-function page(query) {
+function page(query, initialProps = {}) {
   let cursor = 0, dirty = true, tree;
+  const params = new URLSearchParams(query);
+  let props = { initialMode: params.get('mode') === 'parts' ? 'parts' : 'cars', initialVehicleType: params.get('vehicle_type') === 'motorbikes' ? 'motorbikes' : 'cars', ...initialProps };
+  let route = props.initialMode === 'parts' ? 'parts' : props.initialVehicleType;
+  const location = { search: query };
   const slots = [], effects = new Map(), pendingEffects = [], scrolls = [], requests = [], events = [];
   const hooks = {
     useState(initial) {
@@ -53,39 +57,54 @@ function page(query) {
         if (!Object.is(next, slots[index])) { slots[index] = next; dirty = true; }
       }];
     },
+    useEffectEvent(callback) {
+      const index = cursor++;
+      const record = slots[index] ??= { callback };
+      record.callback = callback;
+      return record.run ??= (...args) => record.callback(...args);
+    },
     useRef(initial) { const index = cursor++; return slots[index] ??= { current: initial }; },
     useEffect(callback, dependencies) {
       const index = cursor++, previous = effects.get(index);
-      if (!previous || dependencies.some((value, i) => !Object.is(value, previous[i]))) {
-        effects.set(index, dependencies);
-        pendingEffects.push(callback);
+      if (!previous || dependencies.some((value, i) => !Object.is(value, previous.dependencies[i]))) {
+        previous?.cleanup?.();
+        const record = { dependencies, cleanup: null };
+        effects.set(index, record);
+        pendingEffects.push(() => { record.cleanup = callback(); });
       }
     },
   };
   const frame = callback => { callback(); return 1; };
-  const exports = {};
+  const exports = {}, campaign = {};
+  vm.runInNewContext(compile('../app/lib/campaign-landing.ts'), { exports: campaign, URLSearchParams, window: { location }, require(name) {
+    if (name === './growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
+    throw Error(name);
+  } });
   vm.runInNewContext(pageCode, {
     exports, URLSearchParams, AbortController, setTimeout, clearTimeout, requestAnimationFrame: frame,
-    window: { location: { search: query }, requestAnimationFrame: frame, cancelAnimationFrame() {} },
+    window: { location, requestAnimationFrame: frame, cancelAnimationFrame() {} },
     fetch(...args) { requests.push(args); throw new Error('Provider calls are not part of guide browsing'); },
     require(name) {
       if (name === 'react') return hooks;
       if (name === 'react/jsx-runtime') return jsxRuntime;
       if (name === 'next/dynamic') return { default: () => Guide };
-      if (name === './lib/parts-guide-data') return guideData;
-      if (name === './lib/saved-search') return savedSearch;
-      if (name === './lib/search') return search;
-      if (name === './lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
-      if (name === './lib/analytics-audience') return { analyticsAudience: () => 'excluded' };
-      if (name === './lib/supabase') return { getSupabaseBrowserClient: () => null };
-      if (name === './components/parts-guide') return { default: Guide };
+      if (name === '../lib/parts-guide-data') return guideData;
+      if (name === '../lib/saved-search') return savedSearch;
+      if (name === '../lib/search') return search;
+      if (name === '../lib/vehicle-options') return pureModule('../app/lib/vehicle-options.ts');
+      if (name === '../lib/vehicle-picker-options') return pureModule('../app/lib/vehicle-picker-options.ts');
+      if (name === '../lib/campaign-landing') return campaign;
+      if (name === '../lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
+      if (name === '../lib/analytics-audience') return { analyticsAudience: () => 'excluded' };
+      if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => null };
+      if (name === './parts-guide') return { default: Guide };
       return { default: Placeholder };
     },
   });
   const render = () => {
     for (let attempt = 0; dirty; attempt++) {
       assert.ok(attempt < 10, 'page settles after URL restoration');
-      cursor = 0; dirty = false; tree = exports.default();
+      cursor = 0; dirty = false; tree = exports.default(props);
       for (const node of nodes(tree)) {
         if (typeof node.type === 'string' && node.props.ref) {
           const target = nodes(node).some(child => child.type === Guide) ? 'guide' : 'other';
@@ -99,6 +118,14 @@ function page(query) {
   render();
   return {
     scrolls, requests, events, render,
+    navigate(nextRoute) {
+      if (route === nextRoute) return render();
+      for (const effect of effects.values()) effect.cleanup?.();
+      effects.clear(); pendingEffects.length = 0; slots.length = 0;
+      location.search = ''; route = nextRoute;
+      props = { initialMode: nextRoute === 'parts' ? 'parts' : 'cars', initialVehicleType: nextRoute === 'motorbikes' ? 'motorbikes' : 'cars' };
+      dirty = true; return render();
+    },
     guide: () => nodes(render()).find(node => node.type === Guide),
     button: label => nodes(render()).find(node => node.type === 'button' && text(node) === label),
     vehicle: () => nodes(render()).find(node => node.type === 'details' && /Search with vehicle details|Vehicle:/.test(text(node))),
@@ -119,10 +146,8 @@ test('direct guide landing reveals the guide and scrolls once without vehicle de
   app.render();
   assert.equal(app.vehicle().props.open, true);
   assert.equal(app.requests.length, 0);
-  app.button('Find cars').props.onClick();
-  app.render();
-  app.button('Find parts').props.onClick();
-  app.render();
+  app.navigate('cars');
+  app.navigate('parts');
   assert.equal(app.scrolls.filter(scroll => scroll.target === 'guide').length, 1);
 });
 

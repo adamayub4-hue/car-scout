@@ -20,10 +20,10 @@ function loadModule(source) {
 }
 const searchHelpers = loadModule(searchSource);
 const guideData = loadModule(guideDataSource);
-const source = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../app/components/search-experience.tsx', import.meta.url), 'utf8');
 const imageRouteSource = readFileSync(new URL('../app/api/vehicle-image/route.ts', import.meta.url), 'utf8');
 const nextConfigSource = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8');
-const ast = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const ast = ts.createSourceFile('search-experience.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 
 function routeFunction(name) {
   const routeAst = ts.createSourceFile('route.ts', imageRouteSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);

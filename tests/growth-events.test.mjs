@@ -113,8 +113,8 @@ test('motorbike funnel contexts use vehicle marketplaces and retain only approve
 });
 
 test('all car platforms in the current UI have distinct submission context, including More platforms', () => {
-  const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
-  const ast = ts.createSourceFile('page.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const page = readFileSync(new URL('../app/components/search-experience.tsx', import.meta.url), 'utf8');
+  const ast = ts.createSourceFile('search-experience.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let platforms;
   function visit(node) {
     if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'platformNames') {
@@ -128,6 +128,27 @@ test('all car platforms in the current UI have distinct submission context, incl
   for (const platform of platforms) {
     app.track('search_submitted', { search_type: 'cars', marketplace: platform });
     assert.deepEqual(app.events.at(-1).properties, { campaign: 'direct', context: `cars:${platform}` });
+  }
+});
+
+test('moving between search routes records one campaign landing per document and keeps exclusions', () => {
+  const landingSource = readFileSync(new URL('../app/lib/campaign-landing.ts', import.meta.url), 'utf8');
+  const landingCode = ts.transpileModule(landingSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  for (const audience of ['included', 'excluded']) {
+    const app = load({ query: paidCampaign, audience }), exports = {};
+    vm.runInNewContext(landingCode, { exports, URLSearchParams, window: app.window, require(name) {
+      assert.equal(name, './growth-events');
+      return { trackGrowthEvent: app.track };
+    } });
+    for (const mode of ['cars', 'motorbikes', 'parts']) exports.trackCampaignLanding(mode);
+    assert.equal(app.events.length, audience === 'included' ? 1 : 0);
+    if (audience === 'included') assert.deepEqual(app.events[0], { name: 'campaign_landing', properties: { campaign: 'meta|paid_social|september_demo|budget_car', context: 'cars' } });
+    else assert.equal(app.storage.size, 0);
+    app.window.location.search = '';
+    exports.trackCampaignLanding('parts');
+    assert.equal(app.events.length, audience === 'included' ? 1 : 0);
   }
 });
 
