@@ -22,7 +22,7 @@ const marketplaceRows = (counts = {}) => [
   { marketplace: 'unclassified', cars: null, parts: null, clicks: counts.unclassified ?? 0 },
 ];
 const report = changes => ({
-  range: '7d', since: '2026-09-10T12:00:00.000Z', until: '2026-09-17T12:00:00.000Z',
+  range: 'all', since: '2026-09-15T23:00:00.000Z', until: '2026-09-17T12:00:00.000Z',
   fetchedAt: '2026-09-17T12:01:00.000Z', visitors: 1234, pageviews: 2345,
   searches: 21, outboundClicks: 16, partial: false, clicksByDestination: { ebayCars: 6, ebayParts: 4, otherMarketplaces: 5, unclassified: 1 },
   marketplaceClicks: marketplaceRows({ ebay: [6, 4], facebook: [3, 0], gumtree: [1, 1], unclassified: 1 }),
@@ -106,7 +106,7 @@ function harness(options = {}) {
   return {
     calls, requests, timers, writes, render, flush,
     html() { return renderToStaticMarkup(render()); },
-    view(state) { return renderToStaticMarkup(React.createElement(exports.OwnerTrafficView, { range: '7d', state, onRangeChange() {}, onRefresh() {} })); },
+    view(state, range = state.report?.range ?? 'all') { return renderToStaticMarkup(React.createElement(exports.OwnerTrafficView, { range, state, onRangeChange() {}, onRefresh() {} })); },
     dates(value) { render().props.onCustomDates(value); render(); },
     changeRange(value) { render().props.onRangeChange(value); render(); },
     refresh() { render().props.onRefresh(); render(); },
@@ -133,6 +133,51 @@ function assertNoFigures(html) { for (const label of labels) assert.equal(card(h
 async function loaded(changes) {
   const h = harness(); await h.advance(0); h.respond(0, report(changes)); await h.flush(); return h;
 }
+
+test('fresh dashboards default to the first recorded day, keep it on refresh and reopen with it selected', async () => {
+  const h = harness();
+  await h.advance(0);
+  assert.equal(h.render().props.range, 'all');
+  assert.equal(h.requests[0].url, '/api/admin/traffic?range=all');
+  const options = [...h.html().matchAll(/<option\b[^>]*value="([^"]+)"[^>]*>([^<]*)<\/option>/g)].map(([, value, label]) => [value, label]);
+  assert.deepEqual(options, [
+    ['all', 'Since first recorded visit'], ['24h', 'Last 24 hours'], ['7d', 'Last 7 days'],
+    ['30d', 'Last 30 days'], ['custom', 'Choose dates (UK time)'],
+  ]);
+  assert.match(h.html(), /<option value="all" selected="">Since first recorded visit<\/option>/);
+  assert.match(h.html(), /From the first recorded day, 16 September 2026, up to the latest report time/);
+  assert.match(h.html(), /The start date stays fixed as days pass/);
+  h.respond(0, report()); await h.flush();
+  assert.match(h.html(), /Reports covering time before 17 September 2026.*include earlier testing/);
+  assert.match(h.html(), /Visitor estimates can count the same person again on another day or device/);
+  h.refresh(); await h.advance(0);
+  assert.equal(h.render().props.range, 'all');
+  assert.equal(h.requests[1].url, '/api/admin/traffic?range=all');
+  h.respond(1, report({ visitors: 1250 })); await h.flush();
+  assert.equal(card(h.html(), 'Visitors'), '1,250');
+  h.changeRange('7d'); await h.advance(0);
+  h.respond(2, report({ range: '7d', visitors: 84 })); await h.flush();
+  assert.doesNotMatch(h.html(), /The start date stays fixed as days pass/);
+  h.unmount();
+  const reopened = harness(); await reopened.advance(0);
+  assert.equal(reopened.render().props.range, 'all');
+  assert.equal(reopened.requests[0].url, '/api/admin/traffic?range=all');
+  reopened.unmount();
+});
+
+test('the owner can still select every rolling period and return to the fixed-start report', async () => {
+  const h = await loaded();
+  for (const range of ['24h', '7d', '30d', 'all']) {
+    h.changeRange(range); await h.advance(0);
+    const index = h.requests.length - 1;
+    assert.equal(h.requests[index].url, `/api/admin/traffic?range=${range}`);
+    h.respond(index, report({ range })); await h.flush();
+    assert.equal(h.render().props.range, range);
+    assert.equal(card(h.html(), 'Visitors'), '1,234');
+    assert.equal(h.html().includes('The start date stays fixed as days pass'), range === 'all');
+  }
+  h.unmount();
+});
 
 test('loading and errors never present zeros or a previous private report as current figures', () => {
   const h = harness();
@@ -242,7 +287,7 @@ test('owner request waits for the session and uses the private bearer endpoint w
   initial.resolve(sessionResult(session)); await h.flush();
   assert.equal(h.requests.length, 1);
   const { url, init } = h.requests[0];
-  assert.equal(url, '/api/admin/traffic?range=7d');
+  assert.equal(url, '/api/admin/traffic?range=all');
   assert.equal(init.headers.Authorization, 'Bearer owner-test-token');
   assert.equal(init.cache, 'no-store'); assert.equal(init.signal.aborted, false);
   assert.ok(!url.includes(session.access_token), 'credentials must not enter a URL');
@@ -299,7 +344,7 @@ test('rapid range changes abort older requests and ignore their late success or 
   h.changeRange('24h'); await h.advance(0);
   h.changeRange('30d'); await h.advance(0);
   assert.deepEqual(h.requests.map(request => request.url), [
-    '/api/admin/traffic?range=7d', '/api/admin/traffic?range=24h', '/api/admin/traffic?range=30d',
+    '/api/admin/traffic?range=all', '/api/admin/traffic?range=24h', '/api/admin/traffic?range=30d',
   ]);
   assert.deepEqual(h.requests.map(request => request.init.signal.aborted), [true, true, false]);
   h.respond(2, report({ range: '30d', visitors: 330 })); await h.flush();

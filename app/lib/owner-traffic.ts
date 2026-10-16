@@ -1,6 +1,9 @@
 import type { EbayBuyingFormat, SearchType } from "./search";
 
-export const OWNER_TRAFFIC_RANGES = ["24h", "7d", "30d", "custom"] as const;
+export const OWNER_TRAFFIC_RANGES = ["all", "24h", "7d", "30d", "custom"] as const;
+// Analytics was enabled and the first recorded test visit verified on this UK
+// date. See docs/analytics-tracking.md; this is not inferred from campaign dates.
+export const OWNER_TRAFFIC_FIRST_RECORDED_DATE = "2026-09-16";
 
 export type OwnerTrafficRange = (typeof OWNER_TRAFFIC_RANGES)[number];
 export type OwnerTrafficDates = { from: string; to: string };
@@ -56,6 +59,11 @@ function ukMidnight(utcDate: number) {
   // changes happen later, so midnight is unambiguous even on transition days.
   const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", hourCycle: "h23" }).format(new Date(utcDate)));
   return utcDate - hour * 3_600_000;
+}
+
+export function ownerTrafficAllTimeWindow(now = Date.now()) {
+  const firstDay = Date.parse(`${OWNER_TRAFFIC_FIRST_RECORDED_DATE}T00:00:00.000Z`);
+  return { since: new Date(ukMidnight(firstDay)).toISOString(), until: new Date(now).toISOString() };
 }
 
 export function ownerTrafficDateWindow(dates: OwnerTrafficDates, now = Date.now()) {

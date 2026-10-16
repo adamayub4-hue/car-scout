@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { OWNER_TRAFFIC_MARKETPLACES, ownerTrafficDateWindow, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks, type OwnerTrafficMarketplaceRow, type OwnerTrafficAppUsage, type OwnerTrafficOutboundRow } from "./owner-traffic";
+import { OWNER_TRAFFIC_MARKETPLACES, ownerTrafficAllTimeWindow, ownerTrafficDateWindow, ownerTrafficUKDate, type OwnerTrafficRange, type OwnerTrafficReport, type OwnerTrafficSource, type OwnerTrafficDates, type OwnerTrafficClicks, type OwnerTrafficMarketplaceRow, type OwnerTrafficAppUsage, type OwnerTrafficOutboundRow } from "./owner-traffic";
 import { BoundedTtlCache } from "./server-cache";
 import { UpstreamTimeoutError, withUpstreamTimeout } from "./server-upstream";
 
 const reports = new BoundedTtlCache<OwnerTrafficReport>(12, 5 * 60_000);
-const RANGE_MS: Record<Exclude<OwnerTrafficRange, "custom">, number> = {
+const RANGE_MS: Record<Exclude<OwnerTrafficRange, "all" | "custom">, number> = {
   "24h": 24 * 60 * 60_000,
   "7d": 7 * 24 * 60 * 60_000,
   "30d": 30 * 24 * 60 * 60_000,
@@ -242,15 +242,16 @@ export async function getOwnerTraffic(range: OwnerTrafficRange, dates?: OwnerTra
   const slug = process.env.MEKIVO_ANALYTICS_TEAM_SLUG?.trim() || "adamayub4-hues-projects";
   // Rotating credentials or changing the configured project cannot reuse an old
   // snapshot; the key contains a hash rather than retaining another raw token.
-  const customWindow = range === "custom" && dates ? ownerTrafficDateWindow(dates) : null;
+  const now = Date.now();
+  const customWindow = range === "custom" && dates ? ownerTrafficDateWindow(dates, now) : null;
   if (range === "custom" && !customWindow) throw new OwnerTrafficError(400, "invalid_range", "Choose valid UK dates, up to 31 days inclusive, ending no later than today.");
-  const cacheKey = JSON.stringify([projectId, slug, createHash("sha256").update(token).digest("hex"), range, dates?.from, dates?.to]);
+  const cacheKey = JSON.stringify([projectId, slug, createHash("sha256").update(token).digest("hex"), range, dates?.from, dates?.to, range === "all" ? ownerTrafficUKDate(now) : null]);
   const cached = reports.get(cacheKey);
   if (cached) return cached;
 
-  const now = Date.now();
-  const since = customWindow?.since ?? new Date(now - RANGE_MS[range as Exclude<OwnerTrafficRange, "custom">]).toISOString();
-  const until = customWindow?.until ?? new Date(now).toISOString();
+  const fixedWindow = range === "all" ? ownerTrafficAllTimeWindow(now) : customWindow;
+  const since = fixedWindow?.since ?? new Date(now - RANGE_MS[range as Exclude<OwnerTrafficRange, "all" | "custom">]).toISOString();
+  const until = fixedWindow?.until ?? new Date(now).toISOString();
   async function query<T>(dataset: "visits" | "events", by: string, filter: string, limit: number, parse: (payload: unknown) => T) {
     const url = new URL(`https://api.vercel.com/v1/query/web-analytics/${dataset}/aggregate`);
     url.search = new URLSearchParams({ projectId, slug, since, until, by, filter, limit: String(limit) }).toString();

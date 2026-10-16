@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   try {
     await authorizeTrafficOwner(request.headers.get("authorization"));
     const params = new URL(request.url).searchParams;
-    const range = params.get("range") ?? "7d";
+    const range = params.get("range") ?? "all";
     const dates = range === "custom" ? { from: params.get("from") || "", to: params.get("to") || "" } : undefined;
     if (["range", "from", "to"].some(key => params.getAll(key).length > 1) || !OWNER_TRAFFIC_RANGES.includes(range as OwnerTrafficRange)
       || (range !== "custom" && (params.has("from") || params.has("to"))) || (dates && !ownerTrafficDateWindow(dates))) {

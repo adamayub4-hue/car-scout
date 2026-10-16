@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { OWNER_TRAFFIC_MARKETPLACE_LABELS, ownerTrafficDateWindow, ownerTrafficUKDate, type OwnerTrafficDates, type OwnerTrafficMarketplaceRow, type OwnerTrafficOutboundRow, type OwnerTrafficRange, type OwnerTrafficReport } from "../lib/owner-traffic";
+import { OWNER_TRAFFIC_FIRST_RECORDED_DATE, OWNER_TRAFFIC_MARKETPLACE_LABELS, ownerTrafficDateWindow, ownerTrafficUKDate, type OwnerTrafficDates, type OwnerTrafficMarketplaceRow, type OwnerTrafficOutboundRow, type OwnerTrafficRange, type OwnerTrafficReport } from "../lib/owner-traffic";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
 const RANGE_LABELS: Record<OwnerTrafficRange, string> = {
-  "24h": "Last 24 hours", "7d": "Last 7 days", "30d": "Last 30 days", custom: "Choose dates (UK time)",
+  all: "Since first recorded visit", "24h": "Last 24 hours", "7d": "Last 7 days", "30d": "Last 30 days", custom: "Choose dates (UK time)",
 };
 const number = new Intl.NumberFormat("en-GB");
+const firstRecordedDay = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London",
+}).format(new Date(`${OWNER_TRAFFIC_FIRST_RECORDED_DATE}T12:00:00.000Z`));
 const date = new Intl.DateTimeFormat("en-GB", {
   day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London",
 });
@@ -146,6 +149,7 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCus
         <button type="button" disabled={loading || (range === "custom" && !hasCustomDates)} onClick={onRefresh} className="rounded-lg bg-sky-300 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-50">{loading ? "Loading…" : "Refresh traffic"}</button>
       </div>
     </div>
+    {range === "all" && <p className="mt-4 text-xs leading-5 text-subtle">From the first recorded day, {firstRecordedDay}, up to the latest report time. The start date stays fixed as days pass.</p>}
     {range === "custom" && <form className="mt-5 rounded-xl border border-outline/10 bg-panel p-4" onSubmit={event => {
       event.preventDefault();
       const form = event.currentTarget;
@@ -197,7 +201,7 @@ export function OwnerTrafficView({ range, state, onRangeChange, onRefresh, onCus
 }
 
 export default function OwnerTraffic() {
-  const [range, setRange] = useState<OwnerTrafficRange>("7d");
+  const [range, setRange] = useState<OwnerTrafficRange>("all");
   const [refresh, setRefresh] = useState(0);
   const [state, setState] = useState<TrafficState>({ report: null, loading: true, error: null });
   const [customDates, setCustomDates] = useState<OwnerTrafficDates | null>(null);

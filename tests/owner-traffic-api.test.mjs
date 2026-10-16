@@ -158,7 +158,9 @@ function harness({ env: overrides = {}, upstream, authFetch, timerLimit } = {}) 
     advance: milliseconds => { now += milliseconds; },
     providerCalls: () => calls.filter(call => call.url.startsWith('https://api.vercel.com/')),
     authCalls: () => calls.filter(call => call.url.includes('/auth/v1/user')),
-    get: (query = '', authorization = 'Bearer owner-session-token') => api.GET(new Request(`https://mekivo.uk/api/admin/traffic${query ? `?${query}` : ''}`, {
+    // Existing rolling-period cases remain explicit; separate cases exercise
+    // the omitted-query default and full-history boundaries below.
+    get: (query = 'range=7d', authorization = 'Bearer owner-session-token') => api.GET(new Request(`https://mekivo.uk/api/admin/traffic${query ? `?${query}` : ''}`, {
       headers: authorization ? { Authorization: authorization } : {},
     })),
   };
@@ -317,12 +319,76 @@ test('rolling ranges retain independent cached snapshots and reject unknown or d
     await h.get(`range=${range}`);
   }
   assert.equal(h.providerCalls().length, 18);
-  for (const query of ['range=', 'range=all', 'range=__proto__', 'range=365d', 'range=7d&range=30d']) {
+  for (const query of ['range=', 'range=__proto__', 'range=365d', 'range=7d&range=30d']) {
     const response = await h.get(query);
     assert.equal(response.status, 400);
     assertPrivate(response);
   }
   assert.equal(h.providerCalls().length, 18);
+});
+
+test('the default and all period query one full interval from the first recorded UK day', async () => {
+  const h = harness();
+  const response = await h.get('');
+  assert.equal(response.status, 200);
+  assertPrivate(response);
+  const report = await response.json();
+  assert.equal(report.range, 'all');
+  assert.equal(report.since, '2026-09-15T23:00:00.000Z');
+  assert.equal(report.until, '2026-09-17T12:00:00.000Z');
+  assert.equal(report.visitors, 75, 'use the period aggregate, never add overlapping source visitor counts');
+  assert.equal(h.providerCalls().length, 6);
+  for (const call of h.providerCalls()) {
+    const url = new URL(call.url);
+    assert.equal(url.searchParams.get('since'), report.since);
+    assert.equal(url.searchParams.get('until'), report.until);
+    assert.ok(url.searchParams.get('filter').startsWith("environment eq 'production'"));
+  }
+  assert.equal(h.providerCalls().filter(call => new URL(call.url).searchParams.get('by') === 'environment').length, 1);
+  assert.deepEqual(await (await h.get('range=all')).json(), report);
+  assert.equal(h.providerCalls().length, 6, 'explicit all shares the default cache');
+  assert.equal(h.authCalls().length, 2, 'cached full-history totals still require owner verification');
+  for (const query of ['range=all&range=7d', 'range=all&from=2026-09-16', 'range=all&to=2026-09-17']) {
+    assert.equal((await h.get(query)).status, 400);
+  }
+  assert.equal(h.providerCalls().length, 6);
+});
+
+test('the first recorded day stays fixed beyond 31 days and across the autumn clock change', async () => {
+  const h = harness();
+  h.advance(40 * 86400_000);
+  const all = await (await h.get('range=all')).json();
+  assert.equal(all.range, 'all');
+  assert.equal(all.since, '2026-09-15T23:00:00.000Z');
+  assert.equal(all.until, '2026-10-27T12:00:00.000Z');
+  assert.ok(Date.parse(all.until) - Date.parse(all.since) > 31 * 86400_000);
+  const rolling = await (await h.get('range=30d')).json();
+  assert.equal(Date.parse(rolling.until) - Date.parse(rolling.since), 30 * 86400_000);
+  assert.notEqual(rolling.since, all.since);
+  assert.equal(h.providerCalls().length, 12, 'full and rolling periods retain independent snapshots');
+});
+
+test('a new UK calendar day refreshes the all-period end even inside the five-minute cache', async () => {
+  const h = harness();
+  h.advance(Date.parse('2026-09-17T22:59:59.000Z') - Date.parse('2026-09-17T12:00:00.000Z'));
+  const beforeMidnight = await (await h.get('range=all')).json();
+  h.advance(1000);
+  const afterMidnight = await (await h.get('range=all')).json();
+  assert.equal(beforeMidnight.until, '2026-09-17T22:59:59.000Z');
+  assert.equal(afterMidnight.until, '2026-09-17T23:00:00.000Z');
+  assert.equal(afterMidnight.since, beforeMidnight.since);
+  assert.equal(h.providerCalls().length, 12);
+});
+
+test('all-period failures and unauthorised requests never turn into zero visitors or cached private totals', async () => {
+  const denied = harness();
+  assert.equal((await denied.get('range=all', null)).status, 401);
+  assert.equal(denied.providerCalls().length, 0);
+  const failing = harness({ upstream: url => url.searchParams.get('by') === 'environment'
+    ? new Response('', { status: 503 }) : Response.json(fixture(url)) });
+  const failed = await failing.get('range=all');
+  assert.equal(failed.status, 502);
+  assert.equal((await failed.json()).code, 'provider_unavailable');
 });
 
 test('snapshot cache expires at five minutes without extending expiry on reads', async () => {
