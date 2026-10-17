@@ -15,6 +15,7 @@ import { createCarSearch, createPartSearch, marketplaceFilterNote, type Submitte
 import { filterCarListings } from "../lib/car-filters";
 import SearchPageShell from "./search-page-shell";
 import SiteFooter from "./site-footer";
+import GoogleLensHelp from "./google-lens-help";
 import VehiclePicker from "./vehicle-picker";
 import { vehicleModelsForMake } from "../lib/vehicle-picker-options";
 import { makes, motorbikeMakes } from "../lib/vehicle-options";
@@ -559,8 +560,9 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                 </div>
               </div>
 
+              <GoogleLensHelp />
               <button type="button" aria-pressed={partMethod === "diagram"} onClick={() => { setPartMethod("diagram"); setPartNumber(""); setShowResults(false); setError(""); requestAnimationFrame(() => guideRef.current?.scrollIntoView({ block: "start", behavior: "instant" })); }} className="mb-4 flex w-full items-center justify-between gap-4 rounded-2xl border border-outline/15 bg-overlay/[0.025] p-4 text-left focus-visible:outline-2 focus-visible:outline-sky-400">
-                <span><strong className="block text-base">Find a part by picture</strong><span className="mt-1 block text-sm text-muted">Explore common parts first. Add your vehicle when you are ready to search.</span></span><span aria-hidden="true" className="text-2xl text-link">→</span>
+                <span><strong className="block text-base">Browse the parts picture guide</strong><span className="mt-1 block text-sm text-muted">Explore common parts first. Add your vehicle when you are ready to search.</span></span><span aria-hidden="true" className="text-2xl text-link">→</span>
               </button>
               {partMethod === "diagram" && <div ref={guideRef} className="mb-5 scroll-mt-4">
                 <DiagramExplorer category={partCategory} part={part} fuel={fuel} onCategory={(value) => { setPartCategory(value); setPart(""); setShowResults(false); setError(""); }} onPart={(value) => { setPart(value); setShowResults(false); setError(""); }} />

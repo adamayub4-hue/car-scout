@@ -638,7 +638,7 @@ test('registration lookup invalidates a retained diagram part when DVLA identifi
 test('opening the picture guide clears an earlier direct OEM number', () => {
   let expression;
   function visit(node) {
-    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'button' && node.getText(ast).includes('Find a part by picture')) expression = node.openingElement.attributes.properties.find(attribute => attribute.name?.getText(ast) === 'onClick').initializer.expression.getText(ast);
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'button' && node.getText(ast).includes('Browse the parts picture guide')) expression = node.openingElement.attributes.properties.find(attribute => attribute.name?.getText(ast) === 'onClick').initializer.expression.getText(ast);
     ts.forEachChild(node, visit);
   }
   visit(ast); assert.ok(expression);
