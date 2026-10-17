@@ -63,7 +63,7 @@ const VehiclePicker = forwardRef<HTMLButtonElement, VehiclePickerProps>(function
     <button ref={triggerRef} id={id} type="button" disabled={disabled}
       aria-labelledby={`${labelId} ${valueId}`} aria-haspopup="dialog" aria-controls={dialogId} aria-expanded={open}
       onClick={showPicker}
-      className="flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border border-outline/15 bg-overlay/[0.06] px-4 py-3.5 text-left text-base text-foreground outline-none transition hover:border-sky-400/50 focus-visible:border-sky-400/60 focus-visible:ring-4 focus-visible:ring-sky-400/10 disabled:cursor-not-allowed disabled:opacity-40">
+      className="vehicle-picker-trigger flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border border-outline/15 bg-overlay/[0.06] px-4 py-3.5 text-left text-base text-foreground outline-none transition hover:border-sky-400/50 focus-visible:border-sky-400/60 focus-visible:ring-4 focus-visible:ring-sky-400/10 disabled:cursor-not-allowed disabled:opacity-40">
       <span id={valueId} className={`min-w-0 break-words ${value ? "" : "text-subtle"}`}>{value || placeholder}</span>
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" className="h-4 w-4 shrink-0"><path d="m5 7 5 5 5-5" /></svg>
     </button>

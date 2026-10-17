@@ -19,17 +19,24 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --background: #f5f8fc;
-  --foreground: #142238;
+  --foreground: #0d192b;
   --panel: #ffffff;
   --overlay: #264467;
   --outline: #264467;
-  --muted: #45566c;
-  --subtle: #52657b;
-  --link: #03658d;
+  --muted: #2a3c52;
+  --subtle: #3c4e64;
+  --link: #005578;
   --success: #126448;
   --warning: #805000;
   --danger: #a62045;
   --purple: #6d28d9;
+}
+
+/* Keep unavailable vehicle choices readable without fading all their text. */
+:root[data-theme="light"] .vehicle-picker-trigger:disabled {
+  opacity: 1;
+  background-color: #f3f6f9;
+  color: var(--subtle);
 }
 
 @theme inline {
