@@ -42,6 +42,7 @@ export default function SiteMenu() {
     {open && <div id={panelId} className="absolute right-0 top-full mt-3 w-64 max-w-[calc(100vw-2rem)] rounded-2xl border border-outline/20 bg-panel p-3 text-foreground shadow-2xl">
       <nav aria-label="Mekivo menu" className="grid gap-1 text-sm font-semibold">
         <Link href="/" onClick={close} className="rounded-xl px-3 py-3 text-link hover:bg-overlay/5">Home</Link>
+        <Link href="/vehicle-check" onClick={close} className="rounded-xl px-3 py-3 text-link hover:bg-overlay/5">Free car check (tax & MOT)</Link>
         <Link href="/guides" onClick={close} className="rounded-xl px-3 py-3 text-link hover:bg-overlay/5">Buying & parts guides</Link>
         <Link href="/account" onClick={close} className="rounded-xl px-3 py-3 text-link hover:bg-overlay/5">My account & saved items</Link>
         <Link href="/support" onClick={close} className="rounded-xl px-3 py-3 text-link hover:bg-overlay/5">Help & feedback</Link>

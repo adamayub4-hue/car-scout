@@ -14,7 +14,7 @@ export default function VehicleCheckPage() {
     <div className="mx-auto max-w-3xl">
       <SiteHeader />
       <div className="py-7 sm:py-9">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-link">Free vehicle check</p>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-link">Free car check</p>
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Check tax and MOT for free</h1>
         <p className="mt-3 max-w-2xl text-base leading-7 text-muted">Enter a registration for vehicle details, tax and MOT status, and available due dates. No account or payment needed.</p>
         <p className="mt-3 text-xs leading-6 text-muted">Vehicle records from DVLA; model details from DVSA when available. Mekivo is an independent service, not endorsed by DVLA or DVSA.</p>

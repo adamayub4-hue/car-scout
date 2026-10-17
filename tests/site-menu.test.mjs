@@ -101,7 +101,7 @@ test('Escape closes the menu and returns keyboard focus to its trigger', () => {
 test('navigation, tabbing outside and the menu toggle all close the open panel', () => {
   const app = menu();
   app.click();
-  assert.equal(app.links().length, 4);
+  assert.equal(app.links().length, 5);
   app.click(app.links()[0]);
   assert.equal(app.button().props['aria-expanded'], false, 'Home also closes when already on Home');
   app.click();

@@ -412,7 +412,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
         )}
 
     <Link href="/vehicle-check" className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-outline/15 bg-panel p-5 transition hover:border-sky-400/40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">
-      <span><span className="block font-bold">Check vehicle tax & MOT</span><span className="mt-1 block text-sm text-muted">See status and due dates where available.</span></span><span aria-hidden="true" className="shrink-0 text-xl text-link">→</span>
+      <span><span className="block font-bold">Free car check</span><span className="mt-1 block text-sm text-muted">Tax & MOT status, vehicle details and available due dates.</span></span><span aria-hidden="true" className="shrink-0 text-xl text-link">→</span>
     </Link>
         <details className="mt-6 rounded-2xl border border-outline/15 bg-panel px-4 py-3 text-sm"><summary className="cursor-pointer font-semibold text-muted">How Mekivo works</summary><div className="pt-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
