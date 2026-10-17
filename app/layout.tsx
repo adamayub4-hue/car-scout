@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Suspense } from "react";
 import { SiteAnalytics } from "./components/site-analytics";
@@ -6,6 +7,14 @@ import { AppearanceRuntime } from "./components/appearance";
 import { ReturnVisitPreference } from "./components/return-visit-preference";
 import MobileNavigation from "./components/mobile-navigation";
 import { siteName, siteUrl, siteTitle, siteDescription, siteStructuredData } from "./lib/site-brand";
+
+const mekivoSans = localFont({
+  src: "./fonts/geist-latin.woff2",
+  variable: "--font-mekivo-sans",
+  weight: "100 900",
+  display: "swap",
+  fallback: ["Arial", "Helvetica", "sans-serif"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -45,7 +54,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+    <html lang="en" className={`${mekivoSans.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: `(()=>{let p='system';try{const s=localStorage.getItem('mekivo-appearance');if(s==='light'||s==='dark')p=s}catch{}document.documentElement.dataset.appearance=p;document.documentElement.dataset.theme=p==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p})()` }} />
       </head>
