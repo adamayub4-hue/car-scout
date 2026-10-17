@@ -171,7 +171,7 @@ test('clicking views exposes exactly one panel and preserves the live and price 
   assert.equal(shortlist.props.items, app.props.items);
   app.click(app.button('Other sites'));
   assertTabWiring(app, 'Other sites');
-  assert.equal(nodes(activePanel(app)).filter(node => node.type === 'a').length, 8);
+  assert.equal(nodes(activePanel(app)).filter(node => node.type === 'a').length, 10);
   app.click(app.button('Live cars'));
   assertTabWiring(app, 'Live cars');
   assert.deepEqual(app.events, [], 'view navigation is neither a search nor an outbound click');
@@ -307,15 +307,15 @@ test('loading and failed replacement searches do not expose stale counts or part
 });
 
 test('platform selection determines available views and only exposes its prepared marketplaces', () => {
-  const destinations = ['autotrader', 'facebook', 'motors', 'gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic'];
+  const destinations = ['autotrader', 'facebook', 'motors', 'gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic', 'carwow'];
   for (const platform of ['all', 'ebay', 'more', ...destinations]) {
     const submitted = carSearch({ platform }), app = results({ search: submitted });
     const expected = platform === 'all' ? destinations : platform === 'ebay' ? []
-      : platform === 'more' ? ['gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic'] : [platform];
+      : platform === 'more' ? ['gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic', 'carwow'] : [platform];
     const live = platform === 'all' || platform === 'ebay';
     assert.deepEqual(tabs(app).map(text), [...(live ? ['Live cars', 'Price picks'] : []), ...(platform !== 'ebay' ? ['Other sites'] : [])], platform);
     assertTabWiring(app, live ? 'Live cars' : 'Other sites');
-    assert.deepEqual(app.nodes().filter(node => node.type === 'a').map(node => node.props.href), expected.map(id => submitted.carLinks[id]), platform);
+    assert.deepEqual(app.nodes().filter(node => node.type === 'a').map(node => node.props.href), [...expected.map(id => submitted.carLinks[id]), ...(platform === 'ebay' ? [] : ['https://motorway.co.uk/'])], platform);
     assert.equal(app.nodes().some(node => node.type === LiveListings), live);
     if (!live) {
       assert.equal(app.key(selectedTab(app), 'ArrowRight'), true);
@@ -331,7 +331,7 @@ test('other-site cards disclose filter limitations and emit one event only on ac
   assert.match(text(activePanel(app)), /live listings inside Mekivo come from eBay/);
   assert.match(text(activePanel(app)), /budget, location and other filters may need to be set again/);
   const details = nodes(activePanel(app)).filter(node => node.type === 'details');
-  assert.equal(details.length, 8);
+  assert.equal(details.length, 9);
   assert.ok(details.every(node => !node.props.open), 'filter explanations start collapsed');
   const link = app.one(node => node.type === 'a' && node.props.href === app.props.search.carLinks.motors);
   assert.equal(link.props.target, '_blank');
@@ -354,6 +354,21 @@ test('Facebook access and CarGurus manual selection are explained before expandi
   app.update({ search: carSearch({ platform: 'facebook' }) });
   assert.match(withoutDetails(activePanel(app)), /Use your personal Facebook profile. Pages cannot use Marketplace/);
   assert.deepEqual(app.events, [], 'reading handoff requirements does not count as an outbound click');
+});
+
+test('Carwow is a manual car selector while Motorway is clearly a separate valuation and selling service', () => {
+  const app = results({ search: carSearch({ platform: 'carwow' }) });
+  const link = app.one(node => node.type === 'a' && node.props.href === 'https://www.carwow.co.uk/used-cars');
+  assert.match(text(link), /Choose car on Carwow/);
+  assert.match(text(activePanel(app)), /Choose your make, model and budget on Carwow/);
+  app.click(link);
+  assert.equal(app.events.length, 1);
+  assert.equal(app.events[0][1].marketplace, 'carwow');
+  const seller = app.one(node => node.type === 'a' && node.props.href === 'https://motorway.co.uk/');
+  assert.match(text(seller), /valuation on Motorway/);
+  assert.equal(seller.props.onClick, undefined, 'selling services do not inflate buyer marketplace clicks');
+  assert.match(text(activePanel(app)), /service fee applies if a sale completes/);
+  assert.match(text(activePanel(app)), /does not provide buyer listings inside Mekivo/);
 });
 
 function listings(overrides = {}) {

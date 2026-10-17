@@ -453,9 +453,9 @@ test('marketplaces show names, car and part splits and highest totals first, wit
   const collapsed = [...html.matchAll(/<details\b([^>]*)>([\s\S]*?)<\/details>/g)]
     .find(([, , body]) => body.includes('Marketplaces with no clicks this period'));
   assert.ok(collapsed); assert.doesNotMatch(collapsed[1], /open/);
-  assert.match(collapsed[2], /Show 6 marketplaces with no clicks/);
+  assert.match(collapsed[2], /Show 7 marketplaces with no clicks/);
   assert.deepEqual(tableRows(collapsed[2], 'Marketplaces with no clicks this period'), [
-    ['AA Cars', '0', '0', '0', '0'], ['Auto Trader', '0', '0', '0', '0'], ['CarGurus', '0', '0', '0', '0'],
+    ['AA Cars', '0', '0', '0', '0'], ['Auto Trader', '0', '0', '0', '0'], ['CarGurus', '0', '0', '0', '0'], ['Carwow', '0', '0', '0', '0'],
     ['Gumtree', '0', '0', '0', '0'], ['MOTORS', '0', '0', '0', '0'], ['PistonHeads', '0', '0', '0', '0'],
   ]);
 });
@@ -492,8 +492,8 @@ test('a genuine zero-click period stays distinct from unavailable and older repo
   }
   const zero = view({ outboundClicks: 0, marketplaceClicks: marketplaceRows() });
   assert.match(zero, /No marketplace clicks recorded for this period/);
-  assert.match(zero, /Show 9 marketplaces with no clicks/);
-  assert.equal(tableRows(zero, 'Marketplaces with no clicks this period').length, 9);
+  assert.match(zero, /Show 10 marketplaces with no clicks/);
+  assert.equal(tableRows(zero, 'Marketplaces with no clicks this period').length, 10);
   assert.equal(card(zero, 'Listing clicks'), '0');
   assert.doesNotMatch(zero, /marketplace breakdown is temporarily unavailable/);
   const empty = view({ outboundClicks: 0, marketplaceClicks: [] });

@@ -7,7 +7,7 @@ export type SavedSearchItem = {
   data: Record<string, unknown>;
 };
 
-const platforms = ["all", "more", "autotrader", "facebook", "ebay", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"];
+const platforms = ["all", "more", "autotrader", "facebook", "ebay", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic", "carwow"];
 const text = (value: unknown, max = 80) => typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, max) : "";
 const carSorts = ["best_match", "price_asc", "price_desc", "newest"];
 

@@ -15,7 +15,7 @@ export function ebayBuyingFormat(options: unknown): EbayBuyingFormat {
   if (options.includes("CLASSIFIED_AD")) formats.push("classified");
   return formats.length > 1 ? "mixed" : formats[0] ?? "unknown";
 }
-export type MarketplaceId = "autotrader" | "facebook" | "ebay" | "motors" | "gumtree" | "cargurus" | "pistonheads" | "aacars" | "carandclassic";
+export type MarketplaceId = "autotrader" | "facebook" | "ebay" | "motors" | "gumtree" | "cargurus" | "pistonheads" | "aacars" | "carandclassic" | "carwow";
 export type Platform = "all" | "more" | MarketplaceId;
 export type VehicleFields = { make: string; model: string; year: string; engine: string; fuel: string; bodyStyle: string };
 export type PartSearchFields = VehicleFields & { part: string; partNumber: string; partCategory: string; partMethod: string };
@@ -120,6 +120,9 @@ export function buildCarLinks(fields: CarSearchFields): Partial<Record<Marketpla
     pistonheads: `https://www.pistonheads.com/buy/search?${pistonHeads}`,
     aacars: `https://www.theaa.com/used-cars/displaycars?${aaCars}`,
     carandclassic: `https://www.carandclassic.com/search?q=${encodeURIComponent(query)}`,
+    // Carwow's public used-car entry point does not document a portable query
+    // contract. Let the visitor choose their vehicle and filters there.
+    carwow: "https://www.carwow.co.uk/used-cars",
   };
 }
 
@@ -140,6 +143,7 @@ export function marketplaceFilterNote(id: MarketplaceId, hasExtras = false) {
     ? "Maximum price and any accompanying minimum carried across. Year and selected extras are search terms. Confirm the equipment with the seller and check location, sorting and other filters on PistonHeads. Set a minimum-only budget there."
     : "Maximum price and any accompanying minimum carried across. Year is a search term. Check location, sorting and other filters on PistonHeads. Set a minimum-only budget there.";
   if (id === "cargurus") return "Choose make and model on CarGurus, then set your budget, year, extras and location there.";
+  if (id === "carwow") return "Choose make and model on Carwow, then set your budget, year, extras and location there. Your Mekivo filters are not carried across.";
   if (id === "facebook") return hasExtras
     ? "Opens a keyword search including selected extras. Use a personal Facebook profile with Marketplace access. Check budget, year and location filters on Facebook and confirm the equipment with the seller."
     : "Opens a keyword search. Use a personal Facebook profile with Marketplace access. Check budget, year and location filters on Facebook.";

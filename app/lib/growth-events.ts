@@ -53,7 +53,7 @@ function campaignProperty() {
 }
 
 type EventProperties = Record<string, string | number | boolean>;
-const marketplaces = ["all", "more", "autotrader", "facebook", "ebay", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"];
+const marketplaces = ["all", "more", "autotrader", "facebook", "ebay", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic", "carwow"];
 const searchMethods = ["vehicle", "diagram", "catalogue", "search", "part_number"];
 
 function choice(value: unknown, allowed: readonly string[]) {

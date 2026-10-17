@@ -187,7 +187,7 @@ test('owner traffic verifies the bearer with Supabase and queries only the verif
   assert.deepEqual(body.marketplaceClicks, [
     { marketplace: 'ebay', cars: 4, parts: 2, clicks: 6 },
     { marketplace: 'autotrader', cars: 3, parts: 0, clicks: 3 },
-    ...['facebook', 'motors', 'gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic'].map(marketplace => ({ marketplace, cars: 0, parts: 0, clicks: 0 })),
+    ...['facebook', 'motors', 'gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic', 'carwow'].map(marketplace => ({ marketplace, cars: 0, parts: 0, clicks: 0 })),
     { marketplace: 'unclassified', cars: null, parts: null, clicks: 2 },
   ]);
   assert.equal(body.sources[0].source, 'Direct / unknown');
@@ -443,7 +443,7 @@ test('an empty valid provider dataset means zero, including missing event groups
   assert.equal(report.outboundClicks, 0);
   assert.deepEqual(report.appUsage, { appVisitors: 0, browserVisitors: 0, appOpens: 0, confirmedInstalls: 0 });
   assert.deepEqual(report.clicksByDestination, { ebayCars: 0, ebayParts: 0, otherMarketplaces: 0, unclassified: 0 });
-  assert.equal(report.marketplaceClicks.length, 10);
+  assert.equal(report.marketplaceClicks.length, 11);
   assert.ok(report.marketplaceClicks.every(row => row.clicks === 0));
   assert.ok(report.marketplaceClicks.filter(row => row.marketplace !== 'unclassified').every(row => row.cars === 0 && row.parts === 0));
   assert.deepEqual(report.sources, []);
@@ -787,6 +787,7 @@ test('named marketplaces combine destination contexts while keeping car and part
     { marketplace: 'pistonheads', cars: 8, parts: 0, clicks: 8 },
     { marketplace: 'aacars', cars: 9, parts: 0, clicks: 9 },
     { marketplace: 'carandclassic', cars: 10, parts: 0, clicks: 10 },
+    { marketplace: 'carwow', cars: 0, parts: 0, clicks: 0 },
     { marketplace: 'unclassified', cars: null, parts: null, clicks: 65 },
   ]);
   assert.deepEqual(report.clicksByDestination, { ebayCars: 9, ebayParts: 12, otherMarketplaces: 54, unclassified: 65 });
@@ -850,7 +851,7 @@ test('top-100 contexts plus the provider Others row retain all clicks as unclass
     : isFunnelEventsQuery(url) ? { data: [{ eventName: 'marketplace_outbound', count: 107 }] } : fixture(url)) });
   const report = await (await h.get()).json();
   assert.equal(report.partial, false);
-  assert.equal(report.marketplaceClicks.length, 10);
+  assert.equal(report.marketplaceClicks.length, 11);
   assert.deepEqual(report.marketplaceClicks.find(row => row.marketplace === 'unclassified'), { marketplace: 'unclassified', cars: null, parts: null, clicks: 107 });
   assert.equal(report.marketplaceClicks.reduce((sum, row) => sum + row.clicks, 0), report.outboundClicks);
 });

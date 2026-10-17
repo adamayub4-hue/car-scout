@@ -154,6 +154,19 @@ test('Facebook handoff discloses personal-profile access and manual marketplace 
   }
 });
 
+test('Carwow keeps the chosen search when saved and honestly opens its manual used-car selector', () => {
+  const result = search.createCarSearch({ make: 'Volkswagen', model: 'Golf', year: '2018', price: '5000', minPrice: '500', postcode: 'B1 1AA', platform: 'carwow', carExtras: ['heated_seats'] });
+  assert.equal(result.carLinks.carwow, 'https://www.carwow.co.uk/used-cars');
+  assert.equal(new URL(result.carLinks.carwow).search, '');
+  assert.match(search.marketplaceFilterNote('carwow', true), /Your Mekivo filters are not carried across/);
+  const href = saved.getSavedSearchUrl(result.saveItem);
+  const restored = saved.parseSavedSearchParams(new URL(href, 'https://mekivo.uk').searchParams);
+  assert.equal(restored.platform, 'carwow');
+  assert.equal(restored.make, 'Volkswagen');
+  assert.equal(restored.price, '5000');
+  assert.equal(result.carLinks.motorway, undefined, 'Motorway must not become buyer inventory');
+});
+
 test('car extras are canonical copied selections while the submitted query keeps its vehicle criteria', () => {
   const input = { make: 'Volkswagen', model: 'Golf', year: '2018', price: '5000', postcode: '', platform: 'all', carExtras: ['panoramic_roof', 'heated_seats', 'heated_seats', 'invalid', 'owner@example.test'] };
   const before = JSON.stringify(input);

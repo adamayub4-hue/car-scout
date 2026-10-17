@@ -350,3 +350,45 @@ test('motorbike price picks retain seller links, saving, affiliate attribution a
   const empty = exports.default({ ...props, items: [] });
   assert.match(text(empty), /matching complete motorbike listing/); assert.doesNotMatch(text(empty), /full-car|Live cars/);
 });
+
+
+test('cars and motorbikes keep budget in one collapsed More filters section before the main search', () => {
+  for (const initialVehicleType of ['cars', 'motorbikes']) {
+    const app = page('', { initialMode: 'cars', initialVehicleType });
+    const details = app.one(node => node.type === 'details' && nodes(node).some(child => child.type === 'summary' && /^More filters/.test(text(child))));
+    assert.equal(details.props.open, undefined);
+    assert.equal(nodes(details).filter(node => node.type === 'input' && node.props.id === 'search-budget').length, 1);
+    const mainSearch = app.button(initialVehicleType === 'motorbikes' ? 'Search eBay motorbikes' : 'Search all marketplaces');
+    assert.ok(!nodes(details).includes(mainSearch), 'the main search remains available when filters are closed');
+    assert.ok(app.nodes().indexOf(details) < app.nodes().indexOf(mainSearch), 'More filters replaces the old primary budget position');
+    app.change(app.field('Maximum budget'), '1000');
+    assert.equal(text(app.one(node => node.type === 'summary' && /^More filters/.test(text(node)))), 'More filters · 1 selected');
+    app.click(app.button(initialVehicleType === 'motorbikes' ? 'Search eBay motorbikes' : 'Search all marketplaces'));
+    assert.equal(new URL(app.requests[0].url, 'https://local.test').searchParams.get('maxPrice'), '1000');
+    assert.equal(app.results().props.search.maxPrice, '1000');
+  }
+});
+
+test('marketplace select exposes every destination and preserves uncommon restored choices without submitting on change', () => {
+  const app = page('?restore=1&mode=cars&platform=gumtree&price=5000');
+  const select = app.field('Where to search');
+  assert.equal(select.type, 'select');
+  assert.equal(select.props.value, 'gumtree');
+  assert.equal(select.props['aria-describedby'], 'car-marketplace-help');
+  const choices = nodes(select).filter(node => node.type === 'option');
+  assert.deepEqual(choices.map(node => node.props.value).sort(), ['all', 'more', 'autotrader', 'facebook', 'ebay', 'motors', 'gumtree', 'cargurus', 'pistonheads', 'aacars', 'carandclassic', 'carwow'].sort());
+  assert.ok(choices.every(node => node.props.className.includes('bg-panel') && node.props.className.includes('text-foreground')), 'native options use the active theme colors');
+  assert.match(select.props.className, /bg-panel/);
+  assert.equal(app.field('Maximum budget').props.value, '5000');
+  assert.equal(text(app.one(node => node.type === 'summary' && /^More filters/.test(text(node)))), 'More filters · 2 selected');
+  app.change(select, 'all');
+  assert.equal(app.field('Where to search').props.value, 'all');
+  assert.equal(app.requests.length, 0, 'changing the marketplace only updates the draft');
+  assert.deepEqual(app.events, []);
+  app.click(app.button('Search all marketplaces'));
+  assert.equal(app.requests.length, 1);
+  assert.equal(app.results().props.search.platform, 'all');
+  assert.equal(app.results().props.search.maxPrice, '5000');
+  app.navigate('motorbikes');
+  assert.ok(!app.nodes().some(node => node.props.id === 'car-marketplace'), 'motorbike search remains eBay-only');
+});

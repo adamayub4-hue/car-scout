@@ -107,3 +107,27 @@ test('changing make clears a stale model and resetting clears visible and submit
   assert.equal(app.picker('Model').props.disabled, true);
   assert.equal(fields.run, '1', 'reset preserves the intentional quick-search route behavior');
 });
+
+
+test('homepage keeps budget inside a collapsed More filters control above its search action', () => {
+  const app = homeSearch();
+  const details = nodes(app.render()).find(node => node.type === 'details');
+  assert.ok(details);
+  assert.equal(details.props.open, undefined, 'native disclosure starts closed');
+  assert.ok(nodes(details).some(node => node.type === 'input' && node.props.name === 'price'));
+  const summary = () => nodes(app.render()).find(node => node.type === 'summary');
+  assert.deepEqual(Array.from(summary().props.children), ['More filters', '']);
+  const order = nodes(app.render());
+  assert.ok(order.indexOf(order.find(node => node.type === 'details')) < order.indexOf(order.find(node => node.type === 'button' && node.props.type === 'submit')));
+  app.changeBudget('5000');
+  assert.deepEqual(Array.from(summary().props.children), ['More filters', ' · 1 selected']);
+  assert.equal(app.fields().find(node => node.props.name === 'price').props.value, '5000', 'a closed disclosure still submits the chosen budget');
+  app.form().props.onReset();
+  assert.deepEqual(Array.from(summary().props.children), ['More filters', '']);
+});
+
+test('invalid homepage budget opens its filter disclosure for native validation feedback', () => {
+  const app = homeSearch(), attributes = [];
+  app.budget().props.onInvalid({ currentTarget: { closest(selector) { assert.equal(selector, 'details'); return { setAttribute: (...args) => attributes.push(args) }; } } });
+  assert.deepEqual(attributes, [['open', '']]);
+});

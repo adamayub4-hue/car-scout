@@ -8,7 +8,7 @@ export const OWNER_TRAFFIC_FIRST_RECORDED_DATE = "2026-09-16";
 export type OwnerTrafficRange = (typeof OWNER_TRAFFIC_RANGES)[number];
 export type OwnerTrafficDates = { from: string; to: string };
 export type OwnerTrafficClicks = { ebayCars: number; ebayParts: number; ebayMotorbikes?: number; otherMarketplaces: number; unclassified: number };
-export const OWNER_TRAFFIC_MARKETPLACES = ["ebay", "autotrader", "facebook", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"] as const;
+export const OWNER_TRAFFIC_MARKETPLACES = ["ebay", "autotrader", "facebook", "motors", "gumtree", "cargurus", "pistonheads", "aacars", "carandclassic", "carwow"] as const;
 export type OwnerTrafficMarketplace = (typeof OWNER_TRAFFIC_MARKETPLACES)[number] | "unclassified";
 export const OWNER_TRAFFIC_MARKETPLACE_LABELS: Record<OwnerTrafficMarketplace, string> = {
   ebay: "eBay",
@@ -20,6 +20,7 @@ export const OWNER_TRAFFIC_MARKETPLACE_LABELS: Record<OwnerTrafficMarketplace, s
   pistonheads: "PistonHeads",
   aacars: "AA Cars",
   carandclassic: "Car & Classic",
+  carwow: "Carwow",
   unclassified: "Unidentified destination",
 };
 export type OwnerTrafficMarketplaceRow = {

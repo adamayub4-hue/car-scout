@@ -62,6 +62,7 @@ const platformNames: Record<Platform, string> = {
   pistonheads: "PistonHeads",
   aacars: "AA Cars",
   carandclassic: "Car & Classic",
+  carwow: "Carwow",
 };
 
 const years = Array.from(
@@ -235,6 +236,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
 
   const isMotorbikes = mode === "cars" && vehicleType === "motorbikes";
   const vehiclePlural = isMotorbikes ? "motorbikes" : "cars";
+  const selectedCarFilterCount = [price, year, minPrice, postcode, ...carExtras, !isMotorbikes && platform !== "all" ? platform : ""].filter(Boolean).length;
   const vehicleReady = Boolean(make && model && year);
   const vehicleLabel = [year, make, model, engine, fuel, bodyStyle].filter(Boolean).join(" ");
   const electricOnly = /^electric/i.test(fuel.trim());
@@ -420,7 +422,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
           <ol className="mt-4 grid gap-3 sm:grid-cols-3">
             {(mode === "cars"
               ? [
-                  ["1", isMotorbikes ? "Search eBay motorbikes" : "Choose where to search", isMotorbikes ? "Browse live motorbike listings from eBay." : "Not sure? Leave All platforms selected."],
+                  ["1", isMotorbikes ? "Search eBay motorbikes" : "Choose where to search", isMotorbikes ? "Browse live motorbike listings from eBay." : "Not sure? Leave All marketplaces selected."],
                   ["2", "Enter what you know", "Choose a budget, or add a make and model to narrow it down."],
                   ["3", "Browse your results", isMotorbikes ? "Press Search to browse live motorbikes and price picks." : "Press Search to browse eBay cars here, or open another site."],
                 ]
@@ -450,58 +452,27 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
         {restoredSearch && !showResults && <p role="status" className="mx-auto mb-3 max-w-4xl rounded-xl border border-sky-400/25 bg-sky-400/10 p-3 text-sm text-muted">Your saved search is ready. Check the details and press Search for current listings.</p>}
           {mode === "cars" ? (
             <>
-              {!isMotorbikes && platform !== "all" && platform !== "more" && <p className="mb-4 rounded-xl border border-outline/10 p-3 text-sm leading-6 text-muted">{marketplaceFilterNote(platform, carExtras.length > 0)}</p>}
               <div className="grid gap-4 sm:grid-cols-2">
                 <VehiclePicker id="car-make" label="Make" optional ref={carMakeRef} value={make} options={isMotorbikes ? motorbikeMakes : Object.keys(makes)} placeholder="Any make" onChange={value => { setMake(value); setModel(""); setShowResults(false); }} />
                 <VehiclePicker id="car-model" label="Model" optional value={model} options={isMotorbikes ? [] : vehicleModelsForMake(makes, make)} placeholder={isMotorbikes ? "Any model, e.g. MT-07" : "Any model"} onChange={value => { setModel(value); setShowResults(false); }} />
               </div>
-              <div className="mt-4">
-                <label htmlFor="search-budget" className="mb-2 block text-sm text-muted">Maximum budget (£) <span className="text-subtle">(optional)</span></label>
-                <div className="relative"><span aria-hidden="true" className="absolute inset-y-0 left-4 flex items-center text-base font-semibold text-muted">£</span>
-                  <input id="search-budget" value={price} onChange={event => { setPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="Any budget" aria-describedby="car-budget-help" className={`${fieldClass} pl-9`} />
+              <details className="mt-4 rounded-2xl border border-outline/15 bg-panel p-4">
+                <summary className="min-h-6 cursor-pointer text-sm font-semibold text-link">More filters{selectedCarFilterCount > 0 ? ` · ${selectedCarFilterCount} selected` : ""}</summary>
+                <div className="mt-4">
+                  <label htmlFor="search-budget" className="mb-2 block text-sm text-muted">Maximum budget (£) <span className="text-subtle">(optional)</span></label>
+                  <div className="relative"><span aria-hidden="true" className="absolute inset-y-0 left-4 flex items-center text-base font-semibold text-muted">£</span>
+                    <input id="search-budget" value={price} onChange={event => { setPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="Any budget" aria-describedby="car-budget-help" className={`${fieldClass} pl-9`} />
+                  </div>
                 </div>
-              </div>
-              {error && (
-                <p role="alert" className="mt-4 text-sm text-danger">
-                  {error}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={handleCarSearch}
-                className="mt-5 min-h-12 w-full rounded-2xl bg-sky-400 px-5 py-3.5 text-base font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link"
-              >
-                {isMotorbikes ? "Search eBay motorbikes" : `Search ${platformNames[platform]}`}
-              </button>
-              <p id="car-budget-help" className="mt-3 text-xs leading-5 text-muted">All fields are optional. A £500 budget finds live eBay {vehiclePlural} at £500 or less. Other marketplaces may need their filters set again.</p>
-              <details className="mt-4 rounded-2xl border border-outline/10 p-4">
-                <summary className="min-h-6 cursor-pointer text-sm font-semibold text-link">More filters{[year, minPrice, postcode, ...carExtras].filter(Boolean).length > 0 ? ` · ${[year, minPrice, postcode, ...carExtras].filter(Boolean).length} selected` : ""}</summary>
-{!isMotorbikes && <details className="mb-4 rounded-xl border border-outline/10 p-3">
-                <summary className="cursor-pointer text-sm font-semibold text-foreground">Search: {platformNames[platform]} · Change</summary>
-                <p className="mt-1 text-xs leading-5 text-muted">Choose one marketplace, or keep All platforms selected for the widest search.</p>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {(["all", "autotrader", "facebook", "ebay", "motors", "more"] as Platform[]).map(
-                    (item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        aria-pressed={platform === item}
-                        onClick={() => {
-                          setPlatform(item);
-                          setShowResults(false);
-                        }}
-                        className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition ${
-                          platform === item
-                            ? "border-sky-400/50 bg-sky-400/15 text-link"
-                            : "border-outline/10 bg-overlay/[0.04] text-muted hover:border-outline/20 hover:text-foreground"
-                        }`}
-                      >
-                        {item === "all" ? "All platforms" : item === "more" ? "More platforms" : platformNames[item]}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </details>}
+                <p id="car-budget-help" className="mt-2 text-xs leading-5 text-muted">A £500 budget finds live eBay {vehiclePlural} at £500 or less. Other marketplaces may need their filters set again.</p>
+                {!isMotorbikes && <div className="mt-4">
+                  <label htmlFor="car-marketplace" className="mb-2 block text-sm text-muted">Where to search</label>
+                  <select id="car-marketplace" value={platform} onChange={event => { setPlatform(event.target.value as Platform); setShowResults(false); setError(""); }} aria-describedby="car-marketplace-help" className="min-h-12 w-full rounded-2xl border border-outline/20 bg-panel px-4 py-3.5 text-base text-foreground outline-none focus:border-sky-400/60 focus:ring-4 focus:ring-sky-400/10">
+                    {Object.entries(platformNames).map(([value, label]) => <option key={value} value={value} className="bg-panel text-foreground">{value === "all" ? "All marketplaces" : value === "more" ? "More marketplaces" : label}</option>)}
+                  </select>
+                  <p id="car-marketplace-help" className="mt-2 text-xs leading-5 text-muted">Choose a marketplace, or leave All marketplaces selected to compare sites. Searches open on the selected site; live eBay results are shown here.</p>
+                  {platform !== "all" && platform !== "more" && <p className="mt-2 text-xs leading-5 text-muted">{marketplaceFilterNote(platform, carExtras.length > 0)}</p>}
+                </div>}
                 <div className="mt-4 flex flex-wrap gap-2" aria-label={isMotorbikes ? "Quick motorbike budgets" : "Quick car budgets"}>
                   {[500, 1000, 2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && !minPrice && carSort === "price_asc"} onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }} className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link aria-pressed:bg-sky-400/10">Up to £{amount.toLocaleString("en-GB")}</button>)}
                 </div>
@@ -543,8 +514,11 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                 <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. {isMotorbikes ? "Results include listings located in the UK; distance is not filtered here." : "Only Auto Trader and eBay links carry your postcode. Set your location on other sites; distance is not filtered here."}</p>
               </div>
               <button type="button" onClick={() => { setMake(""); setModel(""); setYear(""); setMinPrice(""); setPlatform(isMotorbikes ? "ebay" : "all"); setCarSort("price_asc"); setHideUnwanted(true); setCarExtras([]); setPostcode(""); setShowResults(false); setError(""); }} className="mt-3 min-h-11 text-sm font-semibold text-link">Use any make and year within this budget</button>
-                <button type="button" onClick={handleCarSearch} className="mt-4 min-h-12 w-full rounded-2xl bg-sky-400 px-5 py-3.5 text-base font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">Apply filters and search</button>
               </details>
+              {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
+              <button type="button" onClick={handleCarSearch} className="mt-5 min-h-12 w-full rounded-2xl bg-sky-400 px-5 py-3.5 text-base font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">
+                {isMotorbikes ? "Search eBay motorbikes" : `Search ${platformNames[platform]}`}
+              </button>
               <p className="mt-3 text-center text-xs leading-5 text-muted">{isMotorbikes ? "Browse live eBay motorbikes here and open the original listing to check every detail." : "Browse live eBay cars here, or open your search on another marketplace."}</p>
             </>
           ) : (

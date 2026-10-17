@@ -30,7 +30,7 @@ test('default and explicit cars preserve every existing destination, field and s
   assert.equal(Object.hasOwn(original, 'vehicleType'), false);
   assert.equal(Object.hasOwn(original.saveItem.data, 'vehicleType'), false);
   assert.equal(new URL(original.fallbackUrl).searchParams.get('_sacat'), '9801');
-  assert.equal(Object.keys(original.carLinks).length, 9);
+  assert.equal(Object.keys(original.carLinks).length, 10);
   const url = saved.getSavedSearchUrl(original.saveItem);
   assert.equal(params(url).has('vehicle_type'), false);
   assert.equal(saved.parseSavedSearchParams(params(url)).vehicleType, undefined);

@@ -19,8 +19,9 @@ const marketplaces = [
   { id: "pistonheads", name: "PistonHeads" },
   { id: "aacars", name: "AA Cars" },
   { id: "carandclassic", name: "Car & Classic" },
+  { id: "carwow", name: "Carwow" },
 ] as const;
-const moreMarketplaceIds: MarketplaceId[] = ["gumtree", "cargurus", "pistonheads", "aacars", "carandclassic"];
+const moreMarketplaceIds: MarketplaceId[] = ["gumtree", "cargurus", "pistonheads", "aacars", "carandclassic", "carwow"];
 type View = "live" | "prices" | "marketplaces";
 export type CarSearchInfo = { checkedCount: number; pagesChecked: number; hasMore: boolean; partial: boolean };
 
@@ -111,13 +112,19 @@ export default function CarSearchResults({ search, items, loading, error, search
               onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: item.id, search_type: searchType, destination: "search_results" })}
               className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">
               <h4 className="min-h-10 text-sm font-bold sm:min-h-0">{item.name}</h4>
-              <span className="mt-2 inline-block text-xs font-semibold text-link">{item.id === "cargurus" ? "Choose car on CarGurus ↗" : "Open search ↗"}</span>
+              <span className="mt-2 inline-block text-xs font-semibold text-link">{item.id === "cargurus" || item.id === "carwow" ? `Choose car on ${item.name} ↗` : "Open search ↗"}</span>
             </a>
             {item.id === "facebook" && <p className="mt-2 text-xs leading-5 text-muted">Use your personal Facebook profile. Pages cannot use Marketplace.</p>}
             {item.id === "cargurus" && <p className="mt-2 text-xs leading-5 text-muted">Choose your make and model on CarGurus.</p>}
+            {item.id === "carwow" && <p className="mt-2 text-xs leading-5 text-muted">Choose your make, model and budget on Carwow.</p>}
             <details className="mt-3 text-xs leading-5 text-subtle"><summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-sky-400">Filters carried across</summary><p className="mt-2">{marketplaceFilterNote(item.id, requestedExtras.length > 0)}</p></details>
           </div>)}
         </div>
+        <aside className="mt-4 rounded-xl border border-outline/15 bg-panel p-4">
+          <h4 className="text-sm font-bold">Valuing or selling your current car?</h4>
+          <a href="https://motorway.co.uk/" target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center rounded-md text-sm font-semibold text-link underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">Get a valuation on Motorway ↗</a>
+          <p className="mt-1 text-xs leading-5 text-muted">Motorway offers a free estimated valuation and a selling service with dealer bids. A service fee applies if a sale completes. It does not provide buyer listings inside Mekivo.</p>
+        </aside>
       </section>}
     </div>)}
     <SaveButton item={search.saveItem} label="Save search" />
