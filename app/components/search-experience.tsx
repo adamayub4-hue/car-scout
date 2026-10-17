@@ -457,63 +457,72 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                 <VehiclePicker id="car-model" label="Model" optional value={model} options={isMotorbikes ? [] : vehicleModelsForMake(makes, make)} placeholder={isMotorbikes ? "Any model, e.g. MT-07" : "Any model"} onChange={value => { setModel(value); setShowResults(false); }} />
               </div>
               <details className="mt-4 rounded-2xl border border-outline/15 bg-panel p-4">
-                <summary className="min-h-6 cursor-pointer text-sm font-semibold text-link">More filters{selectedCarFilterCount > 0 ? ` · ${selectedCarFilterCount} selected` : ""}</summary>
-                <div className="mt-4">
-                  <label htmlFor="search-budget" className="mb-2 block text-sm text-muted">Maximum budget (£) <span className="text-subtle">(optional)</span></label>
-                  <div className="relative"><span aria-hidden="true" className="absolute inset-y-0 left-4 flex items-center text-base font-semibold text-muted">£</span>
-                    <input id="search-budget" value={price} onChange={event => { setPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="Any budget" aria-describedby="car-budget-help" className={`${fieldClass} pl-9`} />
+                <summary className="min-h-11 cursor-pointer py-2.5 text-sm font-semibold text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">More filters{selectedCarFilterCount > 0 ? ` · ${selectedCarFilterCount} selected` : ""}</summary>
+                <fieldset className="mt-4 min-w-0" aria-describedby="car-budget-help">
+                  <legend className="text-sm font-semibold text-foreground">Price range (£)</legend>
+                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    <label className="min-w-0 text-xs text-muted">
+                      <span className="mb-2 block">Minimum price</span>
+                      <input value={minPrice} onChange={event => { setMinPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="No min" className={`${fieldClass} min-w-0 px-3`} />
+                    </label>
+                    <label htmlFor="search-budget" className="min-w-0 text-xs text-muted">
+                      <span className="mb-2 block">Maximum budget</span>
+                      <input id="search-budget" value={price} onChange={event => { setPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="No max" className={`${fieldClass} min-w-0 px-3`} />
+                    </label>
                   </div>
+                  <p id="car-budget-help" className="mt-2 text-xs leading-5 text-muted">Leave either blank for no limit. Other sites may need their price filters set again.</p>
+                </fieldset>
+                <div className={`mt-4 grid gap-3 ${isMotorbikes ? "sm:grid-cols-2" : "grid-cols-2"}`}>
+                  <label className="min-w-0 text-sm text-muted">
+                    <span className="mb-2 block">Year</span>
+                    <select value={year} onChange={(event) => { setYear(event.target.value); setShowResults(false); }} className={`${fieldClass} min-w-0 px-3`}>
+                      <option value="">Any year</option>
+                      {years.map((item) => <option key={item}>{item}</option>)}
+                    </select>
+                  </label>
+                  {!isMotorbikes && <label className="min-w-0 text-sm text-muted">
+                    <span className="mb-2 block">Postcode</span>
+                    <input
+                      value={postcode}
+                      onChange={(event) => {
+                        setPostcode(event.target.value.toUpperCase());
+                        setShowResults(false);
+                      }}
+                      placeholder="B1 1AA"
+                      className={`${fieldClass} min-w-0 px-3`}
+                    />
+                  </label>}
                 </div>
-                <p id="car-budget-help" className="mt-2 text-xs leading-5 text-muted">A £500 budget finds live eBay {vehiclePlural} at £500 or less. Other marketplaces may need their filters set again.</p>
                 {!isMotorbikes && <div className="mt-4">
                   <label htmlFor="car-marketplace" className="mb-2 block text-sm text-muted">Where to search</label>
                   <select id="car-marketplace" value={platform} onChange={event => { setPlatform(event.target.value as Platform); setShowResults(false); setError(""); }} aria-describedby="car-marketplace-help" className="min-h-12 w-full rounded-2xl border border-outline/20 bg-panel px-4 py-3.5 text-base text-foreground outline-none focus:border-sky-400/60 focus:ring-4 focus:ring-sky-400/10">
                     {Object.entries(platformNames).map(([value, label]) => <option key={value} value={value} className="bg-panel text-foreground">{value === "all" ? "All marketplaces" : value === "more" ? "More marketplaces" : label}</option>)}
                   </select>
-                  <p id="car-marketplace-help" className="mt-2 text-xs leading-5 text-muted">Choose a marketplace, or leave All marketplaces selected to compare sites. Searches open on the selected site; live eBay results are shown here.</p>
-                  {platform !== "all" && platform !== "more" && <p className="mt-2 text-xs leading-5 text-muted">{marketplaceFilterNote(platform, carExtras.length > 0)}</p>}
+                  <p id="car-marketplace-help" className="mt-2 text-xs leading-5 text-muted">{platform !== "all" && platform !== "more" ? marketplaceFilterNote(platform, carExtras.length > 0) : "Live eBay results appear here. Other marketplaces open on their own sites."}</p>
                 </div>}
-                <div className="mt-4 flex flex-wrap gap-2" aria-label={isMotorbikes ? "Quick motorbike budgets" : "Quick car budgets"}>
-                  {[500, 1000, 2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && !minPrice && carSort === "price_asc"} onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }} className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link aria-pressed:bg-sky-400/10">Up to £{amount.toLocaleString("en-GB")}</button>)}
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <label className="text-sm text-muted"><span className="mb-2 block">Minimum price (£) <span className="text-subtle">(optional)</span></span><input value={minPrice} onChange={event => { setMinPrice(event.target.value.replace(/\D/g, "")); setShowResults(false); }} inputMode="numeric" placeholder="No minimum" className={fieldClass} /></label>
-                <label className="text-sm text-muted">
-                  <span className="mb-2 block">Year <span className="text-subtle">(optional)</span></span>
-                  <select value={year} onChange={(event) => { setYear(event.target.value); setShowResults(false); }} className={fieldClass}>
-                    <option value="">Any year</option>
-                    {years.map((item) => <option key={item}>{item}</option>)}
-                  </select>
-                </label>
-                {!isMotorbikes && <label className="text-sm text-muted">
-                  <span className="mb-2 block">Postcode</span>
-                  <input
-                    value={postcode}
-                    onChange={(event) => {
-                      setPostcode(event.target.value.toUpperCase());
-                      setShowResults(false);
-                    }}
-                    placeholder="B1 1AA"
-                    className={fieldClass}
-                  />
-                </label>}
-                </div>
-              {!isMotorbikes && <CarExtraFilters value={carExtras} onChange={extras => { setCarExtras(extras); setShowResults(false); setError(""); }} />}
-              <div className="mt-3 rounded-2xl border border-outline/10 bg-overlay/[0.025] p-4">
-                <div className="grid gap-4 sm:grid-cols-2 sm:items-center">
-                  <label className="text-sm text-muted"><span className="mb-2 block">Sort live {vehiclePlural}</span>
-                    <select value={carSort} onChange={event => { setCarSort(event.target.value as typeof carSort); setShowResults(false); }} className={fieldClass}>
-                      <option value="price_asc">Lowest price first</option><option value="price_desc">Highest price first</option><option value="newest">Newly listed</option><option value="best_match">Best match</option>
-                    </select>
-                  </label>
-                  <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm text-muted">
-                    <input type="checkbox" checked={hideUnwanted} onChange={event => { setHideUnwanted(event.target.checked); setShowResults(false); }} className="mt-1 h-5 w-5 shrink-0 accent-sky-400" />
-                    <span><strong className="block font-semibold text-foreground">Hide parts, repair and deposit adverts</strong><span className="mt-1 block text-xs leading-5">Checks listing titles and condition. It cannot confirm a {isMotorbikes ? "motorbike’s" : "car’s"} history or roadworthiness.</span></span>
-                  </label>
-                </div>
-                <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. {isMotorbikes ? "Results include listings located in the UK; distance is not filtered here." : "Only Auto Trader and eBay links carry your postcode. Set your location on other sites; distance is not filtered here."}</p>
-              </div>
-              <button type="button" onClick={() => { setMake(""); setModel(""); setYear(""); setMinPrice(""); setPlatform(isMotorbikes ? "ebay" : "all"); setCarSort("price_asc"); setHideUnwanted(true); setCarExtras([]); setPostcode(""); setShowResults(false); setError(""); }} className="mt-3 min-h-11 text-sm font-semibold text-link">Use any make and year within this budget</button>
+                {!isMotorbikes && <CarExtraFilters value={carExtras} onChange={extras => { setCarExtras(extras); setShowResults(false); setError(""); }} />}
+                <details className="mt-4 border-t border-outline/10 pt-3">
+                  <summary className="min-h-11 cursor-pointer py-2.5 text-sm font-semibold text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">Quick budgets</summary>
+                  <div className="mt-3 flex flex-wrap gap-2" aria-label={isMotorbikes ? "Quick motorbike budgets" : "Quick car budgets"}>
+                    {[500, 1000, 2000, 5000, 10000].map(amount => <button key={amount} type="button" aria-pressed={price === String(amount) && !minPrice && carSort === "price_asc"} onClick={() => { setPrice(String(amount)); setMinPrice(""); setCarSort("price_asc"); setShowResults(false); setError(""); }} className="min-h-11 rounded-xl border border-outline/15 px-3 py-2 text-sm font-semibold text-link aria-pressed:bg-sky-400/10">Up to £{amount.toLocaleString("en-GB")}</button>)}
+                  </div>
+                </details>
+                <details className="mt-3 border-t border-outline/10 pt-3">
+                  <summary className="min-h-11 cursor-pointer py-2.5 text-sm font-semibold text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">Search options{carSort !== "price_asc" || !hideUnwanted ? " · changed" : ""}</summary>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2 sm:items-center">
+                    <label className="text-sm text-muted"><span className="mb-2 block">Sort live {vehiclePlural}</span>
+                      <select value={carSort} onChange={event => { setCarSort(event.target.value as typeof carSort); setShowResults(false); }} className={fieldClass}>
+                        <option value="price_asc">Lowest price first</option><option value="price_desc">Highest price first</option><option value="newest">Newly listed</option><option value="best_match">Best match</option>
+                      </select>
+                    </label>
+                    <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm text-muted">
+                      <input type="checkbox" checked={hideUnwanted} onChange={event => { setHideUnwanted(event.target.checked); setShowResults(false); }} className="mt-1 h-5 w-5 shrink-0 accent-sky-400" />
+                      <span><strong className="block font-semibold text-foreground">Hide parts, repair and deposit adverts</strong><span className="mt-1 block text-xs leading-5">Checks listing titles and condition, not vehicle history or roadworthiness.</span></span>
+                    </label>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-subtle">Sorting and advert checks apply to live eBay results. {isMotorbikes ? "Results include listings located in the UK; distance is not filtered here." : "Only Auto Trader and eBay links carry your postcode. Set your location on other sites; distance is not filtered here."}</p>
+                  <button type="button" onClick={() => { setMake(""); setModel(""); setYear(""); setMinPrice(""); setPlatform(isMotorbikes ? "ebay" : "all"); setCarSort("price_asc"); setHideUnwanted(true); setCarExtras([]); setPostcode(""); setShowResults(false); setError(""); }} className="mt-3 min-h-11 text-sm font-semibold text-link">Use any make and year within this budget</button>
+                </details>
               </details>
               {error && <p role="alert" className="mt-4 text-sm text-danger">{error}</p>}
               <button type="button" onClick={handleCarSearch} className="mt-5 min-h-12 w-full rounded-2xl bg-sky-400 px-5 py-3.5 text-base font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">

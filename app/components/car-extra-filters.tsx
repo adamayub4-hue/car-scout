@@ -7,12 +7,12 @@ export default function CarExtraFilters({ value, onChange }: {
   onChange: (extras: CarExtra[]) => void;
 }) {
   const groups = [...new Set(carExtras.map(extra => extra.group))];
-  return <details className="mt-4 rounded-2xl border border-outline/15 bg-overlay/[0.025] p-4">
-    <summary className="min-h-11 cursor-pointer rounded-lg text-sm font-bold text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">
-      Advanced filters
-      <span className="ml-2 text-xs font-normal text-muted">{value.length ? `${value.length} ${value.length === 1 ? "extra" : "extras"} selected` : "Seats, roofs, parking and more"}</span>
+  return <details className="mt-4 border-t border-outline/10 pt-3">
+    <summary className="min-h-11 cursor-pointer rounded-lg text-sm font-semibold text-link focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">
+      Extras
+      <span className="ml-2 text-xs font-normal text-muted">{value.length ? `${value.length} selected` : "Seats, roof, parking"}</span>
     </summary>
-    <p id="car-extras-help" className="mb-4 text-sm leading-6 text-muted">Choose extras you want the advert to mention. Every selected extra must appear in its title or summary; some adverts leave equipment out. Confirm the specification and that it works with the seller.</p>
+    <p id="car-extras-help" className="mb-4 text-xs leading-5 text-muted">Matches extras mentioned in the advert, so equipment left out of its wording may be missed. Confirm the specification and condition with the seller.</p>
     <div className="space-y-5">
       {groups.map(group => <fieldset key={group} aria-describedby="car-extras-help">
         <legend className="mb-2 text-sm font-semibold text-foreground">{group}</legend>
