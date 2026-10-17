@@ -99,6 +99,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
   const [vehicleLookupLoading, setVehicleLookupLoading] = useState(false);
   const [partMethod, setPartMethod] = useState<PartMethod | "">("");
   const [part, setPart] = useState("");
+  const [lensPartName, setLensPartName] = useState("");
   const [partNumber, setPartNumber] = useState("");
   const [partCategory, setPartCategory] = useState("");
   const [error, setError] = useState("");
@@ -112,6 +113,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
   const ebayRequest = useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
   const vehicleLookupRequest = useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
   const vehicleFieldsRef = useRef<HTMLDivElement>(null);
+  const partNameRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const carSearchFormRef = useRef<HTMLElement>(null);
   const carMakeRef = useRef<HTMLButtonElement>(null);
@@ -177,13 +179,27 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
   };
 
   const resetPartsBelowVehicle = (nextFuel = fuel) => {
-    if (partMethod !== "diagram") {
+    if (partMethod === "search" && lensPartName && part === lensPartName) {
+      // Keep the general name while the customer adds their vehicle.
+      setPartCategory(""); setPartNumber("");
+    } else if (partMethod !== "diagram") {
       setPartMethod(""); setPartCategory(""); setPart(""); setPartNumber("");
     } else if (/^electric/i.test(fuel.trim()) !== /^electric/i.test(nextFuel.trim())) {
       setPartCategory(""); setPart("");
     }
     setShowResults(false);
     setError("");
+  };
+
+  const chooseLensPart = (name: string) => {
+    setLensPartName(name); setPartMethod("search"); setPart(name);
+    setPartNumber(""); setPartCategory(""); setShowResults(false); setError("");
+    setVehicleDetailsOpen(true);
+    requestAnimationFrame(() => {
+      const target = make && model && year ? partNameRef.current : vehicleFieldsRef.current;
+      target?.scrollIntoView({ block: "start", behavior: "instant" });
+      if (target === partNameRef.current) partNameRef.current?.focus({ preventScroll: true });
+    });
   };
 
   const handleVehicleLookup = async () => {
@@ -560,10 +576,16 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                 </div>
               </div>
 
-              <GoogleLensHelp />
-              <button type="button" aria-pressed={partMethod === "diagram"} onClick={() => { setPartMethod("diagram"); setPartNumber(""); setShowResults(false); setError(""); requestAnimationFrame(() => guideRef.current?.scrollIntoView({ block: "start", behavior: "instant" })); }} className="mb-4 flex w-full items-center justify-between gap-4 rounded-2xl border border-outline/15 bg-overlay/[0.025] p-4 text-left focus-visible:outline-2 focus-visible:outline-sky-400">
-                <span><strong className="block text-base">Browse the parts picture guide</strong><span className="mt-1 block text-sm text-muted">Explore common parts first. Add your vehicle when you are ready to search.</span></span><span aria-hidden="true" className="text-2xl text-link">→</span>
-              </button>
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-muted">Need the part name?</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <GoogleLensHelp onChoose={chooseLensPart} />
+                  <button type="button" aria-label="Browse the parts picture guide" aria-pressed={partMethod === "diagram"} onClick={() => { setLensPartName(""); setPartMethod("diagram"); setPartNumber(""); setShowResults(false); setError(""); requestAnimationFrame(() => guideRef.current?.scrollIntoView({ block: "start", behavior: "instant" })); }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-outline/20 px-3 py-3 text-sm font-semibold transition hover:border-sky-400/50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true" className="h-5 w-5 shrink-0"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8" cy="8" r="1.5" /><path d="m3 17 5-5 4 4 3-3 6 6" /></svg>
+                    Picture guide
+                  </button>
+                </div>
+              </div>
               {partMethod === "diagram" && <div ref={guideRef} className="mb-5 scroll-mt-4">
                 <DiagramExplorer category={partCategory} part={part} fuel={fuel} onCategory={(value) => { setPartCategory(value); setPart(""); setShowResults(false); setError(""); }} onPart={(value) => { setPart(value); setShowResults(false); setError(""); }} />
                 {part && <div className="mt-3 rounded-xl border border-outline/10 p-4"><p className="mb-3 text-sm text-muted">{vehicleReady ? `Search for ${part} for your ${vehicleLabel}.` : `Selected: ${part}. Add your make, model and year to find listings.`}</p><button type="button" onClick={() => { if (vehicleReady) void handlePartsSearch(); else { setVehicleDetailsOpen(true); requestAnimationFrame(() => vehicleFieldsRef.current?.scrollIntoView({ block: "start", behavior: "instant" })); } }} className="w-full rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950">{vehicleReady ? "Search matching listings" : "Add vehicle details"}</button></div>}
@@ -654,7 +676,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                     </label>
                     <label className="text-sm text-muted">
                       <span className="mb-2 block">Fuel</span>
-                      <select value={fuel} onChange={(event) => { setFuel(event.target.value); setPartCategory(""); setPart(""); resetPartsBelowVehicle(); }} className={fieldClass}>
+                      <select value={fuel} onChange={(event) => { setFuel(event.target.value); if (!(partMethod === "search" && lensPartName && part === lensPartName)) { setPartCategory(""); setPart(""); } resetPartsBelowVehicle(event.target.value); }} className={fieldClass}>
                         <option value="">Not sure</option>
                         <option>Petrol</option>
                         <option>Diesel</option>
@@ -700,6 +722,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                         type="button"
                         aria-pressed={partMethod === id}
                         onClick={() => {
+                          setLensPartName("");
                           setPartMethod(id);
                           if (id === "diagram") requestAnimationFrame(() => guideRef.current?.scrollIntoView({ block: "start", behavior: "instant" }));
                           setPartCategory("");
@@ -776,7 +799,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       <label className="text-sm text-muted">
                         <span className="mb-2 block">Part name</span>
-                        <input value={part} onChange={(event) => { setPart(event.target.value); setShowResults(false); setError(""); }} placeholder="e.g. front brake pads" className={fieldClass} />
+                        <input ref={partNameRef} value={part} onChange={(event) => { setLensPartName(""); setPart(event.target.value); setShowResults(false); setError(""); }} placeholder="e.g. front brake pads" className={fieldClass} />
                       </label>
                       <label className="text-sm text-muted">
                         <span className="mb-2 block">Part number <span className="text-subtle">(optional)</span></span>

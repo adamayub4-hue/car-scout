@@ -313,7 +313,7 @@ function requestsHarness() {
     setMode: value => { state.mode = value; }, setShowResults() {}, setError() {},
     setVehicleType() {}, setPlatform() {}, setMake() {}, setModel() {}, setYear() {}, setEngine() {}, setFuel() {}, setBodyStyle() {}, setCarExtras: value => { state.carExtras = value; },
     setRegistration() {}, setVehicleLookup() {}, setSubmittedSearch() {}, setRestoredSearch() {}, setVehicleDetailsOpen() {},
-    setPartMethod() {}, setPartCategory() {}, setPart() {}, setPartNumber() {}, setVehicleLookupLoading() {},
+    setPartMethod() {}, setLensPartName() {}, setPartCategory() {}, setPart() {}, setPartNumber() {}, setVehicleLookupLoading() {},
     vehicleLookupRequest: { current: { id: 0, controller: null } },
     trackGrowthEvent: (...args) => events.push(args),
     setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id),
@@ -638,12 +638,12 @@ test('registration lookup invalidates a retained diagram part when DVLA identifi
 test('opening the picture guide clears an earlier direct OEM number', () => {
   let expression;
   function visit(node) {
-    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'button' && node.getText(ast).includes('Browse the parts picture guide')) expression = node.openingElement.attributes.properties.find(attribute => attribute.name?.getText(ast) === 'onClick').initializer.expression.getText(ast);
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'button' && node.openingElement.attributes.properties.some(attribute => attribute.name?.getText(ast) === 'aria-label' && attribute.initializer?.text === 'Browse the parts picture guide')) expression = node.openingElement.attributes.properties.find(attribute => attribute.name?.getText(ast) === 'onClick').initializer.expression.getText(ast);
     ts.forEachChild(node, visit);
   }
   visit(ast); assert.ok(expression);
   const code = ts.transpileModule(`const run = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
   let number = '1K0698151F', method = 'search';
-  const run = vm.runInNewContext(`${code}\nrun`, { setPartMethod: value => { method = value; }, setPartNumber: value => { number = value; }, setShowResults() {}, setError() {}, requestAnimationFrame: fn => fn(), guideRef: { current: null } });
+  const run = vm.runInNewContext(`${code}\nrun`, { setLensPartName() {}, setPartMethod: value => { method = value; }, setPartNumber: value => { number = value; }, setShowResults() {}, setError() {}, requestAnimationFrame: fn => fn(), guideRef: { current: null } });
   run(); assert.equal(method, 'diagram'); assert.equal(number, '');
 });
