@@ -80,6 +80,49 @@ test('every real route renders its own article and breadcrumb data with matching
   }
 });
 
+test('MOT and V5C quick-start cards lead to the relevant checks without adding another card', () => {
+  for (const [slug, officialHref, nextHref] of [
+    ['checking-mot-history', 'https://www.gov.uk/check-mot-history', '/vehicle-check'],
+    ['checking-v5c-logbook', 'https://www.gov.uk/get-vehicle-information-from-dvla', '#check-the-document'],
+  ]) {
+    const guide = guides.find(entry => entry.slug === slug);
+    const markup = renderToStaticMarkup(React.createElement(Article, { guide }));
+    const cards = [...markup.matchAll(/<section aria-labelledby="guide-search-title"[^>]*>(.*?)<\/section>/g)];
+    assert.equal(cards.length, 1);
+    const card = cards[0][1];
+    assert.ok(card.includes(`href="${officialHref}"`));
+    assert.ok(card.includes(`href="${nextHref}"`));
+    assert.equal(card.includes('Search UK cars'), false);
+    assert.ok(markup.includes('Search for a car</a>'), 'the later car-search action remains available');
+    if (slug === 'checking-mot-history') {
+      assert.ok(card.includes('Open GOV.UK MOT history'));
+      assert.ok(card.includes('Check current tax and MOT status'), 'current status stays distinct from full history');
+    } else {
+      assert.ok(card.includes('not proof of ownership'));
+      assert.ok(markup.includes('id="check-the-document"'), 'the document-check action resolves within this article');
+    }
+  }
+});
+
+test('other guides keep the existing car or parts search card and picture-guide action', () => {
+  for (const guide of guides.filter(entry => !['checking-mot-history', 'checking-v5c-logbook'].includes(entry.slug))) {
+    const markup = renderToStaticMarkup(React.createElement(Article, { guide }));
+    const card = markup.match(/<section aria-labelledby="guide-search-title"[^>]*>(.*?)<\/section>/)[1];
+    if (guide.category === 'parts') {
+      assert.ok(card.includes('Ready to look for a part?'));
+      assert.ok(card.includes('href="/?mode=parts"'));
+      assert.ok(card.includes('Search by part number'));
+      assert.ok(card.includes('href="/?mode=parts&amp;guide=1"'));
+      assert.ok(card.includes('Find a part by picture'));
+      assert.ok(card.includes('does not confirm fitment'));
+    } else {
+      assert.ok(card.includes('Find cars within your budget'));
+      assert.ok(card.includes('href="/?mode=cars"'));
+      assert.ok(card.includes('Search UK cars'));
+    }
+  }
+});
+
 test('structured data cannot close its script when content contains HTML', () => {
   const guide = { ...guides[0], title: '</script><script>alert(1)</script>' };
   const serialized = serializeStructuredData(guideStructuredData(guide));

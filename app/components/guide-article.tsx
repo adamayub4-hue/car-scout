@@ -11,6 +11,21 @@ export default function GuideArticle({ guide }: { guide: Guide }) {
   const related = guides.filter((entry) => guide.relatedSlugs.includes(entry.slug));
   const isPartsGuide = guide.category === "parts";
   const searchHref = isPartsGuide ? "/?mode=parts" : "/?mode=cars";
+  const quickCheck = guide.slug === "checking-mot-history" ? {
+    title: "Check MOT history for free",
+    description: "Use the registration number to open the official record, then check test results, mileage and advisories.",
+    href: "https://www.gov.uk/check-mot-history",
+    label: "Open GOV.UK MOT history",
+    nextHref: "/vehicle-check",
+    nextLabel: "Check current tax and MOT status",
+  } : guide.slug === "checking-v5c-logbook" ? {
+    title: "Checking a V5C logbook?",
+    description: "Compare the document with the car and DVLA’s vehicle record. A V5C identifies the registered keeper; it is not proof of ownership.",
+    href: "https://www.gov.uk/get-vehicle-information-from-dvla",
+    label: "Check the DVLA vehicle record",
+    nextHref: "#check-the-document",
+    nextLabel: "What to check on the logbook",
+  } : null;
   return (
     <main className="min-h-screen bg-background px-4 py-10 text-foreground">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeStructuredData(guideStructuredData(guide)) }} />
@@ -29,12 +44,13 @@ export default function GuideArticle({ guide }: { guide: Guide }) {
           {guide.intro.map((paragraph) => <p key={paragraph} className="mt-5 text-lg leading-8 text-muted">{paragraph}</p>)}
         </header>
         <section aria-labelledby="guide-search-title" className="mt-8 rounded-2xl border border-sky-400/30 bg-sky-400/[0.06] p-5">
-          <h2 id="guide-search-title" className="text-lg font-bold">{isPartsGuide ? "Ready to look for a part?" : "Find cars within your budget"}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">{isPartsGuide
+          <h2 id="guide-search-title" className="text-lg font-bold">{quickCheck?.title ?? (isPartsGuide ? "Ready to look for a part?" : "Find cars within your budget")}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">{quickCheck?.description ?? (isPartsGuide
             ? "Use an OEM or manufacturer number to search live eBay parts on Mekivo. Check compatibility with the seller before buying."
-            : "Choose your budget to browse live eBay cars, or open your search on other UK marketplaces."}</p>
+            : "Choose your budget to browse live eBay cars, or open your search on other UK marketplaces.")}</p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link href={searchHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-400 px-5 py-3 text-center font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">{isPartsGuide ? "Search by part number" : "Search UK cars"}</Link>
+            <Link href={quickCheck?.href ?? searchHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-400 px-5 py-3 text-center font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">{quickCheck?.label ?? (isPartsGuide ? "Search by part number" : "Search UK cars")}</Link>
+            {quickCheck && <Link href={quickCheck.nextHref} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-400/30 px-4 py-3 text-center font-semibold text-link transition hover:bg-sky-400/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">{quickCheck.nextLabel}</Link>}
             {isPartsGuide && <Link href="/?mode=parts&guide=1" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-400/30 px-4 py-3 text-center font-semibold text-link transition hover:bg-sky-400/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">Find a part by picture</Link>}
           </div>
           {isPartsGuide && <p className="mt-3 text-xs leading-5 text-subtle">The picture guide helps with part names; it does not confirm fitment.</p>}
