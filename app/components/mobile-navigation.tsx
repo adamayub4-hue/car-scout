@@ -37,7 +37,7 @@ export default function MobileNavigation() {
           : item.href === "/vehicle-check" ? pathname === "/vehicle-check"
           : item.label === "Account" ? pathname === "/account" || pathname.startsWith("/account/") : false;
         return <Link key={item.label} href={item.href} aria-label={item.href === "/vehicle-check" ? "Free car check — tax and MOT" : undefined} aria-current={active ? "page" : undefined}
-          className={`flex min-h-16 min-w-0 flex-col items-center justify-start gap-1 rounded-xl px-1 py-2 text-[11px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-link ${active ? "text-link" : "text-muted hover:text-foreground"}`}>
+          className={`flex min-h-16 min-w-0 flex-col items-center justify-start gap-1 rounded-xl px-0 py-2 text-[11px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-link ${active ? "text-link" : "text-muted hover:text-foreground"}`}>
           <span className={`grid h-8 w-11 shrink-0 place-items-center rounded-full ${active ? "bg-sky-400/10" : ""}`}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-5 w-5"><path d={item.path} /></svg>
           </span>
