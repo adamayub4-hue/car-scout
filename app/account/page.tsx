@@ -15,8 +15,9 @@ type SavedItem = {
   data: Record<string, unknown>;
   created_at: string;
 };
+type DeleteSelection = { userId: string; email: string; version: number };
 
-const inputClass = "w-full rounded-xl border border-outline/10 bg-overlay/[0.06] px-4 py-3 text-foreground outline-none placeholder:text-subtle focus:border-sky-400/60";
+const inputClass = "w-full rounded-xl border border-outline/10 bg-overlay/[0.06] px-4 py-3 text-foreground outline-none placeholder:text-subtle focus:border-link focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link";
 
 export default function AccountPage() {
   const configured = isSupabaseConfigured();
@@ -25,6 +26,7 @@ export default function AccountPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(configured);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -36,6 +38,14 @@ export default function AccountPage() {
   const [pendingListing, setPendingListing] = useState<{ token: string; item: SavedListingItem } | null>(null);
   const [pendingError, setPendingError] = useState("");
   const [page, setPage] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteSelection | null>(null);
+  const [deleteRequiresRefresh, setDeleteRequiresRefresh] = useState(false);
+  const deleteDialog = useRef<HTMLDialogElement>(null);
+  const deleteCancel = useRef<HTMLButtonElement>(null);
+  const deleteTrigger = useRef<HTMLButtonElement>(null);
+  const deleteSelection = useRef<DeleteSelection | null>(null);
+  const deletePending = useRef(false);
+  const deleteLocked = useRef(false);
   const itemsRequest = useRef(0);
   const adminRequest = useRef(0);
   const activeUserId = useRef<string | null>(null);
@@ -72,7 +82,9 @@ export default function AccountPage() {
       accountVersion.current++;
       itemsRequest.current++; adminRequest.current++;
       actionRunning.current = false;
-      setItems([]); setPage(0); setItemsLoading(false); setItemsError(""); setIsAdmin(false); setBusyAction(""); setMessage("");
+      deleteSelection.current = null; deletePending.current = false; deleteLocked.current = false;
+      setDeleteTarget(null); setDeleteRequiresRefresh(false); deleteDialog.current?.close();
+      setItems([]); setPage(0); setItemsLoading(false); setItemsError(""); setIsAdmin(false); setBusyAction(""); setMessage(""); setAuthSubmitting(false);
     }
     setUser(nextUser); setLoading(false);
     if (nextUser) { void loadItems(nextUser.id); void loadAdminStatus(nextUser.id); }
@@ -108,6 +120,14 @@ export default function AccountPage() {
     }).catch(() => { if (active && authRevision === 0) { setLoading(false); setMessage("We could not check your session. Try signing in again."); } });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       const revision = ++authRevision;
+      // Invalidate confirmation synchronously, before the deferred account load.
+      if ((session?.user.id ?? null) !== activeUserId.current) {
+        accountLifecycle.current++;
+        deleteSelection.current = null;
+        setDeleteTarget(null);
+        if (deletePending.current) { deletePending.current = false; actionRunning.current = false; setBusyAction(""); }
+        deleteDialog.current?.close();
+      }
       // Defer database calls until the auth callback has released its session lock.
       window.setTimeout(() => { if (revision === authRevision) update(session?.user ?? null); }, 0);
     });
@@ -136,7 +156,7 @@ export default function AccountPage() {
     const supabase = getSupabaseBrowserClient();
     if (!supabase || actionRunning.current) return;
     const version = accountVersion.current;
-    actionRunning.current = true; setLoading(true); setMessage("");
+    actionRunning.current = true; setAuthSubmitting(true); setMessage("");
     try {
       const confirmationParams = new URLSearchParams();
       if (returnUrl) confirmationParams.set("returnTo", returnUrl);
@@ -153,7 +173,7 @@ export default function AccountPage() {
         setMessage(isSignUp ? "Your account is ready." : "Welcome back.");
       }
     } catch { if (version === accountVersion.current) setMessage("Sign-in could not be confirmed. Check your connection and try again."); }
-    finally { if (version === accountVersion.current) { actionRunning.current = false; setLoading(false); } }
+    finally { if (version === accountVersion.current) { actionRunning.current = false; setAuthSubmitting(false); } }
   };
 
   const remove = async (id: string) => {
@@ -229,19 +249,56 @@ export default function AccountPage() {
     finally { if (version === accountVersion.current) { actionRunning.current = false; setBusyAction(""); } }
   };
 
+  const openDeleteConfirmation = () => {
+    if (isAdmin || !user || activeUserId.current !== user.id || actionRunning.current || deleteLocked.current || !deleteDialog.current || deleteDialog.current.open) return;
+    const target = { userId: user.id, email: user.email || "this account", version: accountVersion.current };
+    deleteSelection.current = target; setDeleteTarget(target); setMessage("");
+    deleteDialog.current.showModal();
+    deleteCancel.current?.focus({ preventScroll: true });
+  };
+
+  const closeDeleteConfirmation = () => {
+    if (deletePending.current) return;
+    deleteSelection.current = null; setDeleteTarget(null);
+    deleteDialog.current?.close();
+    deleteTrigger.current?.focus({ preventScroll: true });
+  };
+
   const deleteAccount = async () => {
-    if (isAdmin || actionRunning.current || !window.confirm("Permanently delete your Mekivo account and all saved data? This cannot be undone.")) return;
-    const version = accountVersion.current;
-    actionRunning.current = true; setBusyAction("delete"); setMessage("");
+    const target = deleteSelection.current;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase || !target || !user || isAdmin || target.userId !== user.id || activeUserId.current !== target.userId || target.version !== accountVersion.current || actionRunning.current || deletePending.current || deleteLocked.current) return;
+    const version = target.version;
+    const current = () => deleteSelection.current === target && version === accountVersion.current && activeUserId.current === target.userId;
+    actionRunning.current = true; deletePending.current = true; setBusyAction("delete"); setMessage("");
+    let submitted = false;
     try {
-      const { error } = await withRequestDeadline(getSupabaseBrowserClient()!.rpc("delete_my_account"));
+      const auth = await withRequestDeadline(supabase.auth.getUser());
+      if (!current()) return;
+      if (auth.error || auth.data.user?.id !== target.userId) throw new Error("Account changed");
+      const membership = await withRequestDeadline(supabase.from("admins").select("user_id").eq("user_id", target.userId).maybeSingle());
+      if (!current()) return;
+      if (membership.error || membership.data) throw new Error("Account is protected or could not be verified");
+      const session = await withRequestDeadline(supabase.auth.getSession());
+      if (!current()) return;
+      if (session.error || session.data.session?.user.id !== target.userId || !session.data.session.access_token) throw new Error("Account changed");
+      // Bind the destructive request to the selected identity, even if another
+      // tab changes the shared Supabase session before the request is sent.
+      submitted = true;
+      const { error } = await withRequestDeadline(supabase.rpc("delete_my_account").setHeader("Authorization", `Bearer ${session.data.session.access_token}`));
       if (error) throw error;
-      if (version !== accountVersion.current) return;
-      await getSupabaseBrowserClient()!.auth.signOut({ scope: "local" });
-      if (activeUserId.current && activeUserId.current !== user?.id) return;
+      if (!current()) return;
+      await supabase.auth.signOut({ scope: "local" });
+      if (activeUserId.current && activeUserId.current !== target.userId) return;
+      deleteSelection.current = null; deletePending.current = false; setDeleteTarget(null); deleteDialog.current?.close();
       updateAccount(null); setMessage("Your account and stored data were deleted.");
-    } catch { if (version === accountVersion.current) setMessage("Account deletion could not be confirmed. Please contact support before retrying."); }
-    finally { if (version === accountVersion.current) { actionRunning.current = false; setBusyAction(""); } }
+    } catch {
+      if (current()) {
+        deleteLocked.current = submitted;
+        setDeleteRequiresRefresh(submitted);
+        setMessage(submitted ? "Account deletion could not be confirmed and may have completed. Please contact support before retrying." : "Your account could not be verified for deletion. Sign in again and try later.");
+      }
+    } finally { if (version === accountVersion.current) { actionRunning.current = false; deletePending.current = false; setBusyAction(""); } }
   };
 
   const pageSize = 12;
@@ -274,7 +331,7 @@ export default function AccountPage() {
             <p className="mt-3 leading-7 text-muted">Accounts are temporarily unavailable. You can still search for cars and parts without signing in.</p>
           </section>
         ) : loading && !user ? (
-          <p className="mt-12 text-muted">Loading your account…</p>
+          <p role="status" className="mt-12 text-muted">Loading your account…</p>
         ) : user ? (
           <section id="saved-items" className="mt-12 scroll-mt-6">
             <p className="text-xs font-bold uppercase tracking-wider text-link">Your account</p>
@@ -310,23 +367,37 @@ export default function AccountPage() {
             )}
             {!itemsLoading && !itemsError && items.length > pageSize && <nav aria-label="Saved items pages" className="mt-5 flex items-center justify-between gap-3 text-sm"><button type="button" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)} className="min-h-11 rounded-xl border border-outline/15 px-4 py-2 text-link disabled:opacity-40">← Previous</button><p role="status" className="text-muted">{currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, items.length)} of {items.length}</p><button type="button" disabled={(currentPage + 1) * pageSize >= items.length} onClick={() => setPage(currentPage + 1)} className="min-h-11 rounded-xl border border-outline/15 px-4 py-2 text-link disabled:opacity-40">Next →</button></nav>}
             <Link href="/" className="mt-8 inline-flex rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950">Start a new search</Link>
-            <section className="mt-10 border-t border-outline/10 pt-7"><h2 className="text-lg font-bold">Your data</h2><p className="mt-2 text-sm text-muted">Download a copy of the information stored with your account.</p><button type="button" disabled={Boolean(busyAction)} onClick={exportData} className="mt-4 rounded-xl border border-outline/15 px-4 py-2.5 text-sm font-semibold hover:border-sky-300/50">Download my data</button>{isAdmin ? <p className="mt-5 text-xs text-warning">The master owner account cannot be deleted from the customer interface.</p> : <div className="mt-7 border-t border-outline/10 pt-6"><h3 className="font-bold text-danger">Delete account</h3><p className="mt-2 text-sm text-muted">Permanently removes your account, saved cars, parts and searches, reports and activity.</p><button type="button" disabled={Boolean(busyAction)} onClick={deleteAccount} className="mt-4 rounded-xl border border-rose-300/30 px-4 py-2.5 text-sm font-semibold text-danger hover:bg-rose-300/10">Delete my account</button></div>}</section>
+            <section className="mt-10 border-t border-outline/10 pt-7"><h2 className="text-lg font-bold">Your data</h2><p className="mt-2 text-sm text-muted">Download a copy of the information stored with your account.</p><button type="button" disabled={Boolean(busyAction)} onClick={exportData} className="mt-4 rounded-xl border border-outline/15 px-4 py-2.5 text-sm font-semibold hover:border-sky-300/50">Download my data</button>{isAdmin ? <p className="mt-5 text-xs text-warning">The master owner account cannot be deleted from the customer interface.</p> : <div className="mt-7 border-t border-outline/10 pt-6"><h3 className="font-bold text-danger">Delete account</h3><p className="mt-2 text-sm text-muted">Permanently removes your account, saved cars, parts and searches, reports and activity.</p><button ref={deleteTrigger} type="button" disabled={Boolean(busyAction)} onClick={openDeleteConfirmation} aria-haspopup="dialog" className="mt-4 rounded-xl border border-rose-300/30 px-4 py-2.5 text-sm font-semibold text-danger hover:bg-rose-300/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger">Delete my account</button></div>}</section>
           </section>
         ) : (
           <section className="mx-auto mt-12 max-w-md rounded-3xl border border-outline/10 bg-overlay/[0.035] p-6 sm:p-8">
             <p className="text-xs font-bold uppercase tracking-wider text-link">{isSignUp ? "Create account" : "Welcome back"}</p>
             <h1 className="mt-2 text-3xl font-bold">{isSignUp ? "Save your Mekivo data" : "Sign in to Mekivo"}</h1>
-            <form onSubmit={submit} className="mt-7 space-y-4">
+            <form onSubmit={submit} aria-busy={authSubmitting} className="mt-7 space-y-4">
               <label className="block text-sm text-muted">Email<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className={`mt-2 ${inputClass}`} /></label>
               <label className="block text-sm text-muted">Password<input required minLength={8} type="password" autoComplete={isSignUp ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className={`mt-2 ${inputClass}`} /></label>
-              {message && <p role="status" className="text-sm text-link">{message}</p>}
-              <button disabled={loading} className="w-full rounded-xl bg-sky-400 px-5 py-3.5 font-bold text-slate-950 disabled:opacity-60">{loading ? "Please wait…" : isSignUp ? "Create account" : "Sign in"}</button>
+              <button disabled={authSubmitting} className="w-full rounded-xl bg-sky-400 px-5 py-3.5 font-bold text-slate-950 disabled:opacity-60">{authSubmitting ? "Please wait…" : isSignUp ? "Create account" : "Sign in"}</button>
             </form>
-            <button type="button" onClick={() => { setIsSignUp(!isSignUp); setMessage(""); }} className="mt-5 text-sm text-muted hover:text-foreground">{isSignUp ? "Already have an account? Sign in" : "New to Mekivo? Create an account"}</button>
+            <p role="status" className={authSubmitting || message ? "mt-4 text-sm text-link" : "sr-only"}>{authSubmitting ? isSignUp ? "Creating your account…" : "Signing you in…" : message}</p>
+            <button type="button" disabled={authSubmitting} onClick={() => { setIsSignUp(!isSignUp); setMessage(""); }} className="mt-5 text-sm text-muted hover:text-foreground disabled:opacity-60">{isSignUp ? "Already have an account? Sign in" : "New to Mekivo? Create an account"}</button>
             {!isSignUp && <Link href="/forgot-password" className="mt-4 block text-sm text-link hover:text-link">Forgot your password?</Link>}
           </section>
         )}
       </div>
+      <dialog ref={deleteDialog} aria-labelledby="delete-own-account-title" aria-describedby="delete-own-account-description"
+        onCancel={event => { event.preventDefault(); closeDeleteConfirmation(); }}
+        onClick={event => { if (event.target === event.currentTarget) { const bounds = event.currentTarget.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeDeleteConfirmation(); } }}
+        onClose={() => { if (deletePending.current && deleteSelection.current) { deleteDialog.current?.showModal(); return; } deleteSelection.current = null; setDeleteTarget(null); deleteTrigger.current?.focus({ preventScroll: true }); }}
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl border border-outline/20 bg-panel p-5 text-foreground shadow-2xl backdrop:bg-slate-950/70 sm:p-6">
+        <h2 id="delete-own-account-title" className="text-xl font-bold">Permanently delete your account?</h2>
+        <p className="mt-3 break-all font-semibold">{deleteTarget?.email}</p>
+        <p id="delete-own-account-description" className="mt-3 text-sm leading-6 text-muted">This permanently removes your sign-in, profile, saved items, submitted reports and recorded account actions. This cannot be undone.</p>
+        <p role="status" aria-live="polite" className="mt-3 text-sm text-warning">{busyAction === "delete" ? "Deleting your account…" : deleteTarget ? message : ""}</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-3">
+          <button ref={deleteCancel} type="button" disabled={busyAction === "delete"} onClick={closeDeleteConfirmation} className="min-h-11 rounded-lg border border-outline/20 px-4 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link disabled:opacity-50">Cancel</button>
+          <button type="button" disabled={!deleteTarget || busyAction === "delete" || deleteRequiresRefresh} onClick={deleteAccount} className="min-h-11 rounded-lg bg-rose-600 px-4 py-2 font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger disabled:opacity-50">Permanently delete my account</button>
+        </div>
+      </dialog>
     </main>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 const items = [
   { label: "Home", href: "/", path: "M3 10.5 12 3l9 7.5M5.5 9v11h5v-6h3v6h5V9" },
@@ -13,7 +14,22 @@ const items = [
 
 export default function MobileNavigation() {
   const pathname = usePathname();
-  return <nav aria-label="Main navigation" className="mobile-navigation fixed inset-x-0 bottom-0 z-40 border-t border-outline/15 bg-panel md:hidden">
+  const navigationRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (!navigation) return;
+    const updateHeight = () => document.documentElement.style.setProperty("--mekivo-mobile-nav-height", `${Math.ceil(navigation.getBoundingClientRect().height)}px`);
+    updateHeight();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateHeight);
+    observer?.observe(navigation);
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateHeight);
+      document.documentElement.style.removeProperty("--mekivo-mobile-nav-height");
+    };
+  }, []);
+  return <nav ref={navigationRef} aria-label="Main navigation" className="mobile-navigation fixed inset-x-0 bottom-0 z-40 border-t border-outline/15 bg-panel md:hidden">
     <div className="mx-auto grid max-w-xl grid-cols-5 px-2">
       {items.map(item => {
         const active = item.label === "Home" ? pathname === "/"
@@ -21,11 +37,11 @@ export default function MobileNavigation() {
           : item.href === "/vehicle-check" ? pathname === "/vehicle-check"
           : item.label === "Account" ? pathname === "/account" || pathname.startsWith("/account/") : false;
         return <Link key={item.label} href={item.href} aria-label={item.href === "/vehicle-check" ? "Free car check — tax and MOT" : undefined} aria-current={active ? "page" : undefined}
-          className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[11px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-link ${active ? "text-link" : "text-muted hover:text-foreground"}`}>
-          <span className={`grid h-8 w-11 place-items-center rounded-full ${active ? "bg-sky-400/10" : ""}`}>
+          className={`flex min-h-16 min-w-0 flex-col items-center justify-start gap-1 rounded-xl px-1 py-2 text-[11px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-link ${active ? "text-link" : "text-muted hover:text-foreground"}`}>
+          <span className={`grid h-8 w-11 shrink-0 place-items-center rounded-full ${active ? "bg-sky-400/10" : ""}`}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-5 w-5"><path d={item.path} /></svg>
           </span>
-          <span className="whitespace-nowrap">{item.label}</span>
+          <span className="mobile-navigation-label">{item.label}</span>
         </Link>;
       })}
     </div>

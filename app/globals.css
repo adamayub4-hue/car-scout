@@ -95,6 +95,7 @@ select {
 
 /* Keep the last control above the mobile navigation and the device home bar. */
 @media (max-width: 767px) {
-  .mekivo-navigation-space { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+  .mekivo-navigation-space { padding-bottom: max(calc(5rem + env(safe-area-inset-bottom)), calc(var(--mekivo-mobile-nav-height, 4rem) + 1rem)); }
   .mobile-navigation { padding-bottom: env(safe-area-inset-bottom); }
+  .mobile-navigation-label { display: block; width: 100%; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.25; }
 }

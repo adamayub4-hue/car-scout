@@ -36,7 +36,7 @@ function accountHarness(reads, options = {}) {
   const queriedUsers = [], saved = [], cleared = [], signups = [];
   const initialUser = options.user === undefined ? { id: 'test', email: 'test@example.test' } : options.user;
   const client = {
-    auth: { getUser: async () => ({ data: { user: initialUser }, error: null }), onAuthStateChange: callback => { authCallback = callback; return { data: { subscription: { unsubscribe() {} } } }; }, signUp: async value => { signups.push(value); return { data: { user: null, session: null }, error: null }; } },
+    auth: { getUser: async () => ({ data: { user: initialUser }, error: null }), onAuthStateChange: callback => { authCallback = callback; return { data: { subscription: { unsubscribe() {} } } }; }, signInWithPassword: value => options.signIn(value), signUp: async value => { signups.push(value); return { data: { user: null, session: null }, error: null }; } },
     from(table) {
       if (table === 'saved_items') return { select: () => ({ eq: (column, userId) => { assert.equal(column, 'user_id'); queriedUsers.push(userId); return { order: () => reads[readCount++]() }; } }) };
       assert.equal(table, 'admins');
@@ -353,7 +353,7 @@ test('a late sign-in response cannot restore a previous account or release anoth
     getSupabaseBrowserClient: () => ({ auth: { signInWithPassword: () => new Promise(resolve => { finish = resolve; }) } }),
     accountVersion: version, activeUserId: activeUser, actionRunning: guard, returnUrl: null, pendingListing: null,
     email: 'first@example.test', password: 'test-only-password', isSignUp: false, URLSearchParams,
-    setLoading() {}, setMessage: value => messages.push(value), updateAccount: user => updates.push(user),
+    setAuthSubmitting() {}, setMessage: value => messages.push(value), updateAccount: user => updates.push(user),
   });
   const signingIn = run({ preventDefault() {} });
   version.current = 1; activeUser.current = 'second'; guard.current = true;
@@ -361,4 +361,28 @@ test('a late sign-in response cannot restore a previous account or release anoth
   assert.deepEqual(updates, []);
   assert.deepEqual(messages, ['']);
   assert.equal(guard.current, true);
+});
+
+test('a pending sign-in preserves the labelled form and announces progress outside its busy region', async () => {
+  let finish;
+  const h = accountHarness([], { user: null, signIn: () => new Promise(resolve => { finish = resolve; }) });
+  const startup = h.render();
+  assert.ok(startup.nodes.some(node => node.props?.role === 'status' && node.props.children === 'Loading your account…'));
+  await settle();
+  const before = h.render();
+  const form = before.nodes.find(node => node.type === 'form');
+  const pending = form.props.onSubmit({ preventDefault() {} });
+  const busy = h.render();
+  const busyForm = busy.nodes.find(node => node.type === 'form');
+  assert.equal(busyForm.props['aria-busy'], true);
+  assert.equal(busy.nodes.filter(node => node.type === 'input').length, 2);
+  assert.ok(busy.nodes.some(node => node.props?.role === 'status' && node.props.children === 'Signing you in…'));
+  assert.ok(![busyForm.props.children].flat(Infinity).some(node => node?.props?.role === 'status'));
+  finish({ data: { user: null, session: null }, error: { message: 'Invalid login credentials' } });
+  await pending;
+  const failed = h.render();
+  assert.equal(failed.nodes.find(node => node.type === 'form').props['aria-busy'], false);
+  assert.equal(failed.nodes.filter(node => node.type === 'input').length, 2);
+  assert.match(failed.text, /Invalid login credentials/);
+  assert.equal(button(failed, 'Sign in').props.disabled, false);
 });
