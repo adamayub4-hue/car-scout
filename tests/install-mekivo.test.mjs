@@ -24,7 +24,7 @@ function installEvent(prompt = async () => {}, userChoice = Promise.resolve({ ou
   return Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt, userChoice });
 }
 
-function harness({ standalone = false, appleStandalone = false, server = false, noMedia = false } = {}) {
+function harness({ standalone = false, appleStandalone = false, server = false, noMedia = false, userAgent = "" } = {}) {
   const slots = [], effects = [], cleanups = [], windowListeners = new Map(), mediaListeners = new Set();
   let cursor = 0, mounted = false, writes = 0, focuses = 0;
   const media = {
@@ -40,7 +40,7 @@ function harness({ standalone = false, appleStandalone = false, server = false, 
   const exports = {};
   vm.runInNewContext(code, {
     exports,
-    ...(server ? {} : { window: browser, navigator: { standalone: appleStandalone } }),
+    ...(server ? {} : { window: browser, navigator: { standalone: appleStandalone, userAgent } }),
     require(name) {
       if (name === 'react') return {
         useState(initial) {
@@ -88,6 +88,38 @@ test('server rendering and installed standalone launches do not advertise instal
     assert.equal(h.render(), null);
     h.dispatch('beforeinstallprompt', installEvent());
     assert.equal(h.render(), null);
+    h.unmount();
+  }
+});
+
+test('the installed native Android app does not advertise another home-screen installation', () => {
+  for (const version of ['0.3.1-beta', '0.3.1']) {
+    const h = harness({ userAgent: `Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 Mobile Safari/537.36 MekivoApp/${version}` });
+    assert.equal(h.render(), null);
+    let prompts = 0;
+    h.dispatch('beforeinstallprompt', installEvent(async () => { prompts++; }));
+    assert.equal(h.render(), null);
+    assert.equal(h.button(), undefined);
+    assert.equal(prompts, 0);
+    h.unmount();
+  }
+});
+
+test('ordinary mobile browsers keep installation help and a supported user-triggered install offer', async () => {
+  for (const userAgent of [
+    'Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile Safari/604.1',
+    'Mozilla/5.0 OtherMekivoApp/0.3.1',
+  ]) {
+    const h = harness({ userAgent });
+    assert.equal(h.render().type, 'details');
+    let prompts = 0;
+    h.dispatch('beforeinstallprompt', installEvent(async () => { prompts++; }));
+    assert.equal(prompts, 0);
+    h.button().props.onClick();
+    await settle();
+    assert.equal(prompts, 1);
+    assert.match(h.text(), /Installation requested/);
     h.unmount();
   }
 });

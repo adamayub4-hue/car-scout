@@ -12,7 +12,10 @@ type DeferredInstall = { event: InstallPromptEvent; choice: Promise<InstallChoic
 
 function standaloneSnapshot(): boolean | null {
   if (typeof window === "undefined" || typeof navigator === "undefined") return null;
-  return (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+  // The native app is already installed. This marker only hides this promotion;
+  // it is not an authentication or visitor-report exclusion signal.
+  return /(?:^|\s)MekivoApp\/[0-9][0-9A-Za-z.+-]{0,63}(?=\s|$)/.test(navigator.userAgent) ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true ||
     window.matchMedia?.("(display-mode: standalone)").matches === true;
 }
 
