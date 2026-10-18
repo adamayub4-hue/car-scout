@@ -17,7 +17,7 @@ type SavedItem = {
 };
 type DeleteSelection = { userId: string; email: string; version: number };
 
-const inputClass = "w-full rounded-xl border border-outline/10 bg-overlay/[0.06] px-4 py-3 text-foreground outline-none placeholder:text-subtle focus:border-link focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link";
+const inputClass = "w-full rounded-xl border border-outline/10 bg-overlay/[0.06] px-4 py-3 text-foreground placeholder:text-subtle focus:border-link focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link";
 
 export default function AccountPage() {
   const configured = isSupabaseConfigured();
