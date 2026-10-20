@@ -8,7 +8,7 @@ import SocialLinks from "./components/social-links";
 export default function HomePage() {
   return <SearchPageShell active="cars" after={<>
       <Link href="/vehicle-check" className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-outline/15 bg-panel p-5 transition hover:border-sky-400/40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">
-        <span className="font-bold">Check your car’s tax, MOT and insurance</span>
+        <span className="font-bold">Check your car’s tax, MOT and insurance for free</span>
         <span aria-hidden="true" className="shrink-0 text-xl text-link">→</span>
       </Link>
       <div className="mt-6 border-t border-outline/10 pt-6">
