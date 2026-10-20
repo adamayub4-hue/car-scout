@@ -22,6 +22,7 @@ function load(path, overrides = {}) {
   vm.runInNewContext(source, { exports, URL, require(name) {
     if (name in overrides) return overrides[name];
     if (name === './globals.css') return {};
+    if (name === 'next/font/local') return () => ({ variable: '--font-mekivo-sans' });
     // Rendering branding must never mount analytics or browser theme effects.
     if (name === './components/site-analytics') return { SiteAnalytics: () => null };
     if (name === './components/appearance') return { AppearanceRuntime: () => null };

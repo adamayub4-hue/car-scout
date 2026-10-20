@@ -30,7 +30,7 @@ export default function HomeSearch() {
     <details className="mt-4 rounded-2xl border border-outline/15 bg-panel p-4">
       <summary className="min-h-6 cursor-pointer text-sm font-semibold text-link">More filters{price ? " · 1 selected" : ""}</summary>
       <div className="mt-4">
-        <label htmlFor="home-car-budget" className="mb-2 block text-sm text-muted">Maximum budget (£) <span className="text-subtle">(optional)</span></label>
+        <label htmlFor="home-car-budget" className="mb-2 block text-sm text-muted">Maximum budget (£)</label>
         <div className="relative">
           <span aria-hidden="true" className="absolute inset-y-0 left-4 flex items-center text-base font-semibold text-muted">£</span>
           <input id="home-car-budget" name="price" type="text" pattern="[1-9][0-9]{0,8}" title="Enter a whole-pound amount, for example 5000" inputMode="numeric" placeholder="Any budget" value={price} onChange={event => setPrice(event.target.value)} onInvalid={event => event.currentTarget.closest("details")?.setAttribute("open", "")}

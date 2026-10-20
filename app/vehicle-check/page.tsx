@@ -7,6 +7,15 @@ export const metadata: Metadata = {
   title: "Free vehicle tax and MOT check",
   description: "Check a UK vehicle’s tax and MOT status for free by registration, with vehicle details and due dates where available.",
   alternates: { canonical: "/vehicle-check" },
+  twitter: { card: "summary_large_image", title: "Free vehicle tax and MOT check | Mekivo", description: "Check a UK vehicle’s tax and MOT status for free by registration, with vehicle details and due dates where available." },
+  openGraph: {
+    title: "Free vehicle tax and MOT check | Mekivo",
+    description: "Check a UK vehicle’s tax and MOT status for free by registration, with vehicle details and due dates where available.",
+    url: "https://mekivo.uk/vehicle-check",
+    type: "website",
+    siteName: "Mekivo",
+    locale: "en_GB",
+  },
 };
 
 export default function VehicleCheckPage() {

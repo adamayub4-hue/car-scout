@@ -429,7 +429,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
         )}
 
     <Link href="/vehicle-check" className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-outline/15 bg-panel p-5 transition hover:border-sky-400/40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-link">
-      <span><span className="block font-bold">Free car check</span><span className="mt-1 block text-sm text-muted">Tax & MOT status, vehicle details and available due dates.</span></span><span aria-hidden="true" className="shrink-0 text-xl text-link">→</span>
+      <span className="font-bold">Check your car’s tax, MOT and insurance</span><span aria-hidden="true" className="shrink-0 text-xl text-link">→</span>
     </Link>
         <details className="mt-6 rounded-2xl border border-outline/15 bg-panel px-4 py-3 text-sm"><summary className="cursor-pointer font-semibold text-muted">How Mekivo works</summary><div className="pt-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
@@ -668,7 +668,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
 
               {vehicleReady && (
                 <div className="mt-4 rounded-2xl border border-outline/10 bg-overlay/[0.025] p-4">
-                  <p className="text-sm font-semibold text-muted">Add details for a more precise parts search <span className="font-normal text-subtle">(optional)</span></p>
+                  <p className="text-sm font-semibold text-muted">Add details for a more precise parts search</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <label className="text-sm text-muted">
                       <span className="mb-2 block">Engine or variant</span>
@@ -802,7 +802,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
                         <input ref={partNameRef} value={part} onChange={(event) => { setLensPartName(""); setPart(event.target.value); setShowResults(false); setError(""); }} placeholder="e.g. front brake pads" className={fieldClass} />
                       </label>
                       <label className="text-sm text-muted">
-                        <span className="mb-2 block">Part number <span className="text-subtle">(optional)</span></span>
+                        <span className="mb-2 block">Part number</span>
                         <input value={partNumber} onChange={(event) => { setPartNumber(event.target.value); setShowResults(false); setError(""); }} placeholder="OEM or manufacturer number" className={fieldClass} />
                       </label>
                     </div>

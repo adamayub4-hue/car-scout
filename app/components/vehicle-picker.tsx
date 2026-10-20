@@ -59,7 +59,7 @@ const VehiclePicker = forwardRef<HTMLButtonElement, VehiclePickerProps>(function
   }
 
   return <div className="min-w-0 text-sm text-muted">
-    <span id={labelId} className="mb-2 block">{label}{optional && <span className="text-subtle"> (optional)</span>}</span>
+    <span id={labelId} className="mb-2 block">{label}</span>
     <button ref={triggerRef} id={id} type="button" disabled={disabled}
       aria-labelledby={`${labelId} ${valueId}`} aria-haspopup="dialog" aria-controls={dialogId} aria-expanded={open}
       onClick={showPicker}

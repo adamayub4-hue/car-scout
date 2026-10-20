@@ -1,7 +1,7 @@
 export const siteName = "Mekivo";
 export const siteUrl = "https://mekivo.uk/";
-export const siteTitle = "Mekivo | Search UK Used Cars & Car Parts";
-export const siteDescription = "Search UK used cars and car parts across marketplaces. Find a part by number or picture, then open listings on the original marketplace.";
+export const siteTitle = "Mekivo | UK Used Cars, Motorbikes & Parts";
+export const siteDescription = "Find your next car, motorbike or part. Browse live eBay listings and open searches on other UK marketplaces.";
 
 // These are Mekivo's previously verified public accounts. Same-name profiles
 // on other networks must not be linked without confirming ownership.
@@ -32,7 +32,7 @@ export const siteStructuredData = {
       name: siteName,
       alternateName: "mekivo.uk",
       url: siteUrl,
-      description: "Mekivo helps people search UK used-car and replacement-parts marketplaces and visit the original listings.",
+      description: "Mekivo helps people find UK used cars, motorbikes and replacement parts, with live eBay listings and links to search other marketplaces.",
       logo: {
         "@type": "ImageObject",
         url: `${siteUrl}icons/mekivo-512.png`,
