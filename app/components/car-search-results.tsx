@@ -115,6 +115,7 @@ export default function CarSearchResults({ search, items, loading, error, search
               <span className="mt-2 inline-block text-xs font-semibold text-link">{item.id === "cargurus" || item.id === "carwow" ? `Choose car on ${item.name} ↗` : "Open search ↗"}</span>
             </a>
             {item.id === "facebook" && <p className="mt-2 text-xs leading-5 text-muted">Use your personal Facebook profile. Pages cannot use Marketplace.</p>}
+            {item.id === "gumtree" && <p className="mt-2 text-xs leading-5 text-muted">Choose your location on Gumtree.</p>}
             {item.id === "cargurus" && <p className="mt-2 text-xs leading-5 text-muted">Choose your make and model on CarGurus.</p>}
             {item.id === "carwow" && <p className="mt-2 text-xs leading-5 text-muted">Choose your make, model and budget on Carwow.</p>}
             <details className="mt-3 text-xs leading-5 text-subtle"><summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-sky-400">Filters carried across</summary><p className="mt-2">{marketplaceFilterNote(item.id, requestedExtras.length > 0)}</p></details>
