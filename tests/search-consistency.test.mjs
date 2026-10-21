@@ -86,6 +86,9 @@ test('keyword handoffs keep vehicle wording separate from budget and location fi
       } else if (marketplace === 'pistonheads') {
         assert.deepEqual(params.getAll('price'), [input.minPrice || '0', input.price], 'PistonHeads requires ordered lower and upper price values');
         assert.match(search.marketplaceFilterNote(marketplace), /Maximum price and any accompanying minimum carried across/);
+      } else if (marketplace === 'gumtree') {
+        assert.equal(params.get('max_price'), input.price);
+        assert.match(search.marketplaceFilterNote(marketplace), /Maximum price carried across/);
       } else assert.match(search.marketplaceFilterNote(marketplace), /Check budget, year and location filters/);
     }
     const ebay = new URL(result.carLinks.ebay).searchParams;
@@ -101,6 +104,65 @@ test('keyword handoffs keep vehicle wording separate from budget and location fi
     assert.equal(autotrader.get('postcode'), input.postcode || null);
     assert.equal(autotrader.get('year-from'), input.year || null);
     assert.equal(autotrader.get('year-to'), input.year || null);
+  }
+});
+
+test('Gumtree car handoff carries the supplied budget caps without imposing London or unverified filters', () => {
+  for (const price of ['500', '1000', '5000', '10000']) {
+    const result = search.createCarSearch({ make: '', model: '', year: '', price, minPrice: '100', postcode: 'B1 1AA', platform: 'gumtree', sort: 'price_asc', hideUnwanted: true });
+    const url = new URL(result.carLinks.gumtree);
+    assert.equal(url.origin, 'https://www.gumtree.com');
+    assert.equal(url.pathname, '/search');
+    assert.equal(url.searchParams.get('search_category'), 'cars');
+    assert.equal(url.searchParams.get('max_price'), price);
+    assert.equal(url.searchParams.get('q'), '');
+    assert.deepEqual(Array.from(url.searchParams.keys()).sort(), ['max_price', 'q', 'search_category']);
+    assert.equal(result.saveItem.data.links.gumtree, result.carLinks.gumtree);
+    assert.equal(result.saveItem.data.postcode, 'B1 1AA', 'Mekivo must retain the user selection even when Gumtree requires setting it manually');
+    assert.equal(result.saveItem.data.minPrice, '100');
+  }
+});
+
+test('Gumtree only uses make/model identifiers supplied for Golf and Fiesta and safely encodes other keywords', () => {
+  for (const [make, model, price, expectedMake, expectedModel] of [
+    ['Volkswagen', 'Golf', '5000', 'volkswagen', 'GOLF'],
+    ['Ford', 'Fiesta', '2000', 'ford', 'FIESTA'],
+    ['FORD', 'fiesta', '2000', 'ford', 'FIESTA'],
+  ]) {
+    const url = new URL(search.buildCarLinks({ make, model, year: '2018', price, postcode: '', platform: 'gumtree', carExtras: ['heated_seats'] }).gumtree);
+    assert.equal(url.searchParams.get('vehicle_make'), expectedMake);
+    assert.equal(url.searchParams.get('vehicle_model'), expectedModel);
+    assert.equal(url.searchParams.get('max_price'), price);
+    assert.equal(url.searchParams.get('q'), `${make} ${model} 2018 Heated seats`);
+  }
+  for (const [make, model] of [['Audi', 'A3'], ['Ford', 'Focus'], ['Volkswagen', 'Polo'], ['Volkswagen', ''], ['', 'Golf'], ['Ford', 'Fiesta & ST?max_price=1#test']]) {
+    const params = new URL(search.buildCarLinks({ make, model, year: '2018', price: '5000', postcode: '', platform: 'gumtree' }).gumtree).searchParams;
+    assert.equal(params.get('vehicle_make'), null);
+    assert.equal(params.get('vehicle_model'), null);
+    assert.equal(params.get('q'), [make, model, '2018'].filter(Boolean).join(' '));
+    assert.deepEqual(params.getAll('max_price'), ['5000'], 'keyword punctuation must not create or override query parameters');
+  }
+});
+
+test('Gumtree budget handoff rejects malformed or out-of-range caps and leaves other destinations unchanged', () => {
+  for (const price of ['', '0', '-1', '500.50', '5,000', '1e3', 'Infinity', '100000001', '5000&search_location=london']) {
+    const params = new URL(search.buildCarLinks({ make: 'Audi', model: 'A3', year: '', price, postcode: '', platform: 'gumtree' }).gumtree).searchParams;
+    assert.equal(params.get('max_price'), null, price);
+    assert.equal(params.has('search_location'), false);
+    assert.equal(params.get('q'), 'Audi A3');
+  }
+  const input = { make: 'Volkswagen', model: 'Golf', year: '2018', price: '05000', minPrice: '1000', postcode: 'B1 1AA', platform: 'all', carExtras: ['heated_seats'] };
+  const result = search.createCarSearch(input);
+  assert.equal(new URL(result.carLinks.gumtree).searchParams.get('max_price'), '5000');
+  assert.equal(new URL(result.carLinks.ebay).searchParams.get('_udhi'), '05000');
+  assert.equal(new URL(result.carLinks.autotrader).searchParams.get('price-to'), '05000');
+  assert.equal(new URL(result.carLinks.facebook).searchParams.get('query'), 'Volkswagen Golf 2018 Heated seats');
+  for (const hasExtras of [false, true]) {
+    const note = search.marketplaceFilterNote('gumtree', hasExtras);
+    assert.match(note, /Maximum price carried across/);
+    assert.match(note, /minimum price, year, location, sorting and other filters on Gumtree/);
+    assert.equal(note.includes('selected extras'), hasExtras);
+    assert.doesNotMatch(note, /API|feed|partner/i);
   }
 });
 
@@ -202,7 +264,7 @@ test('keyword marketplace handoffs include selected extras but structured-only h
   assert.doesNotMatch(result.carLinks.motors, /heated|panoramic|extras/i);
   for (const id of ['autotrader', 'motors']) assert.match(search.marketplaceFilterNote(id, true), /Reapply selected extras/);
   assert.match(search.marketplaceFilterNote('ebay', true), /extras are search terms/);
-  assert.match(search.marketplaceFilterNote('gumtree', true), /keyword search including selected extras/);
+  assert.match(search.marketplaceFilterNote('gumtree', true), /vehicle details and selected extras are search terms/);
   assert.equal(search.marketplaceFilterNote('ebay'), 'Price range carried across; year is a search term. Check sorting, unwanted listings and distance on eBay.');
 });
 
