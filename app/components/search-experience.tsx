@@ -237,6 +237,11 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
     setVehicleLookupLoading(true);
     setVehicleLookup(null);
     setError("");
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 20000);
     try {
       const response = await fetch("/api/vehicle", {
         method: "POST",
@@ -248,6 +253,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
       if (response.status === 429) throw new Error("Too many registration lookups. Please wait a minute, then try again.");
       const payload = (await response.json()) as { vehicle?: VehicleLookup; error?: string };
       if (requestId !== vehicleLookupRequest.current.id) return;
+      if (controller.signal.aborted) throw new Error("Vehicle lookup cancelled");
       if (!response.ok || !payload.vehicle) throw new Error(payload.error || "We could not identify that vehicle.");
 
       const vehicle = payload.vehicle;
@@ -266,8 +272,9 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
       void trackActivity("vehicle_lookup", { usedRegistration: true, make: vehicle.make, year: vehicle.yearOfManufacture });
     } catch (lookupError) {
       if (requestId !== vehicleLookupRequest.current.id) return;
-      setError(lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
+      setError(timedOut ? "The vehicle lookup took too long. Try again or enter the make and model below." : lookupError instanceof Error ? lookupError.message : "We could not identify that vehicle.");
     } finally {
+      clearTimeout(timeout);
       if (requestId === vehicleLookupRequest.current.id) setVehicleLookupLoading(false);
     }
   };

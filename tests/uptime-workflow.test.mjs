@@ -51,7 +51,7 @@ process.exit(Number(process.env.MEKIVO_UPTIME_EXIT));
 }
 
 test('existing schedule stays bounded and checks the homepage even after health failure', () => {
-  assert.match(workflow, /cron: "\*\/15 \* \* \* \*"/);
+  assert.match(workflow, /cron: "3,18,33,48 \* \* \* \*"/);
   assert.match(workflow, /timeout-minutes: 3/);
   assert.match(workflow, /- name: Check public homepage\n        if: always\(\)/);
   assert.doesNotMatch(workflow, /continue-on-error|actions\/checkout|Authorization|secrets\.|workflow_run/);

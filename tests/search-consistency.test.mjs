@@ -30,7 +30,7 @@ function handler(name, context) {
   visit(ast);
   assert.ok(expression, name);
   const code = ts.transpileModule(`const run = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
-  return vm.runInNewContext(`${code}\nrun`, { URLSearchParams, AbortController, Error, ...context });
+  return vm.runInNewContext(`${code}\nrun`, { URLSearchParams, AbortController, Error, setTimeout, clearTimeout, ...context });
 }
 const fields = { make: 'Ford', model: 'Fiesta', year: '2018', engine: '1.0L', fuel: 'Petrol', bodyStyle: 'Hatchback', partCategory: 'Brakes', part: 'Brake Pads', partNumber: ' 1K0 698 151 F ', partMethod: 'diagram' };
 

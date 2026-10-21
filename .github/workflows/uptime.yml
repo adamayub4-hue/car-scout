@@ -2,7 +2,8 @@ name: Mekivo uptime
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Offset from the busy start of the hour; delivery remains best effort.
+    - cron: "3,18,33,48 * * * *"
   workflow_dispatch:
 
 permissions:

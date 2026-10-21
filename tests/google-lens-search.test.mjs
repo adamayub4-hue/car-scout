@@ -42,7 +42,7 @@ function harness(initial = {}) {
   };
   const calls = [], events = [], scrolls = [], focus = [];
   const context = {
-    AbortController, Error, requestAnimationFrame: callback => callback(),
+    AbortController, Error, setTimeout, clearTimeout, requestAnimationFrame: callback => callback(),
     vehicleFieldsRef: { current: { scrollIntoView: options => scrolls.push(options) } },
     partNameRef: { current: state.make && state.model && state.year ? {
       scrollIntoView: options => scrolls.push(options), focus: options => focus.push(options),

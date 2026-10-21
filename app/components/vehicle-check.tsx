@@ -74,6 +74,11 @@ export default function VehicleCheck() {
     setLoading(true);
     setVehicle(null);
     setError("");
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 20000);
 
     try {
       const response = await fetch("/api/vehicle", {
@@ -88,6 +93,7 @@ export default function VehicleCheck() {
       if (response.status === 400 || response.status === 404) throw new Error("We could not identify that vehicle. Check the registration and try again.");
       const payload = await response.json().catch(() => null) as { vehicle?: VehicleCheckResult } | null;
       if (id !== request.current.id) return;
+      if (controller.signal.aborted) throw new Error("Vehicle check cancelled");
       if (!response.ok || !payload?.vehicle || typeof payload.vehicle.make !== "string" || !payload.vehicle.make.trim()) {
         throw new Error("Vehicle checks are temporarily unavailable. Please try again later.");
       }
@@ -95,10 +101,11 @@ export default function VehicleCheck() {
       setRegistration(cleaned);
     } catch (lookupError) {
       if (id !== request.current.id) return;
-      setError(lookupError instanceof Error && lookupError.name !== "AbortError"
+      setError(timedOut ? "The vehicle check took too long. Please try again." : lookupError instanceof Error && lookupError.name !== "AbortError"
         ? lookupError.message
         : "The vehicle check could not be completed. Please try again.");
     } finally {
+      clearTimeout(timeout);
       if (id === request.current.id) setLoading(false);
     }
   }

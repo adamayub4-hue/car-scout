@@ -24,7 +24,7 @@ function checker() {
   let cursor = 0, mounted = false;
   const slots = [], requests = [], cleanups = [];
   const exports = {};
-  vm.runInNewContext(compiled, { exports, AbortController, Date, Intl, Error,
+  vm.runInNewContext(compiled, { exports, AbortController, Date, Intl, Error, setTimeout, clearTimeout,
     fetch(url, options) { return new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })); },
     require(name) {
       if (name === 'react/jsx-runtime') return jsxRuntime;
