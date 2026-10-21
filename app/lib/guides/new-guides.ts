@@ -95,11 +95,12 @@ export const newGuides: Guide[] = [
     description: 'Compare the V5C with the car and DVLA records, recognise missing information and understand the new keeper handover.',
     category: 'cars',
     publishedAt: '2026-09-28',
-    updatedAt: '2026-09-28',
+    updatedAt: '2026-10-21',
     relatedSlugs: ['buying-a-used-car', 'checking-mot-history', 'avoiding-used-car-scams'],
     intro: [
-      'Treat a log book check as a comparison between three things: the document, the physical car and the information available independently from DVLA. Reading only the registration on the cover misses the point. You want a consistent account of which vehicle is being sold and a clear plan for recording the change of keeper.',
-      'Set aside time for this before paying. The workflow below includes practical ways to organise the comparison, alongside links to the government guidance behind the document checks. If the seller cannot resolve a discrepancy, postponing the purchase leaves you room to establish the facts without also having to recover money.',
+      'A V5C log book is the vehicle registration certificate. It records the registered keeper and vehicle details, but it is not proof of ownership.',
+      'A registration lookup does not give you the 11-digit V5C document reference number. It shows the last V5C issue date. If you need the number because your own log book is lost, follow DVLA’s replacement process.',
+      'DVLA advises against buying a car with no log book. Ask the seller to obtain the V5C before you pay, then check it against the car and the independent DVLA record.',
     ],
     sections: [
       {
@@ -134,9 +135,10 @@ export const newGuides: Guide[] = [
         title: 'Look up the DVLA record independently',
         paragraphs: [
           'The DVLA vehicle enquiry service uses the number plate and includes details such as fuel type, engine size, registration date and the latest V5C issue date. It does not provide the current keeper’s name as part of this ordinary public check; requests for keeper information use a separate process.',
+          'The V5C document reference is an 11-digit number on the log book, not the registration number, VIN or issue date. If your own V5C is lost, use DVLA’s replacement guidance. You must be the registered keeper to apply online, and that service is for cases where the recorded details can stay the same.',
           'Our recommendation is to open the service yourself and note any difference that matters to the advertised car. A recent log book issue should become a question about why it was issued, rather than an automatic accusation. Ask whether the document in front of you is the latest version. Keep the issue date separate from the purchase date or first registration date in your notes, because those labels are answering different questions.',
         ],
-        sourceIds: ['dvla-details'],
+        sourceIds: ['dvla-details', 'v5c-reference', 'replacement-log-book'],
       },
       {
         id: 'missing-or-changed-details',
@@ -171,6 +173,8 @@ export const newGuides: Guide[] = [
       { id: 'used-car-checks', title: 'GOV.UK: Check a used vehicle you are buying', url: 'https://www.gov.uk/checks-when-buying-a-used-car' },
       { id: 'vin', title: 'GOV.UK: Vehicle identification number', url: 'https://www.gov.uk/vehicle-registration/vehicle-identification-number' },
       { id: 'dvla-details', title: 'GOV.UK: Get vehicle information from DVLA', url: 'https://www.gov.uk/get-vehicle-information-from-dvla' },
+      { id: 'v5c-reference', title: 'GOV.UK: V5C reference number for vehicle tax', url: 'https://www.gov.uk/tax-vehicle-without-v11-reminder' },
+      { id: 'replacement-log-book', title: 'GOV.UK: Get a replacement vehicle log book (V5C)', url: 'https://www.gov.uk/vehicle-log-book' },
       { id: 'register-used', title: 'GOV.UK: Registering new and used vehicles', url: 'https://www.gov.uk/vehicle-registration/new-and-used-vehicles' },
       { id: 'update-details', title: 'GOV.UK: Updating vehicle details on a V5C', url: 'https://www.gov.uk/change-vehicle-details-registration-certificate' },
       { id: 'keeper-transfer', title: 'GOV.UK: Tell DVLA about a vehicle transfer', url: 'https://www.gov.uk/sold-bought-vehicle' },
