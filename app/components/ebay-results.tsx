@@ -6,6 +6,8 @@ import { ebayBuyingFormat, ebayListingHref, formatListingPrice, safeListingImage
 import { partPostageLabel } from "../lib/part-recommendations";
 import { trackGrowthEvent } from "../lib/growth-events";
 import SaveListingButton from "./save-listing-button";
+import { searchProblemHref } from "../lib/search-recovery";
+import type { SubmittedSearch } from "../lib/search";
 
 export function ListingPhoto({ item, sizes = "(max-width: 640px) 85vw, (max-width: 1024px) 40vw, 300px" }: { item: EbayListing; sizes?: string }) {
   const [failed, setFailed] = useState(false);
@@ -16,7 +18,7 @@ export function ListingPhoto({ item, sizes = "(max-width: 640px) 85vw, (max-widt
   </div>;
 }
 
-export default function EbayResults({ items, loading, error, fallbackUrl, searchType, searchUrl, onRetry }: { items: EbayListing[]; loading: boolean; error: string; fallbackUrl: string; searchType: SearchType; searchUrl?: string; onRetry: () => void }) {
+export default function EbayResults({ items, loading, error, fallbackUrl, searchType, searchUrl, search, incomplete = false, onRetry, onEdit, onOtherSites }: { items: EbayListing[]; loading: boolean; error: string; fallbackUrl: string; searchType: SearchType; searchUrl?: string; search?: SubmittedSearch; incomplete?: boolean; onRetry: () => void; onEdit?: () => void; onOtherSites?: () => void }) {
   const [pagination, setPagination] = useState({ items, page: 0 });
   const headingRef = useRef<HTMLHeadingElement>(null);
   const isVehicle = searchType !== "parts";
@@ -31,10 +33,21 @@ export default function EbayResults({ items, loading, error, fallbackUrl, search
   };
   const trackClick = (destination: "all_results" | "listing", item?: EbayListing) => trackGrowthEvent("marketplace_outbound", { marketplace: "ebay", search_type: searchType, destination, buying_format: item?.buyingFormat ?? ebayBuyingFormat(item?.buyingOptions) });
   if (loading) return <div role="status" className="mt-4 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5 text-sm text-muted">Loading live eBay listings…</div>;
-  if (error || items.length === 0) return <div role="status" className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-5 text-sm text-warning">
-    <p>{error || "No live eBay listings matched this search."}</p>
-    <div className="mt-3 flex flex-wrap items-center gap-5">{error && <button type="button" onClick={onRetry} className="rounded-lg border border-current px-3 py-2 font-semibold">Try again</button>}<a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" onClick={() => trackClick("all_results")} className="font-bold underline underline-offset-4">Search directly on eBay</a></div>
-  </div>;
+  if (error || items.length === 0) {
+    const unavailable = Boolean(error || incomplete);
+    return <div className="mt-4 rounded-2xl border border-outline/15 bg-overlay/[0.035] p-4 text-sm sm:p-5">
+      <div role="status">
+        <h3 className="font-bold">{unavailable ? "We couldn’t load the eBay results" : "No eBay matches in the checked results"}</h3>
+        <p className="mt-2 leading-6 text-muted">{unavailable ? error || "eBay stopped responding before this search finished. Try again; this does not mean there are no matches." : searchType === "parts" ? "Check the part name or full part number, or try fewer vehicle details. Confirm compatibility before buying." : search?.carExtras?.length ? "Try fewer extras or a different budget. Adverts may leave out equipment details." : "Try a different budget, make or year. This search does not check every listing on eBay."}</p>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+        {(unavailable || onEdit) && <button type="button" onClick={unavailable ? onRetry : onEdit} className="min-h-11 rounded-xl border border-outline/20 px-3 py-2 font-semibold text-link focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link">{unavailable ? "Try again" : "Change filters"}</button>}
+        {onOtherSites && <button type="button" onClick={onOtherSites} className="min-h-11 font-semibold text-link underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link">Try other sites</button>}
+        <a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" onClick={() => trackClick("all_results")} className="inline-flex min-h-11 items-center font-semibold text-link underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link">Search directly on eBay</a>
+      </div>
+      {search && <a href={searchProblemHref(search, unavailable ? "unavailable" : "empty")} className="mt-2 inline-flex min-h-11 items-center text-xs text-muted underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-link">Report a search problem</a>}
+    </div>;
+  }
   return <section className="mt-5" aria-label="Live eBay listings">
     <div className="flex items-center justify-between gap-4"><div><h3 ref={headingRef} tabIndex={-1} className="scroll-mt-44 text-sm font-bold text-link outline-none">Live eBay listings</h3><p className="mt-1 text-xs leading-5 text-subtle">Check price, availability and {isVehicle ? "vehicle details" : "compatibility"} on eBay. Mekivo may earn a commission.</p></div><a href={fallbackUrl} target="_blank" rel="sponsored noreferrer" onClick={() => trackClick("all_results")} className="shrink-0 text-sm font-semibold text-link">See all →</a></div>
     <div className="mt-3 grid gap-3 sm:grid-cols-3">{visibleItems.map(item => <article key={item.id} className="flex min-w-0 flex-col rounded-2xl border border-outline/10 bg-overlay/[0.04] p-3">

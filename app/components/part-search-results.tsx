@@ -52,7 +52,7 @@ export default function PartSearchResults({ search, items, loading, error, onRet
       </div>
     </div>
     {tabs.map(tab => <div key={tab.id} id={`part-panel-${tab.id}`} role="tabpanel" aria-labelledby={`part-tab-${tab.id}`} tabIndex={0} hidden={view !== tab.id} className="rounded-xl outline-offset-4 focus-visible:outline-2 focus-visible:outline-sky-400">
-      {tab.id === "live" ? <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="parts" onRetry={onRetry} />
+      {tab.id === "live" ? <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType="parts" search={search} onRetry={onRetry} onEdit={onEdit} />
         : <PartRecommendations search={search} items={items} loading={loading} error={error} />}
     </div>)}
     <SaveButton item={search.saveItem} label="Save search" />

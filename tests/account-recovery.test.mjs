@@ -386,3 +386,19 @@ test('a pending sign-in preserves the labelled form and announces progress outsi
   assert.match(failed.text, /Invalid login credentials/);
   assert.equal(button(failed, 'Sign in').props.disabled, false);
 });
+
+
+test('the account forgot-password link carries only its safe canonical return search', async () => {
+  const safe = '/?restore=1&mode=cars&make=Ford&model=Fiesta&price=5000&platform=ebay';
+  const h = accountHarness([], { user: null, search: '?' + new URLSearchParams({ returnTo: safe }) });
+  h.render(); await settle();
+  const link = h.render().nodes.find(n => n.type === 'a' && n.props.children === 'Forgot your password?');
+  const url = new URL(link.props.href, 'https://mekivo.uk');
+  assert.equal(url.pathname, '/forgot-password'); assert.equal(url.searchParams.get('returnTo'), helper.safeSearchReturnUrl(safe));
+});
+
+test('a foreign return on the account page cannot enter the forgot-password journey', async () => {
+  const h = accountHarness([], { user: null, search: '?' + new URLSearchParams({ returnTo: 'https://evil.example/' }) });
+  h.render(); await settle();
+  assert.equal(h.render().nodes.find(n => n.type === 'a' && n.props.children === 'Forgot your password?').props.href, '/forgot-password');
+});

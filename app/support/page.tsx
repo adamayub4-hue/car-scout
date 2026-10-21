@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { withRequestDeadline } from "../lib/saved-search";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "../lib/supabase";
+import { parseSearchProblem, type SearchProblemReport } from "../lib/search-recovery";
 
 type FeedbackKind = "suggestion" | "problem";
 
@@ -19,6 +20,19 @@ export default function SupportPage() {
   const submitting = useRef(false);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(isSupabaseConfigured());
+  const [searchReport, setSearchReport] = useState<SearchProblemReport | null>(null);
+
+  useEffect(() => {
+    const report = parseSearchProblem(window.location.search);
+    if (!report) return;
+    const frame = window.requestAnimationFrame(() => {
+      setSearchReport(report);
+      setKind("problem");
+      setSubject(report.subject);
+      setMessage(report.message);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     const client = getSupabaseBrowserClient();
@@ -67,6 +81,7 @@ export default function SupportPage() {
           <p className="text-xs font-bold uppercase tracking-wider text-link">Feedback and support</p>
           <h1 className="mt-2 text-3xl font-bold">Help improve Mekivo</h1>
           <p className="mt-3 text-sm leading-6 text-muted">Share an idea or report a problem. Every message goes to Mekivo&apos;s private owner dashboard.</p>
+          {searchReport && <p className="mt-3 text-sm leading-6 text-muted">Your search settings are ready to include. Location, registration, part numbers and custom search text have not been copied. Add what went wrong before sending.</p>}
 
           <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-overlay/[0.04] p-1.5">
             {(["suggestion", "problem"] as FeedbackKind[]).map((value) => (
@@ -97,7 +112,8 @@ export default function SupportPage() {
               <button disabled={sending} className="rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950 disabled:opacity-50">{sending ? "Sending…" : kind === "suggestion" ? "Send suggestion" : "Send report"}</button>
             </form>
           )}
-          <p className="mt-7 border-t border-outline/10 pt-5 text-sm leading-6 text-muted">Need help without signing in? Email <a href="mailto:adamayub4@gmail.com" className="font-semibold text-link">adamayub4@gmail.com</a>.</p>
+          {searchReport && !user && <details className="mt-5 rounded-xl border border-outline/10 p-4 text-sm text-muted"><summary className="cursor-pointer font-semibold text-link">Search settings included in the email</summary><p className="mt-3 whitespace-pre-line leading-6">{searchReport.details}</p></details>}
+          <p className="mt-7 border-t border-outline/10 pt-5 text-sm leading-6 text-muted">Need help without signing in? {searchReport ? <a href={`mailto:adamayub4@gmail.com?subject=${encodeURIComponent(searchReport.subject)}&body=${encodeURIComponent(searchReport.message)}`} className="font-semibold text-link">Email this search problem</a> : <>Email <a href="mailto:adamayub4@gmail.com" className="font-semibold text-link">adamayub4@gmail.com</a></>}.</p>
         </section>
       </div>
     </main>

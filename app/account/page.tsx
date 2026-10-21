@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSavedSearchUrl, safeSearchReturnUrl, withRequestDeadline } from "../lib/saved-search";
+import { accountRecoveryPath, getSavedSearchUrl, safeSearchReturnUrl, withRequestDeadline } from "../lib/saved-search";
 import { clearPendingListing, getPendingListingExpiresAt, getPendingListingSnapshotExpiresAt, getPendingListingToken, parseSavedListing, readPendingListing, savedListingLabel, saveListingToAccount, type SavedListingItem } from "../lib/saved-listings";
 import SavedListingCard from "../components/saved-listing-card";
 import type { User } from "@supabase/supabase-js";
@@ -380,7 +380,7 @@ export default function AccountPage() {
             </form>
             <p role="status" className={authSubmitting || message ? "mt-4 text-sm text-link" : "sr-only"}>{authSubmitting ? isSignUp ? "Creating your account…" : "Signing you in…" : message}</p>
             <button type="button" disabled={authSubmitting} onClick={() => { setIsSignUp(!isSignUp); setMessage(""); }} className="mt-5 text-sm text-muted hover:text-foreground disabled:opacity-60">{isSignUp ? "Already have an account? Sign in" : "New to Mekivo? Create an account"}</button>
-            {!isSignUp && <Link href="/forgot-password" className="mt-4 block text-sm text-link hover:text-link">Forgot your password?</Link>}
+            {!isSignUp && <Link href={accountRecoveryPath("/forgot-password", returnUrl)} className="mt-4 block text-sm text-link hover:text-link">Forgot your password?</Link>}
           </section>
         )}
       </div>

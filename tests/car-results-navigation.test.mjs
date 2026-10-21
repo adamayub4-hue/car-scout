@@ -18,6 +18,15 @@ const helperRequire = name => {
 vm.runInNewContext(compile('../app/lib/search.ts'), { exports: searchHelpers, URL, URLSearchParams, require: helperRequire });
 const savedSearchHelpers = {};
 vm.runInNewContext(compile('../app/lib/saved-search.ts'), { exports: savedSearchHelpers, URL, URLSearchParams, require: helperRequire });
+const recoveryHelpers = {};
+const catalogue = {}, pickerHelpers = {};
+vm.runInNewContext(compile('../app/lib/vehicle-options.ts'), { exports: catalogue });
+vm.runInNewContext(compile('../app/lib/vehicle-picker-options.ts'), { exports: pickerHelpers });
+vm.runInNewContext(compile('../app/lib/search-recovery.ts'), { exports: recoveryHelpers, URLSearchParams, require(name) {
+  if (name === './vehicle-options') return catalogue;
+  if (name === './vehicle-picker-options') return pickerHelpers;
+  return helperRequire(name);
+} });
 const Save = () => null;
 const Share = () => null;
 const LiveListings = () => null;
@@ -72,6 +81,7 @@ function component(path, initialProps) {
       if (name === '../lib/search') return searchHelpers;
       if (name === '../lib/saved-search') return savedSearchHelpers;
       if (name === '../lib/car-extras') return extrasHelpers;
+      if (name === '../lib/search-recovery') return recoveryHelpers;
       if (name === '../lib/growth-events') return { trackGrowthEvent: (...args) => events.push(args) };
       if (name === './save-button') return { default: Save };
       if (name === './share-search-button') return { default: Share };
@@ -276,12 +286,31 @@ test('partial searches retain the successfully returned cars with an accessible 
 
 test('partial searches without matches provide retry without claiming that cars were found', () => {
   const app = results({ items: [], searchInfo: { checkedCount: 96, pagesChecked: 2, hasMore: true, partial: true } });
-  const notice = app.one(node => node.props?.role === 'status');
-  assert.match(text(notice), /eBay stopped responding/);
-  assert.doesNotMatch(text(notice), /These cars were returned successfully/);
-  assert.match(text(activePanel(app)), /No cars remain in the checked results/);
-  app.click(app.button('Try again for more'));
+  const live = app.one(node => node.type === LiveListings);
+  assert.equal(live.props.incomplete, true, 'the live recovery state must distinguish an incomplete response from zero matches');
+  assert.equal(live.props.items.length, 0);
+  assert.doesNotMatch(text(activePanel(app)), /No cars remain|These cars were returned successfully/);
+  live.props.onRetry();
   assert.equal(app.calls.retry, 1);
+});
+
+test('car recovery changes filters or focuses the real Other sites tab without changing the search', () => {
+  const search = carSearch(), before = JSON.stringify(search);
+  const app = results({ search, items: [] });
+  const live = app.one(node => node.type === LiveListings);
+  assert.equal(live.props.search, search);
+  live.props.onEdit();
+  assert.equal(app.calls.edit, 1);
+  live.props.onOtherSites();
+  app.render();
+  assertTabWiring(app, 'Other sites');
+  assert.equal(app.focus.at(-1).label, 'Other sites');
+  assert.equal(JSON.stringify(search), before);
+  assert.deepEqual(app.events, []);
+  for (const search of [carSearch({ platform: 'ebay' }), carSearch({ vehicleType: 'motorbikes', platform: 'all' })]) {
+    const scoped = results({ search, items: [] });
+    assert.equal(scoped.one(node => node.type === LiveListings).props.onOtherSites, undefined);
+  }
 });
 
 test('visible car counts use singular wording and explain Next only when another page exists', () => {
@@ -481,6 +510,7 @@ test('loading, failure and empty responses hide old cards and paging but retain 
   assert.equal(listingLinks(app).length, 0);
   assert.equal(app.nodes().filter(node => node.type === 'nav').length, 0);
   app.update({ loading: false, error: 'Provider timed out' });
+  assert.match(app.text(), /couldn’t load the eBay results/);
   assert.match(app.text(), /Provider timed out/);
   assert.equal(listingLinks(app).length, 0);
   assert.equal(app.nodes().filter(node => node.type === 'nav').length, 0);
@@ -489,12 +519,56 @@ test('loading, failure and empty responses hide old cards and paging but retain 
   app.click(app.button('Try again'));
   assert.equal(app.calls.retry, 1);
   app.update({ error: '', items: [] });
-  assert.match(app.text(), /No live eBay listings matched/);
+  assert.match(app.text(), /No eBay matches in the checked results/);
   assert.equal(app.nodes().filter(node => node.type === 'button').length, 0);
   app.update({ items: cars(4) });
   assert.deepEqual(shownTitles(app), cars(3).map(item => item.title));
   assert.equal(app.button('← Previous').props.disabled, true);
   assert.deepEqual(app.events, []);
+});
+
+test('empty and unavailable states retain a safe report path and act only after explicit clicks', () => {
+  const search = carSearch({ carExtras: ['heated_seats'] });
+  let edits = 0, otherSites = 0;
+  const app = listings({ items: [], search, fallbackUrl: search.fallbackUrl, onEdit() { edits++; }, onOtherSites() { otherSites++; } });
+  assert.match(app.text(), /Try fewer extras/);
+  assert.equal(app.nodes().some(node => node.type === 'button' && text(node) === 'Try again'), false);
+  app.click(app.button('Change filters'));
+  app.click(app.button('Try other sites'));
+  assert.equal(edits, 1); assert.equal(otherSites, 1);
+  let report = app.one(node => node.type === 'a' && text(node) === 'Report a search problem');
+  assert.equal(new URL(report.props.href, 'https://local.test').searchParams.get('outcome'), 'empty');
+  assert.equal(report.props.onClick, undefined, 'a support link creates no outbound event or report automatically');
+  assert.equal(report.props.target, undefined, 'support does not open another tab');
+  assert.deepEqual(app.events, []);
+  app.update({ incomplete: true });
+  assert.match(app.text(), /couldn’t load/);
+  assert.match(app.text(), /does not mean there are no matches/);
+  assert.doesNotMatch(app.text(), /No eBay matches/);
+  app.click(app.button('Try again'));
+  assert.equal(app.calls.retry, 1);
+  report = app.one(node => node.type === 'a' && text(node) === 'Report a search problem');
+  assert.equal(new URL(report.props.href, 'https://local.test').searchParams.get('outcome'), 'unavailable');
+  const fallback = app.one(node => node.type === 'a' && text(node) === 'Search directly on eBay');
+  assert.equal(fallback.props.href, search.fallbackUrl);
+  assert.match(fallback.props.rel, /sponsored/);
+  app.click(fallback);
+  assert.deepEqual(app.events.map(([name, properties]) => [name, properties.destination]), [['marketplace_outbound', 'all_results']]);
+  app.update({ incomplete: false, items: cars(1) });
+  assert.equal(app.nodes().some(node => node.type === 'a' && text(node) === 'Report a search problem'), false);
+});
+
+test('parts recovery preserves fitment caution and only exposes its existing search editor', () => {
+  const search = searchHelpers.createPartSearch({ make: '', model: '', year: '', engine: '', fuel: '', bodyStyle: '', part: '', partCategory: '', partNumber: '1K0698151F', partMethod: 'search' }, true);
+  const app = component('../app/components/part-search-results.tsx', { search, items: [], loading: false, error: '', onEdit() {}, onRetry() {} });
+  const live = app.one(node => node.type === LiveListings);
+  assert.equal(live.props.search, search);
+  assert.equal(typeof live.props.onEdit, 'function');
+  assert.equal(live.props.onOtherSites, undefined);
+  const empty = listings({ search, searchType: 'parts', items: [], onEdit() {} });
+  assert.match(empty.text(), /full part number/);
+  assert.match(empty.text(), /Confirm compatibility before buying/);
+  assert.doesNotMatch(empty.text(), /different budget|fewer extras/);
 });
 
 test('parts pagination reaches all returned listings and keeps parts affiliate attribution', () => {

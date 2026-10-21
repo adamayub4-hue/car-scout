@@ -94,6 +94,12 @@ export function safeSearchReturnUrl(value: string | null) {
   } catch { return null; }
 }
 
+export function accountRecoveryPath(path: "/account" | "/forgot-password" | "/reset-password", returnTo: string | null) {
+  if (path !== "/account" && path !== "/forgot-password" && path !== "/reset-password") return "/account";
+  const safeReturn = safeSearchReturnUrl(returnTo);
+  return safeReturn ? `${path}?${new URLSearchParams({ returnTo: safeReturn })}` : path;
+}
+
 export async function withRequestDeadline<T>(request: PromiseLike<T>, milliseconds = 15_000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {

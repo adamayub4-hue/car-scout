@@ -24,8 +24,11 @@ const VehiclePicker = forwardRef<HTMLButtonElement, VehiclePickerProps>(function
   const [query, setQuery] = useState("");
   useImperativeHandle(forwardedRef, () => triggerRef.current!, []);
 
-  const suggestions = vehiclePickerOptions(options, query);
-  const typedValue = vehiclePickerValue(options, query);
+  // A closed native dialog does not need its full option list in the initial
+  // document or hydration work. Keep the trigger and focus target mounted so
+  // the first tap still opens immediately, then render choices for that picker.
+  const suggestions = open ? vehiclePickerOptions(options, query) : [];
+  const typedValue = open ? vehiclePickerValue(options, query) : "";
   const labelId = `${id}-label`;
   const valueId = `${id}-value`;
   const dialogId = `${id}-dialog`;
@@ -93,7 +96,7 @@ const VehiclePicker = forwardRef<HTMLButtonElement, VehiclePickerProps>(function
           {typedValue && <button type="button" onClick={() => choose(typedValue)}
             className="mt-3 min-h-11 w-full break-words rounded-xl bg-sky-400 px-3 py-2.5 text-left text-base font-semibold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">Use “{typedValue}”</button>}
         </div>
-        <div className="min-h-0 overflow-y-auto overscroll-contain p-2">
+        {open && <div className="min-h-0 overflow-y-auto overscroll-contain p-2">
           {(optional || value) && <button type="button" onClick={() => choose("")}
             className="min-h-12 w-full rounded-xl px-3 py-3 text-left text-base text-link hover:bg-overlay/5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-sky-400">{optional ? `Any ${label.toLowerCase()}` : `Clear ${label.toLowerCase()}`}</button>}
           {suggestions.length > 0 ? <ul aria-label={`${label} suggestions`}>
@@ -105,7 +108,7 @@ const VehiclePicker = forwardRef<HTMLButtonElement, VehiclePickerProps>(function
               </button>
             </li>)}
           </ul> : <p role="status" className="px-3 py-4 text-sm leading-6 text-muted">{query.trim() ? "No matching suggestions. Use your entry above." : `Type the ${label.toLowerCase()} to continue.`}</p>}
-        </div>
+        </div>}
       </div>
     </dialog>
   </div>;

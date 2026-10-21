@@ -59,7 +59,7 @@ async function harness(options = {}) {
     if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
     if (name === 'next/link') return { default: 'a' };
     if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => client, isSupabaseConfigured: () => true };
-    if (name === '../lib/saved-search') return { safeSearchReturnUrl: () => null, withRequestDeadline: request => Promise.resolve(request) };
+    if (name === '../lib/saved-search') return { safeSearchReturnUrl: () => null, accountRecoveryPath: path => path, withRequestDeadline: request => Promise.resolve(request) };
     if (name === '../lib/saved-listings') return { getPendingListingToken: () => null };
     if (name === '../components/saved-listing-card') return { default: () => null };
     throw Error(`Unexpected import: ${name}`);
