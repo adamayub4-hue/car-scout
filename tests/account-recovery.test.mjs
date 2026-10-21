@@ -402,3 +402,20 @@ test('a foreign return on the account page cannot enter the forgot-password jour
   h.render(); await settle();
   assert.equal(h.render().nodes.find(n => n.type === 'a' && n.props.children === 'Forgot your password?').props.href, '/forgot-password');
 });
+
+test('account Resume and saved-search links target search pages rather than cached Home', async () => {
+  const savedRows = [
+    { id: 'car', kind: 'car_search', title: 'Car', data: { make: 'Ford', model: 'Fiesta', price: '5000', platform: 'all' }, created_at: '2026-10-21T12:00:00Z' },
+    { id: 'bike', kind: 'car_search', title: 'Bike', data: { vehicleType: 'motorbikes', make: 'Honda', model: 'CBR600F' }, created_at: '2026-10-21T12:00:00Z' },
+    { id: 'part', kind: 'part_search', title: 'Part', data: { searchMethod: 'part_number', partNumber: '06J115403Q' }, created_at: '2026-10-21T12:00:00Z' },
+  ];
+  const safe = helper.getSavedSearchUrl(savedRows[0]);
+  const h = accountHarness([async () => ({ data: savedRows, error: null })], { search: '?' + new URLSearchParams({ returnTo: safe }) });
+  h.render(); await settle();
+  const links = h.render().nodes.filter(node => node.type === 'a');
+  assert.equal(links.find(node => node.props.children === 'Resume your search →').props.href, helper.canonicalSearchRestoreUrl(safe));
+  const runs = links.filter(node => node.props.children === 'Run this search →');
+  assert.deepEqual(runs.map(node => new URL(node.props.href, 'https://mekivo.uk').pathname), ['/cars', '/motorbikes', '/parts']);
+  assert.equal(new URL(runs[0].props.href, 'https://mekivo.uk').searchParams.get('model'), 'Fiesta');
+  assert.ok(runs.every(node => !new URL(node.props.href, 'https://mekivo.uk').searchParams.has('run')));
+});

@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { Suspense, useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { trackGrowthEvent } from "../lib/growth-events";
 import { analyticsAudience } from "../lib/analytics-audience";
 import { categories, diagramSystems, electricCategoryOverrides, electricDiagramOverrides } from "../lib/parts-guide-data";
-import { parseSavedSearchParams } from "../lib/saved-search";
+import { searchLandingState } from "../lib/saved-search";
 import PartSearchResults from "./part-search-results";
 import CarSearchResults, { type CarSearchInfo } from "./car-search-results";
 import CarExtraFilters from "./car-extra-filters";
@@ -21,6 +21,7 @@ import { vehicleModelsForMake } from "../lib/vehicle-picker-options";
 import { makes, motorbikeMakes } from "../lib/vehicle-options";
 import { trackCampaignLanding } from "../lib/campaign-landing";
 import { getSupabaseBrowserClient } from "../lib/supabase";
+import SearchQueryObserver from "./search-query-observer";
 
 const DiagramExplorer = dynamic(() => import("./parts-guide"), {
   loading: () => <p role="status" className="min-h-48 rounded-2xl border border-outline/10 p-6 text-muted">Loading the visual parts guide…</p>,
@@ -107,6 +108,9 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
   const [submittedSearch, setSubmittedSearch] = useState<SubmittedSearch | null>(null);
   const [carSearchRevision, setCarSearchRevision] = useState(0);
   const [restoredSearch, setRestoredSearch] = useState(false);
+  const [restoreRevision, setRestoreRevision] = useState(0);
+  const [locationQuery, setLocationQuery] = useState<string | null>(null);
+  const appliedRestoreKey = useRef<string | null>(null);
   const [vehicleDetailsOpen, setVehicleDetailsOpen] = useState(false);
   const guideRef = useRef<HTMLDivElement>(null);
   const guideLandingPending = useRef(false);
@@ -124,20 +128,23 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
   const [carSearchInfo, setCarSearchInfo] = useState<CarSearchInfo | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const saved = parseSavedSearchParams(params);
-    const landingMode = saved?.mode || (params.get("mode") === "parts" ? "parts" : initialMode);
-    const landingVehicleType = landingMode === "cars" && (saved?.vehicleType === "motorbikes" || params.get("vehicle_type") === "motorbikes" || initialVehicleType === "motorbikes") ? "motorbikes" : "cars";
-    const guideCampaign = ["visual_guide", "visual_guide_v2"].includes(params.get("utm_content") || "");
-    guideLandingPending.current = !saved && landingMode === "parts" && (params.get("guide") === "1" || guideCampaign);
+    const params = new URLSearchParams(locationQuery ?? window.location.search);
+    const landing = searchLandingState(params, initialMode, initialVehicleType);
+    const { saved, mode: landingMode, vehicleType: landingVehicleType } = landing;
+    appliedRestoreKey.current = landing.key;
+    guideLandingPending.current = landing.guide;
     trackCampaignLanding(landingMode === "cars" ? landingVehicleType : landingMode);
     // Only the homepage quick form opts into running. Shared/saved links remain editable.
-    autoRunPending.current = Boolean(saved && saved.mode === "cars" && params.get("run") === "1" && (saved.platform === "all" || saved.platform === "ebay"));
+    autoRunPending.current = landing.autoRun;
     const frame = window.requestAnimationFrame(() => {
       setMode(landingMode);
       setVehicleType(landingVehicleType);
-      if (landingVehicleType === "motorbikes") setPlatform("ebay");
-      if (guideLandingPending.current) setPartMethod("diagram");
+      // New URL criteria replace both editable fields and the submitted snapshot.
+      // Cleanup below invalidates requests even if the provider ignores abort.
+      setShowResults(false); setSubmittedSearch(null); setEbayItems([]);
+      setEbayLoading(false); setEbayError(""); setCarSearchInfo(null); setError("");
+      setRegistration(""); setVehicleLookup(null); setVehicleLookupLoading(false); setLensPartName("");
+      setRestoredSearch(Boolean(saved));
       if (saved) {
         setMake(saved.make); setModel(saved.model); setYear(saved.year);
         setPrice(saved.price); setPostcode(saved.postcode); setPlatform(landingVehicleType === "motorbikes" ? "ebay" : saved.platform as Platform);
@@ -146,19 +153,33 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
         setEngine(saved.engine); setFuel(saved.fuel); setBodyStyle(saved.bodyStyle);
         const selection = validatedPartSelection(saved.partCategory, saved.part, saved.partMethod, saved.fuel);
         setPart(selection.part); setPartCategory(selection.category);
-        setPartNumber(saved.partMethod === "search" ? saved.partNumber : ""); setPartMethod(saved.partMethod); setVehicleDetailsOpen(saved.searchMethod !== "part_number"); setRestoredSearch(true);
+        setPartNumber(saved.partMethod === "search" ? saved.partNumber : ""); setPartMethod(saved.partMethod); setVehicleDetailsOpen(saved.searchMethod !== "part_number");
+      } else {
+        setMake(""); setModel(""); setYear(""); setPrice(""); setPostcode("");
+        setPlatform(landingVehicleType === "motorbikes" ? "ebay" : "all");
+        setMinPrice(""); setCarSort("price_asc"); setHideUnwanted(true); setCarExtras([]);
+        setEngine(""); setFuel(""); setBodyStyle(""); setPart(""); setPartCategory(""); setPartNumber("");
+        setPartMethod(landing.guide ? "diagram" : ""); setVehicleDetailsOpen(false);
       }
+      setRestoreRevision(value => value + 1);
     });
     const request = ebayRequest.current;
     const lookupRequest = vehicleLookupRequest.current;
     return () => { window.cancelAnimationFrame(frame); request.id += 1; request.controller?.abort(); lookupRequest.id += 1; lookupRequest.controller?.abort(); };
-  }, [initialMode, initialVehicleType]);
+  }, [initialMode, initialVehicleType, locationQuery]);
+
+  const restoreLocationQuery = (query: string) => {
+    const key = searchLandingState(new URLSearchParams(query), initialMode, initialVehicleType).key;
+    if (key === appliedRestoreKey.current) return;
+    appliedRestoreKey.current = key;
+    setLocationQuery(query);
+  };
 
   useEffect(() => {
     if (!guideLandingPending.current || mode !== "parts" || partMethod !== "diagram") return;
     guideLandingPending.current = false;
     guideRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
-  }, [mode, partMethod]);
+  }, [mode, partMethod, restoreRevision]);
 
   useEffect(() => {
     if (showResults && submittedSearch) {
@@ -345,7 +366,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
     if (!restoredSearch || !autoRunPending.current) return;
     autoRunPending.current = false;
     runQuickSearch();
-  }, [restoredSearch]);
+  }, [restoredSearch, restoreRevision]);
 
   const handleCarSortChange = (sort: "best_match" | "price_asc" | "price_desc" | "newest") => {
     if (submittedSearch?.mode !== "cars") return;
@@ -466,6 +487,7 @@ export default function SearchExperience({ initialMode = "cars", initialVehicleT
       <Link href="/return-visit-settings" className="mt-2 inline-block font-semibold text-link">Return visit settings</Link>
     </SiteFooter>
   </>}>
+        <Suspense fallback={null}><SearchQueryObserver onChange={restoreLocationQuery} /></Suspense>
         {restoredSearch && !showResults && <p role="status" className="mx-auto mb-3 max-w-4xl rounded-xl border border-sky-400/25 bg-sky-400/10 p-3 text-sm text-muted">Your saved search is ready. Check the details and press Search for current listings.</p>}
           {mode === "cars" ? (
             <>

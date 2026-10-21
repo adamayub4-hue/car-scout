@@ -26,6 +26,7 @@ const NextLink = () => null;
 const VehiclePicker = () => null;
 const PageResults = () => null;
 const ExtraControls = () => null;
+const QueryObserver = () => null;
 const Placeholder = () => null;
 // Expand the real pure shell and shared category navigation so their children,
 // after content, and native section ref take part in these behavior checks.
@@ -72,6 +73,7 @@ function page(query = '', initialProps = {}) {
   const location = { search: query };
   const slots = [], effects = new Map(), pending = [], requests = [], events = [], timers = new Map();
   const hooks = {
+    Suspense: Symbol.for('react.suspense'),
     useState(initial) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = initial;
@@ -124,6 +126,7 @@ function page(query = '', initialProps = {}) {
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => null };
       if (name === './car-search-results') return { default: PageResults };
       if (name === './car-extra-filters') return { default: ExtraControls };
+      if (name === './search-query-observer') return { default: QueryObserver };
       return { default: Placeholder };
     },
   });
@@ -158,6 +161,11 @@ function page(query = '', initialProps = {}) {
       props = { initialMode: nextRoute === 'parts' ? 'parts' : 'cars', initialVehicleType: nextRoute === 'motorbikes' ? 'motorbikes' : 'cars' };
       dirty = true; return render();
     },
+    navigateQuery(query) {
+      location.search = query;
+      one(node => node.type === QueryObserver).props.onChange(new URLSearchParams(query).toString());
+      return render();
+    },
     click(node) { node.props.onClick(); render(); },
     change(node, value) { node.props.onChange(node.type === VehiclePicker ? value : { target: { value } }); render(); },
     results: () => nodes(render()).find(node => node.type === PageResults),
@@ -186,6 +194,95 @@ test('car extras restore, survive budget presets and clear when switching search
   app.navigate('parts');
   app.navigate('cars');
   assert.deepEqual(Array.from(extras().props.value), []);
+});
+
+test('same-route restored criteria replace visible results and invalidate provider responses without submitting', async () => {
+  const app = page('?restore=1&mode=cars&make=Ford&model=Fiesta&price=5000&platform=ebay');
+  assert.equal(app.field('Make').props.value, 'Ford');
+  assert.equal(app.field('Model').props.value, 'Fiesta');
+  app.click(app.button('Search eBay'));
+  assert.ok(app.results());
+  app.navigateQuery('?restore=1&mode=cars&make=Volkswagen&model=Golf&price=1000&platform=all');
+  assert.equal(app.requests[0].options.signal.aborted, true);
+  assert.equal(app.field('Make').props.value, 'Volkswagen');
+  assert.equal(app.field('Model').props.value, 'Golf');
+  assert.equal(app.field('Maximum budget').props.value, '1000');
+  assert.equal(app.results(), undefined);
+  assert.equal(app.requests.length, 1, 'restoring criteria never runs another search');
+  const eventCount = app.events.length;
+  await app.respond(0, { items: [bike()] });
+  assert.equal(app.results(), undefined, 'a late old response cannot reappear');
+  assert.equal(app.events.length, eventCount, 'an invalidated response records no result event');
+  app.click(app.button('Search all marketplaces'));
+  const query = new URL(app.requests[1].url, 'https://local.test').searchParams;
+  assert.match(query.get('q'), /Volkswagen Golf/);
+  assert.equal(query.get('maxPrice'), '1000');
+});
+
+test('same-route query clearing resets the draft; tracking-only query changes preserve edits and results', async () => {
+  const base = '?restore=1&mode=cars&make=Ford&model=Fiesta&price=5000&platform=ebay&utm_source=facebook';
+  const app = page(base);
+  app.change(app.field('Maximum budget'), '3000');
+  app.click(app.button('Search eBay'));
+  const result = app.results().props.search;
+  app.navigateQuery(base + '&utm_content=new_label&unrelated=value');
+  assert.equal(app.field('Maximum budget').props.value, '3000');
+  assert.equal(app.results().props.search, result);
+  assert.equal(app.requests[0].options.signal.aborted, false);
+  assert.equal(app.events.filter(([name]) => name === 'campaign_landing').length, 1);
+  app.navigateQuery('');
+  assert.equal(app.field('Make').props.value, '');
+  assert.equal(app.field('Model').props.value, '');
+  assert.equal(app.field('Maximum budget').props.value, '');
+  assert.equal(app.field('Where to search').props.value, 'all');
+  assert.equal(app.requests[0].options.signal.aborted, true);
+  assert.equal(app.results(), undefined);
+  assert.doesNotMatch(app.text(), /Your saved search is ready/);
+  await app.respond(0, { items: [] });
+  assert.equal(app.results(), undefined);
+});
+
+test('same-route quick-form navigation runs new criteria once while saved links remain editable', () => {
+  const app = page('?restore=1&mode=cars&make=Ford&model=Fiesta&price=5000&platform=all&run=1');
+  assert.equal(app.requests.length, 1);
+  app.navigateQuery('?restore=1&mode=cars&make=Volkswagen&model=Golf&price=1000&platform=all&run=1');
+  assert.equal(app.requests[0].options.signal.aborted, true);
+  assert.equal(app.requests.length, 2);
+  assert.equal(app.results().props.search.carCriteria.make, 'Volkswagen');
+  assert.equal(app.results().props.search.carCriteria.model, 'Golf');
+  app.navigateQuery('?restore=1&mode=cars&make=Volkswagen&model=Golf&price=1000&platform=all&run=1&utm_source=facebook');
+  assert.equal(app.requests.length, 2, 'tracking changes cannot repeat a quick search');
+  app.navigateQuery('?restore=1&mode=cars&make=Ford&model=Focus&platform=all');
+  assert.equal(app.requests.length, 2);
+  assert.equal(app.results(), undefined);
+  assert.equal(app.field('Model').props.value, 'Focus');
+});
+
+test('same-route motorbike and part-number restores keep their own criteria and remain editable', () => {
+  const bikePage = page('?restore=1&mode=cars&vehicle_type=motorbikes&make=Honda&model=CBR600F&price=3000');
+  bikePage.navigateQuery('?restore=1&mode=cars&vehicle_type=motorbikes&make=Yamaha&model=MT-07&price=2000');
+  assert.equal(bikePage.field('Make').props.value, 'Yamaha');
+  assert.equal(bikePage.field('Model').props.value, 'MT-07');
+  assert.equal(bikePage.field('Maximum budget').props.value, '2000');
+  assert.equal(bikePage.requests.length, 0);
+  const partsPage = page('?restore=1&mode=parts&search_method=part_number&part_number=06J115403Q');
+  partsPage.navigateQuery('?restore=1&mode=parts&search_method=part_number&part_number=1K0698151F&make=Ford&model=Fiesta');
+  assert.equal(partsPage.one(node => node.props.id === 'quick-part-number').props.value, '1K0698151F');
+  assert.equal(partsPage.requests.length, 0);
+  partsPage.navigateQuery('');
+  assert.equal(partsPage.one(node => node.props.id === 'quick-part-number').props.value, '');
+});
+
+test('same-route restoration cancels registration lookup and rejects its late private vehicle details', async () => {
+  const app = page('?mode=parts');
+  app.change(app.one(node => node.type === 'input' && node.props.placeholder === 'e.g. AB12 CDE'), 'AB12CDE');
+  app.click(app.button('Find vehicle'));
+  app.navigateQuery('?restore=1&mode=parts&search_method=part_number&part_number=06J115403Q');
+  assert.equal(app.requests[0].options.signal.aborted, true);
+  await app.respond(0, { vehicle: { make: 'Ford', model: 'Fiesta', yearOfManufacture: 2018 } });
+  assert.equal(app.one(node => node.type === 'input' && node.props.placeholder === 'e.g. AB12 CDE').props.value, '');
+  assert.equal(app.one(node => node.props.id === 'quick-part-number').props.value, '06J115403Q');
+  assert.deepEqual(app.events, []);
 });
 
 test('motorbike route starts with bike suggestions and unrestricted model while retaining its budget controls', () => {

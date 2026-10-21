@@ -595,10 +595,10 @@ function restoreFromUrl(query) {
   visit(ast);
   assert.ok(expression);
   const state = {};
-  const setters = Object.fromEntries(['Mode', 'VehicleType', 'PartMethod', 'Make', 'Model', 'Year', 'Price', 'MinPrice', 'CarSort', 'HideUnwanted', 'CarExtras', 'Postcode', 'Platform', 'Engine', 'Fuel', 'BodyStyle', 'Part', 'PartCategory', 'PartNumber', 'VehicleDetailsOpen', 'RestoredSearch'].map(key => [`set${key}`, value => { state[key] = value; }]));
+  const setters = Object.fromEntries(['Mode', 'VehicleType', 'PartMethod', 'Make', 'Model', 'Year', 'Price', 'MinPrice', 'CarSort', 'HideUnwanted', 'CarExtras', 'Postcode', 'Platform', 'Engine', 'Fuel', 'BodyStyle', 'Part', 'PartCategory', 'PartNumber', 'VehicleDetailsOpen', 'RestoredSearch', 'ShowResults', 'SubmittedSearch', 'EbayItems', 'EbayLoading', 'EbayError', 'CarSearchInfo', 'Error', 'Registration', 'VehicleLookup', 'VehicleLookupLoading', 'LensPartName', 'RestoreRevision'].map(key => [`set${key}`, value => { state[key] = typeof value === 'function' ? value(state[key] || 0) : value; }]));
   const code = ts.transpileModule(`const restore = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
   const restore = vm.runInNewContext(`${code}\nrestore`, {
-    URLSearchParams, parseSavedSearchParams: saved.parseSavedSearchParams, categories: guide.categories, validatedPartSelection: handler('validatedPartSelection', guide),
+    URLSearchParams, searchLandingState: saved.searchLandingState, locationQuery: null, appliedRestoreKey: { current: null }, categories: guide.categories, validatedPartSelection: handler('validatedPartSelection', guide),
     initialMode: 'cars', initialVehicleType: 'cars', trackCampaignLanding() {}, autoRunPending: { current: false },
     trackGrowthEvent() {}, ...setters, ebayRequest: { current: { id: 0, controller: null } }, vehicleLookupRequest: { current: { id: 0, controller: null } }, guideLandingPending: { current: false },
     window: { location: { search: query }, requestAnimationFrame: fn => { fn(); return 1; }, cancelAnimationFrame() {} },

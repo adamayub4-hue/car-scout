@@ -89,3 +89,32 @@ test('shared search privacy survives routing and does not opt in to automatic ex
   for (const key of ['postcode', 'registration', 'ownerToken', 'run']) assert.equal(nextUrl.searchParams.has(key), false, key);
   assert.equal(nextUrl.searchParams.get('platform'), 'facebook', 'external marketplace choice remains editable');
 });
+
+test('internal restore links target the correct canonical search page and preserve only validated criteria', () => {
+  for (const [kind, data, path] of [
+    ['car_search', { make: 'Ford', model: 'Fiesta', price: '5000', platform: 'all' }, '/cars'],
+    ['car_search', { vehicleType: 'motorbikes', make: 'Honda', model: 'CBR600F', price: '2000' }, '/motorbikes'],
+    ['part_search', { make: 'Audi', model: 'A5', year: '2014', part: 'Brake Pads' }, '/parts'],
+    ['part_search', { searchMethod: 'part_number', partNumber: '06J115403Q' }, '/parts'],
+  ]) {
+    const legacy = saved.getSavedSearchUrl({ kind, data, title: 'Saved' });
+    const target = new URL(saved.canonicalSearchRestoreUrl(legacy + '&run=1&utm_source=facebook&access_token=secret'), 'https://mekivo.uk');
+    assert.equal(target.pathname, path);
+    assert.equal(target.search, new URL(legacy, target).search);
+    assert.deepEqual(plain(saved.parseSavedSearchParams(target.searchParams)), plain(saved.parseSavedSearchParams(new URL(legacy, target).searchParams)));
+    for (const key of ['run', 'utm_source', 'access_token']) assert.equal(target.searchParams.has(key), false);
+  }
+  for (const unsafe of ['https://evil.test/?restore=1', '//evil.test/', '/admin', '/cars?restore=1', '/?next=https://evil.test']) assert.equal(saved.canonicalSearchRestoreUrl(unsafe), null, unsafe);
+});
+
+test('restoration keys ignore unrelated labels but distinguish real criteria, guide entry and eligible quick runs', () => {
+  const state = query => saved.searchLandingState(new URLSearchParams(query), 'cars', 'cars');
+  const first = 'restore=1&mode=cars&make=Ford&model=Fiesta&price=5000&platform=all';
+  assert.equal(state(first).key, state(first + '&utm_source=facebook&unrelated=1').key);
+  assert.equal(state(first).key, state('platform=all&price=5000&make=Ford&model=Fiesta&mode=cars&restore=1').key);
+  assert.notEqual(state(first).key, state(first.replace('Fiesta', 'Focus')).key);
+  assert.notEqual(state(first).key, state('').key);
+  assert.notEqual(state(first).key, state(first + '&run=1').key);
+  assert.equal(state(first.replace('platform=all', 'platform=facebook')).key, state(first.replace('platform=all', 'platform=facebook') + '&run=1').key, 'external links never auto-open');
+  assert.notEqual(state('mode=parts').key, state('mode=parts&guide=1').key);
+});

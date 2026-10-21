@@ -110,14 +110,14 @@ test('other guides keep the existing car or parts search card and picture-guide 
     const card = markup.match(/<section aria-labelledby="guide-search-title"[^>]*>(.*?)<\/section>/)[1];
     if (guide.category === 'parts') {
       assert.ok(card.includes('Ready to look for a part?'));
-      assert.ok(card.includes('href="/?mode=parts"'));
+      assert.ok(card.includes('href="/parts"'));
       assert.ok(card.includes('Search by part number'));
-      assert.ok(card.includes('href="/?mode=parts&amp;guide=1"'));
+      assert.ok(card.includes('href="/parts?guide=1"'));
       assert.ok(card.includes('Find a part by picture'));
       assert.ok(card.includes('does not confirm fitment'));
     } else {
       assert.ok(card.includes('Find cars within your budget'));
-      assert.ok(card.includes('href="/?mode=cars"'));
+      assert.ok(card.includes('href="/cars"'));
       assert.ok(card.includes('Search UK cars'));
     }
   }

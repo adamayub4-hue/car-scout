@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { accountRecoveryPath, getSavedSearchUrl, safeSearchReturnUrl, withRequestDeadline } from "../lib/saved-search";
+import { accountRecoveryPath, canonicalSearchRestoreUrl, getSavedSearchUrl, safeSearchReturnUrl, withRequestDeadline } from "../lib/saved-search";
 import { clearPendingListing, getPendingListingExpiresAt, getPendingListingSnapshotExpiresAt, getPendingListingToken, parseSavedListing, readPendingListing, savedListingLabel, saveListingToAccount, type SavedListingItem } from "../lib/saved-listings";
 import SavedListingCard from "../components/saved-listing-card";
 import type { User } from "@supabase/supabase-js";
@@ -313,7 +313,7 @@ export default function AccountPage() {
           {user && <button type="button" disabled={Boolean(busyAction)} onClick={signOut} className="text-sm text-muted hover:text-foreground disabled:opacity-60">Sign out</button>}
         </header>
 
-        {returnUrl && <div className="mt-6 rounded-2xl border border-sky-300/25 p-5 text-sm"><p>Your search is ready to resume. {user ? "Open it, then choose Save search." : "Sign in or create an account, then return to save it."}</p><Link href={returnUrl} className="mt-3 inline-block font-semibold text-link">Resume your search →</Link></div>}
+        {returnUrl && <div className="mt-6 rounded-2xl border border-sky-300/25 p-5 text-sm"><p>Your search is ready to resume. {user ? "Open it, then choose Save search." : "Sign in or create an account, then return to save it."}</p><Link href={canonicalSearchRestoreUrl(returnUrl) || "/cars"} className="mt-3 inline-block font-semibold text-link">Resume your search →</Link></div>}
         {pendingListing && <section aria-label="Listing waiting to be saved" className="mt-6 rounded-2xl border border-sky-300/25 p-4">
           <p className="mb-2 font-bold">Your {savedListingLabel(pendingListing.item)} is ready to save</p>
           <p className="mb-4 text-sm leading-6 text-muted">{user ? `Save this listing to ${user.email || "your signed-in account"}.` : "Sign in or create an account below, then choose Save. This selection stays in this browser for up to 24 hours while you confirm your email."}</p>
@@ -350,14 +350,14 @@ export default function AccountPage() {
                 {pageItems.map((item) => {
                   if (item.kind === "car_listing" || item.kind === "part_listing") {
                     const listing = parseSavedListing(item);
-                    return listing ? <SavedListingCard key={`${user.id}:${item.id}`} item={listing} savedAt={item.created_at} userId={user.id} action={<button type="button" disabled={Boolean(busyAction)} onClick={() => remove(item.id)} className="text-danger disabled:opacity-60">{busyAction === item.id ? "Removing…" : "Remove"}</button>} /> : <article key={item.id} className="rounded-2xl border border-outline/10 p-5"><h2 className="font-bold">{item.title || "Saved listing"}</h2><p className="mt-2 text-sm text-muted">The saved listing details are unavailable. Search again to find current listings.</p><div className="mt-3 flex gap-4 text-sm"><Link href={item.kind === "car_listing" ? "/?mode=cars" : "/?mode=parts"} className="font-semibold text-link">Search again →</Link><button type="button" disabled={Boolean(busyAction)} onClick={() => remove(item.id)} className="text-danger">Remove</button></div></article>;
+                    return listing ? <SavedListingCard key={`${user.id}:${item.id}`} item={listing} savedAt={item.created_at} userId={user.id} action={<button type="button" disabled={Boolean(busyAction)} onClick={() => remove(item.id)} className="text-danger disabled:opacity-60">{busyAction === item.id ? "Removing…" : "Remove"}</button>} /> : <article key={item.id} className="rounded-2xl border border-outline/10 p-5"><h2 className="font-bold">{item.title || "Saved listing"}</h2><p className="mt-2 text-sm text-muted">The saved listing details are unavailable. Search again to find current listings.</p><div className="mt-3 flex gap-4 text-sm"><Link href={item.kind === "car_listing" ? "/cars" : "/parts"} className="font-semibold text-link">Search again →</Link><button type="button" disabled={Boolean(busyAction)} onClick={() => remove(item.id)} className="text-danger">Remove</button></div></article>;
                   }
                   return (
                   <article key={item.id} className="flex items-start justify-between gap-4 rounded-2xl border border-outline/10 bg-overlay/[0.035] p-5">
                     <div>
                       <span className="text-xs font-bold uppercase tracking-wider text-link">{item.kind === "car_search" && item.data?.vehicleType === "motorbikes" ? "Motorbike search" : item.kind.replace("_", " ")}</span>
                       <h2 className="mt-2 font-bold">{item.title}</h2>
-                      <p className="mt-1 text-xs text-subtle">Saved {new Date(item.created_at).toLocaleDateString("en-GB")}</p><Link href={getSavedSearchUrl({ kind: item.kind, title: item.title, data: item.data })} className="mt-3 inline-block text-sm font-semibold text-link">Run this search →</Link>
+                      <p className="mt-1 text-xs text-subtle">Saved {new Date(item.created_at).toLocaleDateString("en-GB")}</p><Link href={canonicalSearchRestoreUrl(getSavedSearchUrl({ kind: item.kind, title: item.title, data: item.data })) || "/cars"} className="mt-3 inline-block text-sm font-semibold text-link">Run this search →</Link>
                     </div>
                     <button type="button" disabled={Boolean(busyAction)} onClick={() => remove(item.id)} className="text-sm text-danger hover:text-danger">Remove</button>
                   </article>

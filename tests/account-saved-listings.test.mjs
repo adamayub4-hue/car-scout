@@ -13,6 +13,11 @@ vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/search.ts
   if (name === './car-extras') return carExtras;
   throw new Error(`Unexpected pure helper import: ${name}`);
 } });
+const savedSearchHelpers = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../app/lib/saved-search.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { exports: savedSearchHelpers, URL, URLSearchParams, require(name) {
+  if (name === './car-extras') return carExtras;
+  throw new Error(`Unexpected saved-search helper import: ${name}`);
+} });
 const url = 'https://www.ebay.co.uk/itm/123456789012';
 const bookmark = { kind: 'part_listing', title: 'My Ford brake search', data: { version: 1, id: '123456789012', url, searchUrl: '/?restore=1&mode=parts&part=Brake' } };
 const fresh = { id: '123456789012', title: 'Current eBay brake listing', url, price: '29.00', currency: 'GBP', image: 'https://i.ebayimg.com/images/test.jpg', condition: 'New', location: 'London', postage: { price: '3.00', currency: 'GBP' } };
@@ -39,7 +44,7 @@ function harness(reads, props = {}, clock = Date) {
       if (name === 'next/link') return { default: 'link' };
       if (name === 'next/image') return { default: 'image' };
       if (name === '../lib/search') return { ebayBuyingFormat: searchHelpers.ebayBuyingFormat, formatListingPrice: (price, currency) => price ? `${currency} ${price}` : 'Price unavailable', withEbayAffiliateTracking: value => value };
-      if (name === '../lib/saved-search') return { withRequestDeadline: value => Promise.resolve(value) };
+      if (name === '../lib/saved-search') return { ...savedSearchHelpers, withRequestDeadline: value => Promise.resolve(value) };
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'session-token', user: { id: currentProps.userId } } }, error: null }) } }) };
       if (name === '../lib/saved-listings') return {
         createSavedListing: (item, mode, searchUrl) => item?.url && item?.id ? ({ kind: mode === 'parts' ? 'part_listing' : 'car_listing', title: item.title, data: { ...item, searchUrl } }) : null,
@@ -91,7 +96,7 @@ test('saved motorcycle cards retain motorcycle labels, similar-search links and 
   const ready = h.render();
   assert.match(ready.text, /Motorbike listing/); assert.match(ready.text, /Search for similar\s+motorbikes/);
   assert.doesNotMatch(ready.text, /Postage GBP/);
-  assert.equal(ready.nodes.find(node => node.type === 'link').props.href, item.data.searchUrl);
+  assert.equal(ready.nodes.find(node => node.type === 'link').props.href, savedSearchHelpers.canonicalSearchRestoreUrl(item.data.searchUrl));
   ready.nodes.find(node => node.type === 'a').props.onClick();
   assert.equal(h.events[0][1].search_type, 'motorbikes');
   h.unmount();
@@ -106,7 +111,7 @@ test('unavailable or failed checks keep the saved link and fallback search witho
     assert.doesNotMatch(current.text, /9999|Old provider condition/);
     assert.equal(current.nodes.some(node => node.type === 'image'), false);
     assert.equal(current.nodes.find(node => node.type === 'a').props.href, url);
-    assert.equal(current.nodes.find(node => node.type === 'link').props.href, bookmark.data.searchUrl);
+    assert.equal(current.nodes.find(node => node.type === 'link').props.href, savedSearchHelpers.canonicalSearchRestoreUrl(bookmark.data.searchUrl));
     assert.ok(current.nodes.find(node => node.type === 'button' && node.props.children === 'Check listing again'));
     h.unmount();
   }

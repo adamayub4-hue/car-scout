@@ -27,6 +27,7 @@ const pageCode = compile('../app/components/search-experience.tsx');
 const Guide = () => null;
 const Placeholder = () => null;
 const NextLink = () => null;
+const QueryObserver = () => null;
 
 function nodes(node, result = []) {
   if (Array.isArray(node)) node.forEach(child => nodes(child, result));
@@ -75,6 +76,7 @@ function page(query, initialProps = {}) {
   const location = { search: query };
   const slots = [], effects = new Map(), pendingEffects = [], scrolls = [], requests = [], events = [];
   const hooks = {
+    Suspense: Symbol.for('react.suspense'),
     useState(initial) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = initial;
@@ -125,6 +127,7 @@ function page(query, initialProps = {}) {
       if (name === '../lib/analytics-audience') return { analyticsAudience: () => 'excluded' };
       if (name === '../lib/supabase') return { getSupabaseBrowserClient: () => null };
       if (name === './parts-guide') return { default: Guide };
+      if (name === './search-query-observer') return { default: QueryObserver };
       return { default: Placeholder };
     },
   });
@@ -145,6 +148,11 @@ function page(query, initialProps = {}) {
   render();
   return {
     scrolls, requests, events, render,
+    navigateQuery(query) {
+      location.search = query;
+      nodes(render()).find(node => node.type === QueryObserver).props.onChange(new URLSearchParams(query).toString());
+      return render();
+    },
     navigate(nextRoute) {
       if (route === nextRoute) return render();
       for (const effect of effects.values()) effect.cleanup?.();
@@ -176,6 +184,18 @@ test('direct guide landing reveals the guide and scrolls once without vehicle de
   app.navigate('cars');
   app.navigate('parts');
   assert.equal(app.scrolls.filter(scroll => scroll.target === 'guide').length, 1);
+});
+
+test('same-route guide navigation consumes a new landing even when its diagram is already open', () => {
+  const app = page('?mode=parts&restore=1&make=Ford&model=Fiesta&year=2012&part_method=diagram&category=Suspension&part=Control+Arm');
+  assert.ok(app.guide());
+  assert.equal(app.scrolls.length, 0);
+  app.navigateQuery('?guide=1');
+  assert.ok(app.guide());
+  assert.equal(app.vehicle().props.open, false);
+  assert.deepEqual(app.scrolls, [{ target: 'guide', behavior: 'instant', block: 'start' }]);
+  app.guide().props.onCategory('Brakes'); app.render();
+  assert.equal(app.scrolls.length, 1, 'the pending landing cannot leak into a later selection');
 });
 
 test('already scheduled guide campaign links open the guide without needing their captions edited', () => {

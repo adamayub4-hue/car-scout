@@ -10,7 +10,7 @@ const displayDate = (date: string) => new Intl.DateTimeFormat("en-GB", {
 export default function GuideArticle({ guide }: { guide: Guide }) {
   const related = guides.filter((entry) => guide.relatedSlugs.includes(entry.slug));
   const isPartsGuide = guide.category === "parts";
-  const searchHref = isPartsGuide ? "/?mode=parts" : "/?mode=cars";
+  const searchHref = isPartsGuide ? "/parts" : "/cars";
   const quickCheck = guide.slug === "checking-mot-history" ? {
     title: "Check MOT history for free",
     description: "Use the registration number to open the official record, then check test results, mileage and advisories.",
@@ -51,7 +51,7 @@ export default function GuideArticle({ guide }: { guide: Guide }) {
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link href={quickCheck?.href ?? searchHref} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-400 px-5 py-3 text-center font-bold text-slate-950 transition hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">{quickCheck?.label ?? (isPartsGuide ? "Search by part number" : "Search UK cars")}</Link>
             {quickCheck && <Link href={quickCheck.nextHref} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-400/30 px-4 py-3 text-center font-semibold text-link transition hover:bg-sky-400/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">{quickCheck.nextLabel}</Link>}
-            {isPartsGuide && <Link href="/?mode=parts&guide=1" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-400/30 px-4 py-3 text-center font-semibold text-link transition hover:bg-sky-400/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">Find a part by picture</Link>}
+            {isPartsGuide && <Link href="/parts?guide=1" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-sky-400/30 px-4 py-3 text-center font-semibold text-link transition hover:bg-sky-400/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">Find a part by picture</Link>}
           </div>
           {isPartsGuide && <p className="mt-3 text-xs leading-5 text-subtle">The picture guide helps with part names; it does not confirm fitment.</p>}
         </section>

@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ebayBuyingFormat, formatListingPrice, withEbayAffiliateTracking } from "../lib/search";
 import { createSavedListing, getPendingListingSnapshotExpiresAt, savedListingLabel, savedListingSearchType, type SavedListingItem } from "../lib/saved-listings";
 import { getSupabaseBrowserClient } from "../lib/supabase";
-import { withRequestDeadline } from "../lib/saved-search";
+import { canonicalSearchRestoreUrl, withRequestDeadline } from "../lib/saved-search";
 import { partPostageLabel } from "../lib/part-recommendations";
 import { trackGrowthEvent } from "../lib/growth-events";
 
@@ -103,7 +103,7 @@ export default function SavedListingCard({ item, savedAt, userId, pendingToken, 
       <p className="mt-4 text-xs leading-5 text-muted">Prices and availability can change, and listings may end. Confirm {isCar ? "the vehicle details" : "compatibility and postage"} with the seller. Mekivo may earn a commission.</p>
       <div className="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
         <a href={withEbayAffiliateTracking(item.data.url, `mekivo-${searchType}-saved`)} target="_blank" rel="sponsored noreferrer" onClick={trackOutbound} className="text-link">View original listing →</a>
-        <Link href={item.data.searchUrl} className="text-link">Search for similar {searchType} →</Link>
+        <Link href={canonicalSearchRestoreUrl(item.data.searchUrl) || (isCar ? "/cars" : "/parts")} className="text-link">Search for similar {searchType} →</Link>
         {savedAt && (current?.status === "error" || current?.status === "unavailable") && <button type="button" onClick={retry} className="text-link">Check listing again</button>}
         {action}
       </div>

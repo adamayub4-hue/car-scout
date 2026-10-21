@@ -1,4 +1,4 @@
-import type { CarSort } from "./search";
+import type { CarSort, Mode, VehicleType } from "./search";
 import { normalizeCarExtras } from "./car-extras";
 
 export type SavedSearchItem = {
@@ -92,6 +92,27 @@ export function safeSearchReturnUrl(value: string | null) {
     if (!restored) return null;
     return getSavedSearchUrl({ kind: restored.mode === "cars" ? "car_search" : "part_search", title: "Saved search", data: restored });
   } catch { return null; }
+}
+
+// Stored and emailed criteria retain their portable legacy format. Internal
+// client navigation must target the search page rather than the cached Home.
+export function canonicalSearchRestoreUrl(value: string | null) {
+  const safe = safeSearchReturnUrl(value);
+  if (!safe) return null;
+  const params = new URLSearchParams(safe.slice(2));
+  const path = params.get("mode") === "parts" ? "/parts" : params.get("vehicle_type") === "motorbikes" ? "/motorbikes" : "/cars";
+  return `${path}${safe.slice(1)}`;
+}
+
+export function searchLandingState(params: URLSearchParams, initialMode: Mode, initialVehicleType: VehicleType) {
+  const saved = parseSavedSearchParams(params);
+  const mode = saved?.mode || (params.get("mode") === "parts" ? "parts" : initialMode);
+  const vehicleType: VehicleType = mode === "cars" && (saved?.vehicleType === "motorbikes" || params.get("vehicle_type") === "motorbikes" || initialVehicleType === "motorbikes") ? "motorbikes" : "cars";
+  const guideCampaign = ["visual_guide", "visual_guide_v2"].includes(params.get("utm_content") || "");
+  const guide = !saved && mode === "parts" && (params.get("guide") === "1" || guideCampaign);
+  const autoRun = Boolean(saved && saved.mode === "cars" && params.get("run") === "1" && (saved.platform === "all" || saved.platform === "ebay"));
+  // Tracking labels and unrelated URL changes must not erase a customer's edits.
+  return { saved, mode, vehicleType, guide, autoRun, key: JSON.stringify([saved, mode, vehicleType, guide, autoRun]) };
 }
 
 export function accountRecoveryPath(path: "/account" | "/forgot-password" | "/reset-password", returnTo: string | null) {
