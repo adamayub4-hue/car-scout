@@ -43,6 +43,30 @@ The repository currently has Supabase account tables and browser anon-key access
 
 A globally atomic provider quota remains outstanding. The live firewall rule above is active; no database or provider-account setting changed in this work.
 
+## Public uptime checks
+
+The existing GitHub workflow requests a run every 15 minutes and can also be run manually. GitHub scheduling is best effort: a 21 October 2026 review of the latest 100 scheduled runs found successful checks separated by 99–567 minutes, with a median gap of 262 minutes. This is not demonstrated 15-minute monitoring coverage. It checks only `https://mekivo.uk/api/health` and the public homepage, without query parameters, credentials or browser JavaScript. It does not send searches, registration lookups, email requests or provider-token probes.
+
+Both checks require HTTP 200 at the expected Mekivo path. The health body must be JSON with `status: "ok"` and `service: "mekivo"`; the homepage must contain the Mekivo title and its GET car-search form. Requests are HTTPS-only and follow zero redirects, so an unexpected response cannot turn a check into a search or provider request. Unexpected final domains, paths or query parameters fail validation too. Requests have a 10-second connection timeout, 15-second transfer timeout, at most two retries and a 40-second retry-start window, within the existing three-minute job limit. Response sizes are capped; bodies and unexpected destinations are not printed by the validators. The homepage check still runs if health fails, without masking that failure.
+
+A successful run proves these public responses were served. It does not prove browser interactions, upstream credentials, eBay/DVLA/DVSA/Supabase availability or remaining service allowances. Review current provider dashboards separately. GitHub's owner notification preferences must be checked separately too: a failed Actions run is not evidence that an email or app alert was delivered. No additional alert service or scheduled automation was added.
+
+## Provider allowances and expiring access
+
+The following published guidance was checked on 21 October 2026; account-specific limits, current usage and credential expiry still need separate authenticated evidence.
+
+- [eBay Browse](https://developer.ebay.com/develop/api/buy/api_call_limits): the published default is 5,000 calls per day for methods other than `getItems`, which has its own 5,000-call bucket. One uncached Mekivo car or motorbike search can make up to four Browse calls; a parts search makes one. Website search totals therefore cannot be substituted for provider-call totals. The read-only [Developer Analytics rate-limit resource](https://developer.ebay.com/api-docs/developer/analytics/resources/rate_limit/methods/getRateLimits) reports the actual application's `limit`, `remaining`, `count`, `reset` and `timeWindow`. Use the existing application credentials and base OAuth scope; do not create another keyset or submit listings to inspect usage.
+- [DVLA VES](https://developer-portal.driver-vehicle-licensing.api.gov.uk/apis/vehicle-enquiry-service/vehicle-enquiry-service-description.html): the assigned usage plan determines each client's request rate, and shared service throttling also applies. Do not invent a numeric allowance from Mekivo's own throttles or apply another DVLA API's limit to VES.
+- [DVSA MOT](https://documentation.history.mot.api.gov.uk/mot-history-api/rate-limits/): published limits are 500,000 requests per day, an average of 15 requests per second and a burst of 10 (no burst window is stated). Exceeding the quota can block the key for 24 hours. [Authentication guidance](https://documentation.history.mot.api.gov.uk/mot-history-api/authentication/) describes two-year client secrets, reminder emails 30 and 14 days before expiry, and revocation of API keys unused for 90 days. A credential-email date alone does not prove the current secret's exact expiry or validity.
+
+Do not schedule real searches, vehicle registrations or token probes as quota checks. Review provider usage and notices without retaining keys, tokens, registration numbers or customer queries in reports. Infrastructure spending alerts and a per-IP firewall limit do not impose a shared provider-account allowance.
+
+## Supabase Free availability
+
+Review the actual database, egress, authentication and Storage allowances in the existing project's usage dashboard; rounded usage values are not a count of website visitors. Supabase's [production checklist](https://supabase.com/docs/guides/deployment/going-into-prod#availability) says Free projects with low activity in a seven-day period may be paused. A healthy public Mekivo homepage does not prove that its account database is available. No provider keep-alive, fake customer activity or new scheduler was added.
+
+The existing Free project's dashboard does not include managed project backups. See [backup and recovery](backup-recovery.md) for the verified source/fixture scope and the separate live-data backup prerequisite. Provider notices, actual usage and database availability remain separate from the public uptime workflow.
+
 ## Verification
 
 `node --test tests/api-reliability.test.mjs` covers query filters/validation, cache separation/expiry/eviction, identifier-shaped cache bypass, uncached errors and token renewal, concurrent token refresh, provider header/body stalls, private vehicle responses, optional MOT fallback, oversized body rejection, local 429 handling and Commons timeout behaviour. Follow this with the full tests, lint and production build before deployment.

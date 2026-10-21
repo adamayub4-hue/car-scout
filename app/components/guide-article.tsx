@@ -66,7 +66,7 @@ export default function GuideArticle({ guide }: { guide: Guide }) {
             <section key={section.id} id={section.id} className="scroll-mt-6 border-t border-outline/10 pt-6">
               <h2 className="text-2xl font-bold">{section.title}</h2>
               {section.paragraphs.map((paragraph) => <p key={paragraph} className="mt-4 leading-8 text-muted">{paragraph}</p>)}
-              {section.sourceIds.length > 0 && <p className="mt-4 text-sm leading-6 text-subtle">GOV.UK sources: {section.sourceIds.map((id, index) => {
+              {section.sourceIds.length > 0 && <p className="mt-4 text-sm leading-6 text-subtle">Sources: {section.sourceIds.map((id, index) => {
                 const source = guide.sources.find((entry) => entry.id === id)!;
                 return <span key={id}>{index > 0 && "; "}<a href={source.url} className="text-link underline underline-offset-2">{source.title}</a></span>;
               })}</p>}
@@ -75,7 +75,7 @@ export default function GuideArticle({ guide }: { guide: Guide }) {
         </div>
         <section aria-labelledby="guide-sources" className="mt-10 rounded-2xl border border-outline/10 p-5">
           <h2 id="guide-sources" className="text-xl font-bold">Sources and review date</h2>
-          <p className="mt-3 text-sm leading-6 text-muted">Government information checked on {displayDate(guide.updatedAt)}. Mekivo&apos;s checklists explain how to use these sources; GOV.UK does not endorse Mekivo or verify marketplace listings. Follow the linked guidance for its scope and any later changes.</p>
+          <p className="mt-3 text-sm leading-6 text-muted">Sources checked on {displayDate(guide.updatedAt)}. These links do not mean the organisations endorse Mekivo or verify marketplace listings. Check each source for its scope and any later updates.</p>
           <ul className="mt-4 space-y-2">{guide.sources.map((source) => <li key={source.id}><a href={source.url} className="text-sm leading-6 text-link underline underline-offset-2">{source.title}</a></li>)}</ul>
         </section>
         <Link href={searchHref} className="mt-8 inline-flex rounded-xl bg-sky-400 px-5 py-3 font-bold text-slate-950">{isPartsGuide ? "Open the parts finder" : "Search for a car"}</Link>

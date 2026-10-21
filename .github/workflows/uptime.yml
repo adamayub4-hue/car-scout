@@ -14,6 +14,79 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Check public health endpoint
-        run: curl --fail --silent --show-error --retry 3 --retry-delay 5 --max-time 20 https://mekivo.uk/api/health
+        run: |
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          result="$(curl --proto '=https' --proto-redir '=https' --location --max-redirs 0 --fail --silent --show-error --retry 2 --retry-delay 5 --retry-max-time 40 --connect-timeout 10 --max-time 15 --max-filesize 16384 --output "$response_file" --write-out '%{http_code}\n%{url_effective}' https://mekivo.uk/api/health)"
+          python3 - "$response_file" "$result" <<'PY'
+          import json
+          import sys
+          from urllib.parse import urlsplit
+
+          try:
+              status, destination = sys.argv[2].splitlines()
+              url = urlsplit(destination)
+              if status != "200" or url.scheme != "https" or url.netloc != "mekivo.uk" or url.path != "/api/health" or url.query or url.fragment:
+                  raise ValueError("unexpected destination or status")
+              with open(sys.argv[1], encoding="utf-8") as response:
+                  body = response.read(16385)
+              if len(body) > 16384:
+                  raise ValueError("response too large")
+              payload = json.loads(body)
+              if not isinstance(payload, dict) or payload.get("status") != "ok" or payload.get("service") != "mekivo":
+                  raise ValueError("unexpected health identity")
+          except (ValueError, OSError, UnicodeError):
+              sys.exit("Mekivo health check failed: expected HTTP 200 and Mekivo health JSON on the public health route.")
+          print("Mekivo public health response verified; upstream providers were not checked.")
+          PY
       - name: Check public homepage
-        run: curl --fail --silent --show-error --retry 3 --retry-delay 5 --max-time 20 --output /dev/null https://mekivo.uk/
+        if: always()
+        run: |
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          result="$(curl --proto '=https' --proto-redir '=https' --location --max-redirs 0 --fail --silent --show-error --retry 2 --retry-delay 5 --retry-max-time 40 --connect-timeout 10 --max-time 15 --max-filesize 1048576 --output "$response_file" --write-out '%{http_code}\n%{url_effective}' https://mekivo.uk/)"
+          python3 - "$response_file" "$result" <<'PY'
+          import re
+          import sys
+          from html.parser import HTMLParser
+          from urllib.parse import urlsplit
+
+          class Homepage(HTMLParser):
+              def __init__(self):
+                  super().__init__(convert_charrefs=True)
+                  self.in_title = False
+                  self.title = ""
+                  self.search_form = False
+
+              def handle_starttag(self, tag, attrs):
+                  if tag == "title":
+                      self.in_title = True
+                  if tag == "form":
+                      fields = dict(attrs)
+                      self.search_form |= fields.get("action") == "/cars" and (fields.get("method") or "get").lower() == "get"
+
+              def handle_endtag(self, tag):
+                  if tag == "title":
+                      self.in_title = False
+
+              def handle_data(self, data):
+                  if self.in_title:
+                      self.title += data
+
+          try:
+              status, destination = sys.argv[2].splitlines()
+              url = urlsplit(destination)
+              if status != "200" or url.scheme != "https" or url.netloc != "mekivo.uk" or url.path != "/" or url.query or url.fragment:
+                  raise ValueError("unexpected destination or status")
+              with open(sys.argv[1], encoding="utf-8") as response:
+                  body = response.read(1048577)
+              if len(body) > 1048576:
+                  raise ValueError("response too large")
+              page = Homepage()
+              page.feed(body)
+              if not re.search(r"\bMekivo\b", page.title, re.IGNORECASE) or not page.search_form:
+                  raise ValueError("homepage search form missing")
+          except (ValueError, OSError, UnicodeError):
+              sys.exit("Mekivo homepage check failed: expected HTTP 200, the Mekivo title and its car-search form on the public homepage.")
+          print("Mekivo homepage HTML verified; browser JavaScript and upstream providers were not checked.")
+          PY

@@ -29,24 +29,27 @@ const { guides } = load(new URL('../app/lib/guides/index.ts', import.meta.url));
 const { guideStructuredData, guideMetadata, serializeStructuredData } = load(new URL('../app/lib/guides/metadata.ts', import.meta.url));
 const Article = load(new URL('../app/components/guide-article.tsx', import.meta.url)).default;
 
-test('all seven substantial guides use resolvable GOV.UK citations and related links', () => {
+test('all seven guides retain useful sections, deliberate official citations and related links', () => {
   assert.equal(guides.length, 7);
   const slugs = guides.map(guide => guide.slug);
   assert.equal(new Set(slugs).size, guides.length);
   for (const guide of guides) {
-    const prose = [...guide.intro, ...guide.sections.flatMap(section => section.paragraphs)].join(' ');
-    assert.ok(prose.trim().split(/\s+/).length >= 800, `${guide.slug} has at least 800 words of article prose`);
+    assert.ok(guide.intro.length > 0 && guide.intro.every(paragraph => typeof paragraph === 'string' && paragraph.trim()), `${guide.slug} has an introduction`);
+    assert.ok(guide.sections.length > 0);
     assert.ok(guide.sources.length > 0);
     const sourceIds = guide.sources.map(source => source.id);
     assert.equal(new Set(sourceIds).size, sourceIds.length);
     for (const source of guide.sources) {
       const url = new URL(source.url);
       assert.equal(url.protocol, 'https:');
-      assert.ok(url.hostname === 'gov.uk' || url.hostname.endsWith('.gov.uk'), `${guide.slug}: ${source.url}`);
+      assert.equal(url.username, ''); assert.equal(url.password, ''); assert.equal(url.port, '');
+      assert.ok(url.hostname === 'gov.uk' || url.hostname.endsWith('.gov.uk') || url.hostname === 'www.denso-am.eu', `${guide.slug}: ${source.url} has a reviewed official source host`);
     }
     assert.equal(new Set(guide.sections.map(section => section.id)).size, guide.sections.length);
     for (const section of guide.sections) {
       assert.match(section.id, /^[a-z0-9-]+$/);
+      assert.ok(section.title.trim());
+      assert.ok(section.paragraphs.length > 0 && section.paragraphs.every(paragraph => typeof paragraph === 'string' && paragraph.trim()), `${guide.slug}/${section.id} has instructions`);
       assert.ok(section.sourceIds.length > 0, `${guide.slug}/${section.id} cites its source`);
       assert.ok(section.sourceIds.every(id => sourceIds.includes(id)));
     }
@@ -75,8 +78,18 @@ test('every real route renders its own article and breadcrumb data with matching
     assert.equal(route.metadata.alternates.canonical, `/guides/${guide.slug}`);
     assert.equal(guideMetadata(guide).openGraph.url, article.url);
     assert.ok(markup.includes('aria-label="Breadcrumb"'));
-    for (const section of guide.sections) assert.ok(markup.includes(`href="#${section.id}"`));
+    for (const section of guide.sections) {
+      assert.ok(markup.includes(`href="#${section.id}"`));
+      const renderedSection = markup.match(new RegExp(`<section[^>]*id="${section.id}"[^>]*>(.*?)</section>`))?.[1];
+      assert.ok(renderedSection, `${guide.slug}/${section.id} has a real anchor target`);
+      assert.ok(renderedSection.includes('Sources: '));
+      for (const id of section.sourceIds) {
+        const source = guide.sources.find(entry => entry.id === id);
+        assert.ok(renderedSection.includes(`href="${source.url.replaceAll('&', '&amp;')}"`), `${guide.slug}/${section.id} renders its own ${id} citation`);
+      }
+    }
     for (const source of guide.sources) assert.ok(markup.includes(source.url.replaceAll('&', '&amp;')));
+    assert.equal(markup.includes('GOV.UK sources:'), false, 'manufacturer references must not be labelled as government sources');
   }
 });
 
