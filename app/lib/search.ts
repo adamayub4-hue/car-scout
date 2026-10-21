@@ -108,6 +108,22 @@ export function buildCarLinks(fields: CarSearchFields): Partial<Record<Marketpla
     pistonHeads.append("price", minPrice || "0");
     pistonHeads.append("price", price);
   }
+  // These two make/model values and max_price were supplied by Gumtree.
+  // Keep the keyword fallback for every vehicle, year and selected extra;
+  // do not infer further provider identifiers from Mekivo's vehicle catalogue.
+  const gumtree = new URLSearchParams({ search_category: "cars", q: query });
+  const gumtreeModels: Record<string, { make: string; model: string }> = {
+    "volkswagen/golf": { make: "volkswagen", model: "GOLF" },
+    "ford/fiesta": { make: "ford", model: "FIESTA" },
+  };
+  const gumtreeVehicle = gumtreeModels[`${make.trim().toLowerCase()}/${model.trim().toLowerCase()}`];
+  if (gumtreeVehicle) {
+    gumtree.set("vehicle_make", gumtreeVehicle.make);
+    gumtree.set("vehicle_model", gumtreeVehicle.model);
+  }
+  if (/^\d+$/.test(price) && Number(price) > 0 && Number(price) <= 100_000_000) gumtree.set("max_price", String(Number(price)));
+  // Gumtree's examples used London. Do not silently apply that location to a
+  // UK-wide search, or invent a postcode, minimum-price or sorting contract.
   const slug = (value: string) => value.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const motorsPath = [slug(make), slug(model)].filter(Boolean).join("/");
   return {
@@ -115,7 +131,7 @@ export function buildCarLinks(fields: CarSearchFields): Partial<Record<Marketpla
     facebook: `https://www.facebook.com/marketplace/uk/search?query=${encodeURIComponent(query || "cars")}`,
     ebay: withEbayAffiliateTracking(`https://www.ebay.co.uk/sch/i.html?${ebay}`, "mekivo-car-search"),
     motors: `https://www.cazoo.co.uk/cars/${motorsPath ? `${motorsPath}/` : ""}`,
-    gumtree: `https://www.gumtree.com/search?search_category=cars&q=${encodeURIComponent(query)}`,
+    gumtree: `https://www.gumtree.com/search?${gumtree}`,
     cargurus: "https://www.cargurus.co.uk/shop/used",
     pistonheads: `https://www.pistonheads.com/buy/search?${pistonHeads}`,
     aacars: `https://www.theaa.com/used-cars/displaycars?${aaCars}`,
@@ -147,6 +163,9 @@ export function marketplaceFilterNote(id: MarketplaceId, hasExtras = false) {
   if (id === "facebook") return hasExtras
     ? "Opens a keyword search including selected extras. Use a personal Facebook profile with Marketplace access. Check budget, year and location filters on Facebook and confirm the equipment with the seller."
     : "Opens a keyword search. Use a personal Facebook profile with Marketplace access. Check budget, year and location filters on Facebook.";
+  if (id === "gumtree") return hasExtras
+    ? "Maximum price carried across; vehicle details and selected extras are search terms. Confirm the equipment with the seller and check minimum price, year, location, sorting and other filters on Gumtree."
+    : "Maximum price carried across; vehicle details are search terms. Check minimum price, year, location, sorting and other filters on Gumtree.";
   return hasExtras
     ? "Opens a keyword search including selected extras. Confirm the equipment with the seller and check budget, year and location filters on the marketplace."
     : "Opens a keyword search. Check budget, year and location filters on the marketplace.";
