@@ -7,6 +7,7 @@ export type Guide = {
     id: string;
     title: string;
     paragraphs: string[];
+    links?: { label: string; href: string }[];
     sourceIds: string[];
   }[];
   sources: { id: string; title: string; url: string }[];

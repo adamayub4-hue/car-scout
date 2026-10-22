@@ -187,6 +187,50 @@ test('clicking views exposes exactly one panel and preserves the live and price 
   assert.deepEqual(app.events, [], 'view navigation is neither a search nor an outbound click');
 });
 
+test('all-marketplace car results offer the submitted Gumtree search without tab switching or render events', () => {
+  const search = carSearch({ make: '', model: '', year: '', price: '1000', minPrice: '200', postcode: 'B1 1AA' });
+  const app = results({ search });
+  const link = nodes(activePanel(app)).find(node => node.type === 'a' && node.props.href === search.carLinks.gumtree);
+  assert.ok(link, 'Gumtree is available in the initial live panel');
+  assert.equal(text(link), 'Also search Gumtree — up to £1,000 ↗');
+  assert.equal(link.props.target, '_blank');
+  assert.match(link.props.rel, /noreferrer/);
+  const url = new URL(link.props.href);
+  assert.equal(url.searchParams.get('max_price'), '1000');
+  assert.equal(url.searchParams.has('search_location'), false);
+  assert.match(text(activePanel(app)), /Maximum budget carried across. Choose your location and check other filters on Gumtree/);
+  assert.deepEqual(app.events, [], 'showing the option does not register a click');
+  app.click(link);
+  assert.equal(app.events.length, 1);
+  assert.equal(app.events[0][0], 'marketplace_outbound');
+  assert.equal(app.events[0][1].marketplace, 'gumtree');
+  assert.equal(app.events[0][1].search_type, 'cars');
+  assert.equal(app.events[0][1].destination, 'search_results');
+  assertTabWiring(app, 'Live cars');
+});
+
+test('Gumtree shortcut remains useful for no matches but respects a specific marketplace or motorbike search', () => {
+  const app = results({ items: [], error: 'eBay unavailable', search: carSearch({ price: '' }) });
+  const links = () => nodes(activePanel(app)).filter(node => node.type === 'a');
+  assert.equal(links().length, 1);
+  assert.equal(text(links()[0]), 'Also search Gumtree ↗');
+  assert.doesNotMatch(text(activePanel(app)), /Maximum budget carried across/);
+  assert.deepEqual(app.events, []);
+  for (const search of [carSearch({ platform: 'ebay' }), carSearch({ vehicleType: 'motorbikes', platform: 'ebay' })]) {
+    const selected = results({ search });
+    assert.equal(nodes(activePanel(selected)).some(node => node.type === 'a' && /Gumtree/.test(text(node))), false);
+    assert.deepEqual(selected.events, []);
+  }
+});
+
+test('Gumtree card explains the retained maximum without claiming the other filters have transferred', () => {
+  const app = results({ search: carSearch({ platform: 'gumtree', price: '5000', minPrice: '1000' }) });
+  const link = nodes(activePanel(app)).find(node => node.type === 'a' && node.props.href === app.props.search.carLinks.gumtree);
+  assert.match(text(link), /Search these cars on Gumtree/);
+  assert.match(text(activePanel(app)), /Up to £5,000 carried across. Choose your location and check other filters on Gumtree/);
+  assert.deepEqual(app.events, []);
+});
+
 test('car and part result toolbars expose sharing of the submitted snapshot without activity events', () => {
   const carApp = results();
   assert.equal(carApp.one(node => node.type === Share).props.item, carApp.props.search.saveItem);
@@ -344,7 +388,8 @@ test('platform selection determines available views and only exposes its prepare
     const live = platform === 'all' || platform === 'ebay';
     assert.deepEqual(tabs(app).map(text), [...(live ? ['Live cars', 'Price picks'] : []), ...(platform !== 'ebay' ? ['Other sites'] : [])], platform);
     assertTabWiring(app, live ? 'Live cars' : 'Other sites');
-    assert.deepEqual(app.nodes().filter(node => node.type === 'a').map(node => node.props.href), [...expected.map(id => submitted.carLinks[id]), ...(platform === 'ebay' ? [] : ['https://motorway.co.uk/'])], platform);
+    const marketplacePanel = app.nodes().find(node => node.props?.id === 'car-panel-marketplaces');
+    assert.deepEqual(nodes(marketplacePanel).filter(node => node.type === 'a').map(node => node.props.href), [...expected.map(id => submitted.carLinks[id]), ...(platform === 'ebay' ? [] : ['https://motorway.co.uk/'])], platform);
     assert.equal(app.nodes().some(node => node.type === LiveListings), live);
     if (!live) {
       assert.equal(app.key(selectedTab(app), 'ArrowRight'), true);

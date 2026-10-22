@@ -303,7 +303,9 @@ export const newGuides: Guide[] = [
         paragraphs: [
           'GOV.UK’s used-car guidance starts with obtaining the registration, make, model and MOT test number, then comparing DVLA information, MOT history and recalls. Do those checks through the official routes you open yourself. Do not make a screenshot supplied by the seller your only record of the result.',
           'Our recommendation is to keep one note for the advert and another for independently checked facts. Record any mismatch as a question, including differences in description or claimed history. Ask the seller to resolve it before you travel or pay. If the listing is replaced or the registration changes during the conversation, make a fresh comparison. Avoid carrying reassurance from one vehicle across to another just because the seller or photographs look familiar.',
+          'When comparing adverts on eBay, Gumtree or another marketplace, keep the original advert addresses with your notes. The same photographs or description on more than one site do not independently confirm the car or seller. Compare the registration, price, seller and collection details, and resolve any differences before travelling or paying.',
         ],
+        links: [{ label: 'Plan your shortlist, budget and viewing checks', href: '/guides/buying-a-used-car#prepare-a-shortlist' }],
         sourceIds: ['used-car-checks'],
       },
       {

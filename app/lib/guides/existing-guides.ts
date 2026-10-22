@@ -1,4 +1,11 @@
 import type { Guide } from "./types";
+import { canonicalSearchRestoreUrl, getSavedSearchUrl } from "../saved-search";
+
+const budgetSearchHref = canonicalSearchRestoreUrl(getSavedSearchUrl({
+  kind: "car_search",
+  title: "Cars up to £1,000",
+  data: { price: "1000" },
+}))!;
 
 export const existingGuides: Guide[] = [
   {
@@ -16,8 +23,10 @@ export const existingGuides: Guide[] = [
         title: "Start with a budget and a small shortlist",
         paragraphs: [
           "Write down your maximum purchase price and leave a separate amount for collection, insurance, tax and any work identified during inspection. Get an insurance quote for a specific candidate before deciding that its price fits your budget. GOV.UK explains that insurance is required for driving on UK roads; the advertised price does not cover that responsibility.",
-          "For each candidate, save the original listing, asking price, advertised mileage, seller details and the date you checked it. Compare a few cars that meet the same needs rather than treating the cheapest advert as the best purchase. Note what would make you reject a car: missing information, unresolved faults or costs that leave no room for essential work.",
+          "For example, if your purchase-price limit is £1,000, open the search below, check the budget and press Search. You can then use “Also search Gumtree” beside the results to carry that maximum price across and choose your location on Gumtree. This example sets a search limit; it does not mean a suitable car is available at that price.",
+          "Compare a few cars with the same budget and needs across marketplaces. For each candidate, save the original listing, asking price, advertised mileage, seller details and the date you checked it. Check whether two adverts describe the same car before counting them as separate options. Note missing information, unresolved faults or costs that leave no room for essential work.",
         ],
+        links: [{ label: "Set up a car search up to £1,000", href: budgetSearchHref }],
         sourceIds: ["insurance"],
       },
       {

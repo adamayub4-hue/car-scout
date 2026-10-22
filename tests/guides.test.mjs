@@ -16,7 +16,7 @@ function load(url) {
   const source = ts.transpileModule(readFileSync(url, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   }).outputText;
-  vm.runInNewContext(source, { exports, URL, Date, Intl, require(name) {
+  vm.runInNewContext(source, { exports, URL, URLSearchParams, Date, Intl, require(name) {
     if (name === 'next/link') return { __esModule: true, default: 'a' };
     if (!name.startsWith('.')) return require(name);
     const path = name.endsWith('/guides') ? `${name}/index.ts` : `${name}${name.includes('components/') ? '.tsx' : '.ts'}`;
@@ -134,6 +134,37 @@ test('other guides keep the existing car or parts search card and picture-guide 
       assert.ok(card.includes('Search UK cars'));
     }
   }
+});
+
+test('buying-guide example restores a £1,000 car budget for review and keeps Gumtree clicks on results', () => {
+  const guide = guides.find(entry => entry.slug === 'buying-a-used-car');
+  const section = guide.sections.find(entry => entry.id === 'prepare-a-shortlist');
+  const link = section.links.find(entry => entry.label === 'Set up a car search up to £1,000');
+  const url = new URL(link.href, 'https://mekivo.uk');
+  const { parseSavedSearchParams, searchLandingState } = load(new URL('../app/lib/saved-search.ts', import.meta.url));
+  const restored = parseSavedSearchParams(url.searchParams);
+  assert.equal(url.origin, 'https://mekivo.uk');
+  assert.equal(url.pathname, '/cars');
+  assert.equal(restored.mode, 'cars');
+  assert.equal(restored.price, '1000');
+  assert.equal(restored.platform, 'all');
+  assert.equal(restored.make, '');
+  assert.equal(restored.model, '');
+  assert.equal(restored.postcode, '');
+  assert.equal(searchLandingState(url.searchParams, 'cars', 'cars').autoRun, false, 'the reader checks the criteria and presses Search');
+  const markup = renderToStaticMarkup(React.createElement(Article, { guide }));
+  assert.ok(markup.includes(`href="${link.href.replaceAll('&', '&amp;')}"`));
+  assert.ok(markup.includes('Also search Gumtree'));
+  assert.equal(markup.includes('href="https://www.gumtree.com'), false, 'outbound tracking remains on the results action');
+});
+
+test('scam-guide comparison link resolves to the shortlist and budget section', () => {
+  const guide = guides.find(entry => entry.slug === 'avoiding-used-car-scams');
+  const markup = renderToStaticMarkup(React.createElement(Article, { guide }));
+  assert.ok(markup.includes('href="/guides/buying-a-used-car#prepare-a-shortlist"'));
+  assert.ok(markup.includes('Plan your shortlist, budget and viewing checks'));
+  const buyingGuide = guides.find(entry => entry.slug === 'buying-a-used-car');
+  assert.ok(buyingGuide.sections.some(section => section.id === 'prepare-a-shortlist'));
 });
 
 test('structured data cannot close its script when content contains HTML', () => {

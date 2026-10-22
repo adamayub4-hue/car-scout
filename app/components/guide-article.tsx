@@ -66,6 +66,7 @@ export default function GuideArticle({ guide }: { guide: Guide }) {
             <section key={section.id} id={section.id} className="scroll-mt-6 border-t border-outline/10 pt-6">
               <h2 className="text-2xl font-bold">{section.title}</h2>
               {section.paragraphs.map((paragraph) => <p key={paragraph} className="mt-4 leading-8 text-muted">{paragraph}</p>)}
+              {section.links?.map((link) => <p key={link.href} className="mt-4 leading-8"><Link href={link.href} className="font-semibold text-link underline underline-offset-2">{link.label}</Link></p>)}
               {section.sourceIds.length > 0 && <p className="mt-4 text-sm leading-6 text-subtle">Sources: {section.sourceIds.map((id, index) => {
                 const source = guide.sources.find((entry) => entry.id === id)!;
                 return <span key={id}>{index > 0 && "; "}<a href={source.url} className="text-link underline underline-offset-2">{source.title}</a></span>;

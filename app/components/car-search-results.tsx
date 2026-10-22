@@ -45,6 +45,7 @@ export default function CarSearchResults({ search, items, loading, error, search
   const selectedMarketplaces = marketplaces.filter(item => search.platform === "all" || search.platform === item.id || (search.platform === "more" && moreMarketplaceIds.includes(item.id)));
   const money = (value: string) => `£${Number(value).toLocaleString("en-GB")}`;
   const budget = search.minPrice && search.maxPrice ? `${money(search.minPrice)}–${money(search.maxPrice)}` : search.maxPrice ? `Up to ${money(search.maxPrice)}` : search.minPrice ? `From ${money(search.minPrice)}` : "Any budget";
+  const gumtreeShortcut = !isMotorbikes && search.platform === "all" ? search.carLinks?.gumtree : undefined;
   const postcode = typeof search.saveItem.data.postcode === "string" ? search.saveItem.data.postcode : "";
   const requestedExtras = isMotorbikes ? [] : carExtraLabels(search.carExtras);
 
@@ -98,6 +99,14 @@ export default function CarSearchResults({ search, items, loading, error, search
         {!loading && !error && searchInfo?.partial && items.length > 0 && <div role="status" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-sm text-warning">eBay stopped responding before this search finished. These {vehiclePlural} were returned successfully. <button type="button" onClick={onRetry} className="font-semibold underline underline-offset-4">Try again for more</button>.</div>}
         {requestedExtras.length > 0 && <p className="mt-3 text-xs leading-5 text-subtle">Extras are matched from advert titles and returned summaries. Equipment can be omitted or described differently; confirm the exact specification and working condition with the seller.</p>}
         {!loading && !error && items.length > 0 && <p className="mt-4 text-sm font-semibold text-muted">{items.length} matching {items.length === 1 ? (isMotorbikes ? "motorbike" : "car") : vehiclePlural} returned{items.length > 3 ? " · Use Next below to browse more" : ""}</p>}
+        {gumtreeShortcut && <aside aria-label="Gumtree search option" className="mt-4 rounded-xl border border-outline/15 bg-overlay/[0.035] px-4 py-3">
+          <a href={gumtreeShortcut} target="_blank" rel="noreferrer"
+            onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: "gumtree", search_type: "cars", destination: "search_results" })}
+            className="inline-flex min-h-11 items-center rounded-md py-2 text-sm font-semibold text-link underline decoration-link/40 underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">
+            Also search Gumtree{search.maxPrice ? ` — up to ${money(search.maxPrice)}` : ""} ↗
+          </a>
+          <p className="text-xs leading-5 text-muted">{search.maxPrice ? "Maximum budget carried across. " : ""}Choose your location and check other filters on Gumtree.</p>
+        </aside>}
         <EbayResults items={items} loading={loading} error={error} fallbackUrl={search.fallbackUrl} searchUrl={getSavedSearchUrl(search.saveItem)} searchType={searchType} search={search} incomplete={searchInfo?.partial} onRetry={onRetry} onEdit={onEdit} onOtherSites={tabs.some(tab => tab.id === "marketplaces") ? () => { changeView("marketplaces"); tabRefs.current.marketplaces?.focus({ preventScroll: true }); } : undefined} />
         <p className="mt-3 text-xs leading-5 text-subtle">{!loading && !error && searchInfo ? `${searchInfo.checkedCount} eBay listings checked across ${searchInfo.pagesChecked} ${searchInfo.pagesChecked === 1 ? "batch" : "batches"}. ${searchInfo.hasMore ? "More listings may be available on eBay. " : ""}` : "Up to 192 eBay listings located in the UK checked per search, returning up to 48 matches. "}Budgets and price sorts use advertised purchase prices, not auction bids; delivery and fees may be extra. This does not compare every UK marketplace.</p>
       </>}
@@ -111,10 +120,10 @@ export default function CarSearchResults({ search, items, loading, error, search
               onClick={() => trackGrowthEvent("marketplace_outbound", { marketplace: item.id, search_type: searchType, destination: "search_results" })}
               className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-400">
               <h4 className="min-h-10 text-sm font-bold sm:min-h-0">{item.name}</h4>
-              <span className="mt-2 inline-block text-xs font-semibold text-link">{item.id === "cargurus" || item.id === "carwow" ? `Choose car on ${item.name} ↗` : "Open search ↗"}</span>
+              <span className="mt-2 inline-block text-xs font-semibold text-link">{item.id === "gumtree" ? "Search these cars on Gumtree ↗" : item.id === "cargurus" || item.id === "carwow" ? `Choose car on ${item.name} ↗` : "Open search ↗"}</span>
             </a>
             {item.id === "facebook" && <p className="mt-2 text-xs leading-5 text-muted">Use your personal Facebook profile. Pages cannot use Marketplace.</p>}
-            {item.id === "gumtree" && <p className="mt-2 text-xs leading-5 text-muted">Choose your location on Gumtree.</p>}
+            {item.id === "gumtree" && <p className="mt-2 text-xs leading-5 text-muted">{search.maxPrice ? `Up to ${money(search.maxPrice)} carried across. ` : ""}Choose your location and check other filters on Gumtree.</p>}
             {item.id === "cargurus" && <p className="mt-2 text-xs leading-5 text-muted">Choose your make and model on CarGurus.</p>}
             {item.id === "carwow" && <p className="mt-2 text-xs leading-5 text-muted">Choose your make, model and budget on Carwow.</p>}
             <details className="mt-3 text-xs leading-5 text-subtle"><summary className="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-sky-400">Filters carried across</summary><p className="mt-2">{marketplaceFilterNote(item.id, requestedExtras.length > 0)}</p></details>
